@@ -6,7 +6,7 @@ const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV";
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
 // On cible DIRECTEMENT le fichier qu'on vient de créer dans ton dépôt
-const API_URL = "data67.json";
+const API_URL = "prix-carburants-compact.json";
 
 
 // ==========================================
