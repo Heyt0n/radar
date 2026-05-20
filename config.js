@@ -1,18 +1,18 @@
 // ==========================================
-// 1. CONFIGURATION DES SOURCES (API TEMPS RÉEL)
+// 1. CONFIGURATION DES SOURCES (ZÉRO CLIC)
 // ==========================================
 
 const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
-// URL de l'API officielle filtrée chirurgicalement sur le Bas-Rhin (cp qui commence par 67)
-const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=cp%20like%20%2767*%27&limit=100");
+// Flux JSON pré-filtré et compressé uniquement pour le 67 (Temps réel sans bouton)
+const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://raw.githubusercontent.com/dfm-carburants/flux-instantane-filtre/main/67.json");
 
 
 // ==========================================
-// 2. INITIALISATION DE LA CARTE (BAS-RHIN)
+// 2. INITIALISATION DE LA CARTE
 // ==========================================
-var map = L.map('map', { zoomControl: false }).setView([48.60, 7.75], 10); // Centré sur Strasbourg/Bas-Rhin
+var map = L.map('map', { zoomControl: false }).setView([48.65, 7.72], 11);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; CARTO &copy; OpenStreetMap'
@@ -20,99 +20,66 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 
 // ==========================================
-// 3. MOTEUR RADAR : DECRYPTAGE DU FLUX EN DIRECT
+// 3. MOTEUR CARTOGRAPHIE AUTOMATIQUE
 // ==========================================
 
 async function fetchLiveStations() {
     try {
-        console.log("Radar : Interrogation des serveurs de l'État pour le 67...");
+        console.log("Radar : Connexion au flux JSON automatique du 67...");
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Échec de connexion API');
+        if (!response.ok) throw new Error('Flux indisponible');
         
-        const data = await response.json();
-        const stations = data.results || [];
-        console.log(`Radar : ${stations.length} stations détectées dans le flux.`);
+        const stations = await response.json();
+        console.log(`Radar : ${stations.length} stations chargées avec succès.`);
 
         // Nettoyage des anciens marqueurs
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        let compteurMarqueurs = 0;
+        let compteur = 0;
 
         stations.forEach(station => {
-            // Extraction et correction du positionnement géographique (Division par 100 000 pour corriger le bug de l'API)
-            let lat = station.latitude ? parseFloat(station.latitude) / 100000 : null;
-            let lon = station.longitude ? parseFloat(station.longitude) / 100000 : null;
+            // Lecture directe de la structure classique du fichier JSON
+            let lat = station.geom?.lat || station.latitude;
+            let lon = station.geom?.lon || station.longitude;
 
             if (lat && lon) {
-                compteurMarqueurs++;
+                compteur++;
 
-                // Initialisation des variables de prix
-                let gazole = "N.C", sp95 = "N.C", e10 = "N.C", sp98 = "N.C";
+                // Formatage propre des prix à 3 décimales
+                const gazole = station.gazole_prix ? parseFloat(station.gazole_prix).toFixed(3) + " €" : "N.C";
+                const sp95 = station.sp95_prix ? parseFloat(station.sp95_prix).toFixed(3) + " €" : "N.C";
+                const e10 = station.e10_prix ? parseFloat(station.e10_prix).toFixed(3) + " €" : "N.C";
+                const sp98 = station.sp98_prix ? parseFloat(station.sp98_prix).toFixed(3) + " €" : "N.C";
 
-                // Extraction chirurgicale des prix depuis la structure textuelle imbriquée de l'API
-                if (station.prix) {
-                    try {
-                        // Si la donnée arrive sous forme de chaîne de texte, on la décompresse en tableau
-                        let listePrix = typeof station.prix === 'string' ? JSON.parse(station.prix) : station.prix;
-                        
-                        listePrix.forEach(p => {
-                            let nomCarburant = p["@nom"];
-                            let valeurCarburant = p["@valeur"] ? parseFloat(p["@valeur"]).toFixed(3) + " €" : "N.C";
-
-                            if (nomCarburant === "Gazole") gazole = valeurCarburant;
-                            if (nomCarburant === "SP95") sp95 = valeurCarburant;
-                            if (nomCarburant === "E10") e10 = valeurCarburant;
-                            if (nomCarburant === "SP98") sp98 = valeurCarburant;
-                        });
-                    } catch (err) {
-                        console.error("Erreur décodage prix station: ", station.id, err);
-                    }
-                }
-
-                // Récupération des infos textuelles de la station
-                const nomStation = station.nom || station.marque || "Station Service";
+                const nom = station.nom || "Station Service";
                 const adresse = station.adresse || "";
                 const ville = station.ville || "";
 
-                // Déploiement du marqueur sur la carte
                 const marker = L.marker([lat, lon]).addTo(map);
                 
                 marker.bindPopup(`
                     <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px;">
-                        <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${nomStation}</h4>
+                        <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${nom}</h4>
                         <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic;">${adresse} (${ville})</p>
                         
                         <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <span style="color:#9ca3af;">Gazole :</span> 
-                                <span style="font-weight:bold; color:#ffffff;">${gazole}</span>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <span style="color:#9ca3af;">SP95-E10 :</span> 
- * <span style="font-weight:bold; color:#ffffff;">${e10}</span>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <span style="color:#9ca3af;">SP95 :</span> 
-                                <span style="font-weight:bold; color:#ffffff;">${sp95}</span>
-                            </div>
-                            <div style="display:flex; justify-content:space-between;">
-                                <span style="color:#9ca3af;">SP98 :</span> 
-                                <span style="font-weight:bold; color:#ffffff;">${sp98}</span>
-                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
+                            <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
                         </div>
                     </div>
                 `);
             }
         });
 
-        console.log(`Radar : Alignement réussi. ${compteurMarqueurs} stations déployées sur la carte.`);
+        console.log(`Radar : ${compteur} marqueurs déployés tactiquement.`);
     } catch (e) {
-        console.error("Erreur critique d'alignement radar :", e);
+        console.error("Erreur lecture flux JSON :", e);
     }
 }
-
 
 // ==========================================
 // 4. MOTEUR TRADING (GOOGLE SHEETS)
@@ -150,10 +117,10 @@ async function loadExpertData() {
     } catch (e) { console.error("Erreur Sheets :", e); }
 }
 
-// Lancement automatique
+// Initialisation au chargement
 fetchLiveStations();
 loadExpertData();
 
-// Boucles de rafraîchissement
-setInterval(fetchLiveStations, 21600000); // 6 heures
-setInterval(loadExpertData, 300000);       // 5 minutes
+// Rafraîchissements (6h pour l'essence, 5min pour le trading)
+setInterval(fetchLiveStations, 21600000);
+setInterval(loadExpertData, 300000);
