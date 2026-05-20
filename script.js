@@ -25,6 +25,8 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 // ==========================================
 // 3. MOTEUR RADAR : FILTRE TACTIQUE RAYON 50 KM
 // ==========================================
+
+
 async function loadLocalRadar() {
     try {
         console.log("Radar : Analyse du fichier national en cours...");
@@ -33,23 +35,23 @@ async function loadLocalRadar() {
         if (!response.ok) throw new Error('Impossible d'accéder au fichier JSON');
         
         const stations = await response.json();
-        console.log(`Radar : ${stations.length} cibles lues. Application du filtre de proximité (50 km)...`);
+        console.log(`Radar : ${stations.length} cibles lues. Application du filtre (50 km)...`);
 
         // Nettoyage complet de la carte
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        // Définition du centre de tir pour le calcul de distance
-        const centreBase = L.latLng(LAT_BASE, LON_BASE);
+        // Point central de référence sous forme de simple tableau [lat, lon]
+        const centreBase = [LAT_BASE, LON_BASE];
         const RAYON_MAX_METRES = 50000; // 50 kilomètres
         let compteurCibles = 0;
 
         stations.forEach(station => {
-            // Extraction sécurisée des coordonnées géographiques
             let lat = null;
             let lon = null;
 
+            // Extraction des coordonnées du fichier compacté
             if (station.geom && station.geom.lat) {
                 lat = parseFloat(station.geom.lat);
                 lon = parseFloat(station.geom.lon);
@@ -58,14 +60,13 @@ async function loadLocalRadar() {
                 lon = parseFloat(station.longitude) / 100000;
             }
 
-            // Si la station possède des coordonnées valides, on calcule sa portée
             if (lat && !isNaN(lat) && lon && !isNaN(lon)) {
-                const positionStation = L.latLng(lat, lon);
+                const positionStation = [lat, lon];
                 
-                // Calcul de la distance réelle entre ta base et la station
-                const distanceMetres = centreBase.distanceTo(positionStation);
+                // CORRECTION ICI : Utilisation de map.distance() qui est 100% stable
+                const distanceMetres = map.distance(centreBase, positionStation);
 
-                // FILTRE CHIRURGICAL : Si la station est à moins de 50 km, on l'affiche
+                // Si la station est dans le rayon, on l'affiche
                 if (distanceMetres <= RAYON_MAX_METRES) {
                     compteurCibles++;
 
@@ -73,7 +74,6 @@ async function loadLocalRadar() {
                     const ville = station.ville || "";
                     const adresse = station.adresse || "";
                     
-                    // Sécurité anti-crash si un prix est manquant dans le fichier de l'État
                     const gazole = station.gazole_prix ? parseFloat(station.gazole_prix).toFixed(3) + " €" : "N.C";
                     const e10 = station.e10_prix ? parseFloat(station.e10_prix).toFixed(3) + " €" : "N.C";
                     const sp98 = station.sp98_prix ? parseFloat(station.sp98_prix).toFixed(3) + " €" : "N.C";
@@ -98,12 +98,11 @@ async function loadLocalRadar() {
             }
         });
 
-        console.log(`Radar : Zone sécurisée. ${compteurCibles} stations déployées à portée de tir.`);
+        console.log(`Radar : Filtrage réussi ! ${compteurCibles} stations détectées à moins de 50km.`);
     } catch (e) {
         console.error("Erreur critique d'analyse radar :", e);
     }
 }
-
 
 // ==========================================
 // 4. MOTEUR ANALYSE DE MARCHÉ (GOOGLE SHEETS)
