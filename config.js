@@ -2,7 +2,7 @@
 // 1. CONFIGURATION DES SOURCES (ZÉRO CLIC)
 // ==========================================
 
-const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
+const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRW60ydSoi-Sv1xYticG_zs5hZiyATy5kwKXxW2HjawyLk0-pAJCAZ97N2-k2bBKHyQXQRdI3Xtj6pF/pubhtml"; 
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
 // Flux JSON pré-filtré et compressé uniquement pour le 67 (Temps réel sans bouton)
