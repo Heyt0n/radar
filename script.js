@@ -25,14 +25,12 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 // ==========================================
 // 3. MOTEUR RADAR : FILTRE TACTIQUE RAYON 50 KM
 // ==========================================
-
-
 async function loadLocalRadar() {
     try {
         console.log("Radar : Analyse du fichier national en cours...");
         
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Impossible d'accéder au fichier JSON');
+        if (!response.ok) throw new Error("Impossible d'accéder au fichier JSON");
         
         const stations = await response.json();
         console.log(`Radar : ${stations.length} cibles lues. Application du filtre (50 km)...`);
@@ -63,7 +61,7 @@ async function loadLocalRadar() {
             if (lat && !isNaN(lat) && lon && !isNaN(lon)) {
                 const positionStation = [lat, lon];
                 
-                // CORRECTION ICI : Utilisation de map.distance() qui est 100% stable
+                // Utilisation de map.distance() qui est 100% stable
                 const distanceMetres = map.distance(centreBase, positionStation);
 
                 // Si la station est dans le rayon, on l'affiche
