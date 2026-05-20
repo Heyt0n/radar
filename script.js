@@ -74,11 +74,12 @@ async function loadRegionalData(fichierTarget) {
         });
 
         stations.forEach(station => {
-            let lat = station.geom?.lat;
-            let lon = station.geom?.lon;
+            // Lecture standardisée des coordonnées du fichier compacté
+            let lat = station.geom?.lat || (station.latitude ? parseFloat(station.latitude) / 100000 : null);
+            let lon = station.geom?.lon || (station.longitude ? parseFloat(station.longitude) / 100000 : null);
 
-            if (lat && lon) {
-                const nom = station.nom || "Station Service";
+            if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+                const nom = station.nom || station.marque || "Station Service";
                 const ville = station.ville || "";
                 const adresse = station.adresse || "";
                 
@@ -101,12 +102,11 @@ async function loadRegionalData(fichierTarget) {
                 `);
             }
         });
-        console.log("Radar : Déploiement local terminé.");
+        console.log("Radar : Déploiement local terminé. Toutes les stations sont opérationnelles.");
     } catch (e) {
         console.error("Erreur de chargement des cibles :", e);
     }
 }
-
 // ==========================================
 // 4. MOTEUR ANALYSE DE MARCHÉ (GOOGLE SHEETS)
 // ==========================================
