@@ -1,13 +1,13 @@
 // ==========================================
-// 1. CONFIGURATION DES SOURCES (ZÉRO CLIC)
+// 1. CONFIGURATION DES SOURCES (ZÉRO CLIC - DIRECT)
 // ==========================================
 
-const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRW60ydSoi-Sv1xYticG_zs5hZiyATy5kwKXxW2HjawyLk0-pAJCAZ97N2-k2bBKHyQXQRdI3Xtj6pF/pubhtml"; 
+const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
+// Proxy conservé uniquement pour Google Sheets si nécessaire
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
-// Flux JSON pré-filtré et compressé uniquement pour le 67 (Temps réel sans bouton)
-const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://raw.githubusercontent.com/dfm-carburants/flux-instantane-filtre/main/67.json");
-
+// URL EN DIRECT DIRECT : Sans proxy, connexion ultra-rapide et sécurisée au flux du 67
+const API_URL = "https://raw.githubusercontent.com/dfm-carburants/flux-instantane-filtre/main/67.json";
 
 // ==========================================
 // 2. INITIALISATION DE LA CARTE
