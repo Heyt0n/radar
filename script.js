@@ -85,7 +85,7 @@ async function loadLocalRadar() {
     } catch (e) {
         console.error("Erreur filtre proximité :", e);
     }
-
+}
 // ==========================================
 // 4. TRADING GOOGLE SHEETS
 // ==========================================
