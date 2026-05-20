@@ -1,0 +1,34 @@
+const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRW60ydSoi-Sv1xYticG_zs5hZiyATy5kwKXxW2HjawyLk0-pAJCAZ97N2-k2bBKHyQXQRdI3Xtj6pF/pub?output=csv";
+
+async function loadData() {
+    const response = await fetch(sheetURL);
+    const csvData = await response.text();
+    
+    Papa.parse(csvData, {
+        header: true,
+        complete: (results) => {
+            const rows = results.data;
+            const lastUpdate = rows[rows.length - 1]; // La dernière ligne de ton tableau
+            
+            // 1. Mise à jour du commentaire et des jauges
+            document.getElementById('sniper-comment').innerText = lastUpdate.Commentaire;
+            document.getElementById('val-brent').innerText = lastUpdate.brent + "$";
+            document.getElementById('val-marge').innerText = lastUpdate.Marge;
+            
+            // 2. Logique de signal
+            const marge = parseFloat(lastUpdate.Marge);
+            if(marge < 0.55) {
+                document.getElementById('timer-display').innerText = "ACHETER";
+                document.getElementById('timer-display').style.color = "#22c55e";
+            } else {
+                document.getElementById('timer-display').innerText = "ATTENDRE";
+                document.getElementById('timer-display').style.color = "#ef4444";
+            }
+
+            // 3. Ici tu peux aussi boucler sur les colonnes pour placer tes stations sur la map
+            console.log("Données synchronisées !");
+        }
+    });
+}
+
+loadData();
