@@ -7,7 +7,7 @@ const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV";
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
 // URL du flux officiel de l'État en direct (via un proxy pour éviter les blocages)
-const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://files.transport.data.gouv.fr/marches-publics/prix-carburants/prix-des-carburants-en-france-flux-instantane-v2.json");
+const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=cp%20like%20%2767*%27&limit=100");
 
 
 // ==========================================
@@ -26,15 +26,52 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 async function fetchLiveStations() {
     try {
-        console.log("Radar : Scan du flux national en cours...");
+        console.log("Radar : Connexion directe à l'API d'État du 67...");
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Échec du scan');
-        const stations = await response.json();
+        if (!response.ok) throw new Error('Échec de la liaison avec le serveur');
+        const data = await response.json();
         
-        // Nettoyage des anciens marqueurs
+        // L'API officielle range les stations dans un tableau appelé "results"
+        const stations = data.results || []; 
+        
+        // Nettoyage des anciens marqueurs sur la carte
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
+
+        let compteur = 0;
+
+        stations.forEach(station => {
+            // Extraction des prix de l'API (gazole_prix, sp98_prix, etc.)
+            const gazole = station.gazole_prix ? station.gazole_prix.toFixed(3) + " €" : "N.C";
+            const sp95 = station.sp95_prix ? station.sp95_prix.toFixed(3) + " €" : "N.C";
+            const e10 = station.e10_prix ? station.e10_prix.toFixed(3) + " €" : "N.C";
+            const sp98 = station.sp98_prix ? station.sp98_prix.toFixed(3) + " €" : "N.C";
+            
+            // Vérification des coordonnées géographiques fournies par l'API (champs lat et lon)
+            if (station.geom && station.geom.lat && station.geom.lon) {
+                compteur++;
+                const marker = L.marker([station.geom.lat, station.geom.lon]).addTo(map);
+                
+                marker.bindPopup(`
+                    <div style="background:#1f2937; color:white; padding:10px; border-radius:12px; font-family:sans-serif; min-width:220px;">
+                        <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${station.nom || "Station Service"}</h4>
+                        <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic;">${station.adresse || ""} (${station.ville || ""})</p>
+                        <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
+                            <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
+                        </div>
+                    </div>
+                `);
+            }
+        });
+        console.log(`Radar : ${compteur} stations du 67 synchronisées en direct sans téléchargement !`);
+    } catch (e) {
+        console.error("Erreur radar en direct :", e);
+    }
+}
 
         let compteur = 0;
 
