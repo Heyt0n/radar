@@ -1,19 +1,19 @@
 // ==========================================
-// 1. CONFIGURATION DES SOURCES (TEMPS RÉEL)
+// 1. CONFIGURATION DES SOURCES (TEMPS RÉEL API)
 // ==========================================
 
 // COPIE TON LIEN DE SPREADSHEET ICI (Fichier > Partager > Publier au format CSV)
 const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
-// URL du flux officiel de l'État en direct (via un proxy pour éviter les blocages)
+// URL chirurgicale utilisant l'API v2.1 officielle filtrée sur le 67
 const API_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=cp%20like%20%2767*%27&limit=100");
 
 
 // ==========================================
 // 2. INITIALISATION DE LA CARTE (STYLE SOMBRE)
 // ==========================================
-var map = L.map('map', { zoomControl: false }).setView([48.71, 7.82], 12);
+var map = L.map('map', { zoomControl: false }).setView([48.71, 7.82], 11);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; CARTO &copy; OpenStreetMap'
@@ -21,20 +21,22 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 
 // ==========================================
-// 3. MOTEUR CARTOGRAPHIE : LE RADAR AUTOMATIQUE
+// 3. MOTEUR CARTOGRAPHIE : DEPLOYEUR TACTIQUE
 // ==========================================
 
 async function fetchLiveStations() {
     try {
-        console.log("Radar : Connexion directe à l'API d'État du 67...");
+        console.log("Radar : Connexion en cours aux serveurs data.economie.gouv.fr...");
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Échec de la liaison avec le serveur');
-        const data = await response.json();
+        if (!response.ok) throw new Error('Serveur injoignable');
         
-        // L'API officielle range les stations dans un tableau appelé "results"
+        const data = await response.json();
+        // L'API v2.1 range toujours ses lignes dans le tableau "results"
         const stations = data.results || []; 
         
-        // Nettoyage des anciens marqueurs sur la carte
+        console.log(`Radar : ${stations.length} lignes brutes récupérées du serveur.`);
+
+        // Nettoyage complet des anciens marqueurs
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
@@ -42,86 +44,79 @@ async function fetchLiveStations() {
         let compteur = 0;
 
         stations.forEach(station => {
-            // Extraction des prix de l'API (gazole_prix, sp98_prix, etc.)
-            const gazole = station.gazole_prix ? station.gazole_prix.toFixed(3) + " €" : "N.C";
-            const sp95 = station.sp95_prix ? station.sp95_prix.toFixed(3) + " €" : "N.C";
-            const e10 = station.e10_prix ? station.e10_prix.toFixed(3) + " €" : "N.C";
-            const sp98 = station.sp98_prix ? station.sp98_prix.toFixed(3) + " €" : "N.C";
-            
-            // Vérification des coordonnées géographiques fournies par l'API (champs lat et lon)
-            if (station.geom && station.geom.lat && station.geom.lon) {
+            // 1. Détection polyvalente des coordonnées géographiques (selon la version de l'API)
+            let latitude = null;
+            let longitude = null;
+
+            if (station.geom) {
+                latitude = station.geom.lat;
+                longitude = station.geom.lon;
+            } else if (station.latitude && station.longitude) {
+                latitude = station.latitude;
+                longitude = station.longitude;
+            }
+
+            // Si on a des coordonnées valides, on extrait les prix et on déploie
+            if (latitude && longitude) {
                 compteur++;
-                const marker = L.marker([station.geom.lat, station.geom.lon]).addTo(map);
+
+                // Extraction sécurisée des prix (formatage automatique à 3 décimales)
+                const gazole = station.gazole_prix ? parseFloat(station.gazole_prix).toFixed(3) + " €" : "N.C";
+                const sp95 = station.sp95_prix ? parseFloat(station.sp95_prix).toFixed(3) + " €" : "N.C";
+                const e10 = station.e10_prix ? parseFloat(station.e10_prix).toFixed(3) + " €" : "N.C";
+                const sp98 = station.sp98_prix ? parseFloat(station.sp98_prix).toFixed(3) + " €" : "N.C";
+                
+                // Récupération de l'identité de la station
+                const nom = station.nom || station.marque || "Station Service";
+                const adresse = station.adresse || "";
+                const ville = station.ville || "";
+
+                // Création du marqueur sur la carte
+                const marker = L.marker([latitude, longitude]).addTo(map);
                 
                 marker.bindPopup(`
-                    <div style="background:#1f2937; color:white; padding:10px; border-radius:12px; font-family:sans-serif; min-width:220px;">
-                        <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${station.nom || "Station Service"}</h4>
-                        <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic;">${station.adresse || ""} (${station.ville || ""})</p>
+                    <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);">
+                        <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${nom}</h4>
+                        <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic; line-height:1.2;">${adresse}<br><b>${ville}</b></p>
+                        
                         <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
-                            <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="color:#9ca3af;">Gazole :</span> 
+                                <span style="font-weight:bold; color:#ffffff;">${gazole}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="color:#9ca3af;">SP95-E10 :</span> 
+                                <span style="font-weight:bold; color:#ffffff;">${e10}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span style="color:#9ca3af;">SP95 :</span> 
+                                <span style="font-weight:bold; color:#ffffff;">${sp95}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:#9ca3af;">SP98 :</span> 
+                                <span style="font-weight:bold; color:#ffffff;">${sp98}</span>
+                            </div>
                         </div>
                     </div>
                 `);
             }
         });
-        console.log(`Radar : ${compteur} stations du 67 synchronisées en direct sans téléchargement !`);
+
+        console.log(`Radar : Alignement réussi. ${compteur} stations actives sur le 67.`);
     } catch (e) {
-        console.error("Erreur radar en direct :", e);
+        console.error("Erreur critique d'alignement radar :", e);
     }
 }
 
-        let compteur = 0;
-
-        stations.forEach(station => {
-            // Filtrage chirurgical sur le Bas-Rhin (67)
-            if (station.cp && station.cp.startsWith("67")) {
-                
-                const gazole = station.gazole_prix ? station.gazole_prix.toFixed(3) + " €" : "N.C";
-                const sp95 = station.sp95_prix ? station.sp95_prix.toFixed(3) + " €" : "N.C";
-                const e10 = station.e10_prix ? station.e10_prix.toFixed(3) + " €" : "N.C";
-                const sp98 = station.sp98_prix ? station.sp98_prix.toFixed(3) + " €" : "N.C";
-                
-                if (station.geom && station.geom.lat && station.geom.lon) {
-                    compteur++;
-                    const marker = L.marker([station.geom.lat, station.geom.lon]).addTo(map);
-                    
-                    marker.bindPopup(`
-                        <div style="background:#1f2937; color:white; padding:10px; border-radius:12px; font-family:sans-serif; min-width:220px;">
-                            <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${station.nom || "Station"}</h4>
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic;">${station.adresse || ""} (${station.ville || ""})</p>
-                            <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
-                                <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
-                            </div>
-                        </div>
-                    `);
-                }
-            }
-        });
-        console.log(`Radar : ${compteur} stations du 67 synchronisées au centime près.`);
-    } catch (e) {
-        console.error("Erreur radar :", e);
-    }
-}
 
 // ==========================================
 // 4. MOTEUR TRADING (GOOGLE SHEETS)
 // ==========================================
 async function loadExpertData() {
     try {
-        if (GOOGLE_SHEETS_CSV_URL === "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV") {
-            console.log("Radar : En attente du lien Google Sheets.");
-            return;
-        }
+        if (GOOGLE_SHEETS_CSV_URL === "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV") return;
         const response = await fetch(sheetURL);
-        if (!response.ok) throw new Error('Erreur Sheets');
         const csvData = await response.text();
-        
         Papa.parse(csvData, {
             header: true,
             skipEmptyLines: true,
@@ -136,17 +131,13 @@ async function loadExpertData() {
                 
                 const marge = parseFloat(lastUpdate.Marge);
                 const display = document.getElementById('timer-display');
-                const icon = document.getElementById('status-icon');
-                
                 if(display && !isNaN(marge)) {
                     if(marge < 0.55) {
                         display.innerText = "ACHETER";
                         display.style.color = "#22c55e";
-                        if(icon) icon.innerText = "✅";
                     } else {
                         display.innerText = "ATTENDRE";
                         display.style.color = "#ef4444";
-                        if(icon) icon.innerText = "⏳";
                     }
                 }
             }
@@ -154,11 +145,10 @@ async function loadExpertData() {
     } catch (e) { console.error("Erreur Sheets :", e); }
 }
 
-// Lancement automatique au chargement du site
+// Initialisation immédiate
 fetchLiveStations();
 loadExpertData();
 
-// Boucles de rafraîchissement automatique
-setInterval(fetchLiveStations, 21600000); // Toutes les 6 heures pour le carburant
-setInterval(loadExpertData, 300000);       // Toutes les 5 minutes pour ton Sheets trading
-loadExpertData();
+// Rafraîchissements programmés en tâche de fond
+setInterval(fetchLiveStations, 21600000); // 6 heures
+setInterval(loadExpertData, 300000);       // 5 minutes
