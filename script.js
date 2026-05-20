@@ -1,18 +1,21 @@
 // ==========================================
-// 1. CONFIGURATION DU FLUX LOCAL ET SANS PROXY
+// 1. CONFIGURATION ET LIENS DES FLUX
 // ==========================================
-
 const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
-// On cible DIRECTEMENT le fichier qu'on vient de créer dans ton dépôt
+// Ton fichier national compacté présent sur ton GitHub
 const API_URL = "prix-carburants-compact.json";
 
 
 // ==========================================
-// 2. INITIALISATION DE LA CARTE (CENTRE SECTEUR)
+// 2. INITIALISATION DU RADAR (CENTRÉ SUR TON SECTEUR)
 // ==========================================
-var map = L.map('map', { zoomControl: false }).setView([48.70, 7.78], 11); // Centré sur zone Hoerdt / Haguenau
+// Coordonnées de base pour le Bas-Rhin
+const LAT_BASE = 48.72;
+const LON_BASE = 7.78;
+
+var map = L.map('map', { zoomControl: false }).setView([LAT_BASE, LON_BASE], 11);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap'
@@ -20,56 +23,70 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 
 
 // ==========================================
-// 3. CHARGEMENT AVEC FILTRE DE PÉRIMÈTRE (RAYON 50 KM)
+// 3. MOTEUR RADAR : FILTRE TACTIQUE RAYON 50 KM
 // ==========================================
 async function loadLocalRadar() {
     try {
-        console.log("Radar : Initialisation du filtre de proximité...");
+        console.log("Radar : Analyse du fichier national en cours...");
         
-        // Cible centrale de ton secteur (Coordonnées de ton point d'observation)
-        const centreSecteur = L.latLng(48.70, 7.78); 
-        const RAYON_MAX_METRES = 50000; // 50 KM exprimés en mètres
-
         const response = await fetch(API_URL);
+        if (!response.ok) throw new Error('Impossible d'accéder au fichier JSON');
+        
         const stations = await response.json();
+        console.log(`Radar : ${stations.length} cibles lues. Application du filtre de proximité (50 km)...`);
 
-        // Nettoyage de la carte
+        // Nettoyage complet de la carte
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        let stationsAffichees = 0;
+        // Définition du centre de tir pour le calcul de distance
+        const centreBase = L.latLng(LAT_BASE, LON_BASE);
+        const RAYON_MAX_METRES = 50000; // 50 kilomètres
+        let compteurCibles = 0;
 
         stations.forEach(station => {
-            // Lecture des coordonnées du fichier national
-            let lat = station.geom?.lat || (station.latitude ? parseFloat(station.latitude) / 100000 : null);
-            let lon = station.geom?.lon || (station.longitude ? parseFloat(station.longitude) / 100000 : null);
+            // Extraction sécurisée des coordonnées géographiques
+            let lat = null;
+            let lon = null;
 
-            if (lat && lon) {
+            if (station.geom && station.geom.lat) {
+                lat = parseFloat(station.geom.lat);
+                lon = parseFloat(station.geom.lon);
+            } else if (station.latitude && station.longitude) {
+                lat = parseFloat(station.latitude) / 100000;
+                lon = parseFloat(station.longitude) / 100000;
+            }
+
+            // Si la station possède des coordonnées valides, on calcule sa portée
+            if (lat && !isNaN(lat) && lon && !isNaN(lon)) {
                 const positionStation = L.latLng(lat, lon);
                 
-                // CALCUL DE LA DISTANCE CHIRURGICALE
-                const distance = map.distance(centreSecteur, positionStation);
+                // Calcul de la distance réelle entre ta base et la station
+                const distanceMetres = centreBase.distanceTo(positionStation);
 
-                // SI LA CIBLE EST DANS LE RAYON DES 50 KM, ON DÉPLOIE LE MARQUEUR
-                if (distance <= RAYON_MAX_METRES) {
-                    stationsAffichees++;
+                // FILTRE CHIRURGICAL : Si la station est à moins de 50 km, on l'affiche
+                if (distanceMetres <= RAYON_MAX_METRES) {
+                    compteurCibles++;
 
                     const nom = station.nom || station.marque || "Station Service";
                     const ville = station.ville || "";
                     const adresse = station.adresse || "";
                     
+                    // Sécurité anti-crash si un prix est manquant dans le fichier de l'État
                     const gazole = station.gazole_prix ? parseFloat(station.gazole_prix).toFixed(3) + " €" : "N.C";
                     const e10 = station.e10_prix ? parseFloat(station.e10_prix).toFixed(3) + " €" : "N.C";
                     const sp98 = station.sp98_prix ? parseFloat(station.sp98_prix).toFixed(3) + " €" : "N.C";
+                    
+                    const distanceKm = (distanceMetres / 1000).toFixed(1);
 
                     const marker = L.marker([lat, lon]).addTo(map);
                     
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:210px;">
                             <h4 style="margin:0 0 4px 0; color:#22c55e; font-weight:900; font-size:13px; text-transform:uppercase;">${nom}</h4>
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af; font-style:italic;">${adresse} (${ville})</p>
-                            <p style="margin:-5px 0 10px 0; font-size:10px; color:#3b82f6; font-weight:bold;">📍 À ${(distance/1000).toFixed(1)} km de votre base</p>
+                            <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af; font-style:italic;">${adresse} (${ville})</p>
+                            <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 Portée : ${distanceKm} km</p>
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
                                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
                                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
@@ -81,13 +98,15 @@ async function loadLocalRadar() {
             }
         });
 
-        console.log(`Radar : Périmètre verrouillé. ${stationsAffichees} stations déployées dans un rayon de 50km.`);
+        console.log(`Radar : Zone sécurisée. ${compteurCibles} stations déployées à portée de tir.`);
     } catch (e) {
-        console.error("Erreur filtre proximité :", e);
+        console.error("Erreur critique d'analyse radar :", e);
     }
 }
+
+
 // ==========================================
-// 4. TRADING GOOGLE SHEETS
+// 4. MOTEUR ANALYSE DE MARCHÉ (GOOGLE SHEETS)
 // ==========================================
 async function loadExpertData() {
     try {
@@ -101,6 +120,7 @@ async function loadExpertData() {
                 const rows = results.data;
                 if (rows.length === 0) return;
                 const lastUpdate = rows[rows.length - 1]; 
+                
                 if(document.getElementById('sniper-comment')) document.getElementById('sniper-comment').innerText = lastUpdate.Commentaire || "Aucun commentaire.";
                 if(document.getElementById('val-brent')) document.getElementById('val-brent').innerText = (lastUpdate.brent || "--") + " $";
                 if(document.getElementById('val-marge')) document.getElementById('val-marge').innerText = lastUpdate.Marge || "--";
@@ -121,10 +141,9 @@ async function loadExpertData() {
     } catch (e) { console.error("Erreur Sheets :", e); }
 }
 
-// Lancement automatique
+// Lancement automatique au démarrage du système
 loadLocalRadar();
 loadExpertData();
 
-// Rafraîchissement automatique du Sheets de trading toutes les 5 minutes
+// Tâche de fond : Rafraîchissement des indicateurs de marché (5 min)
 setInterval(loadExpertData, 300000);
-testAffichageBrut();
