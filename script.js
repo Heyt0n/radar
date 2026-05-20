@@ -65,7 +65,7 @@ async function chargerRadarMoteur(centreLat, centreLon) {
         });
 
         const centreCible = [centreLat, centreLon];
-        const RAYON_MAX_METRES = 50000; // 50 km
+        const RAYON_MAX_METRES = 15000; // 50 km
         let detectees = 0;
 
         stations.forEach(station => {
