@@ -12,7 +12,7 @@ const LAT_BASE = 48.72;
 const LON_BASE = 7.78;
 
 // Initialisation de la carte en mode Dark
-var map = L.map('map', { zoomControl: false }).setView([LAT_BASE, LON_BASE], 11);
+var map = L.map('map', { zoomControl: false }).setView([LAT_BASE, LON_BASE], 5);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap'
