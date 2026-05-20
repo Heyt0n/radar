@@ -4,14 +4,13 @@
 const GOOGLE_SHEETS_CSV_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
 const sheetURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
 
-// Ton fichier national compacté présent sur ton GitHub
-const API_URL = "prix-carburants-compact.json";
+// METS ICI LE NOM EXACT DE TON FICHIER DE DONNÉES SUR GITHUB
+const API_URL = "prix-carburants-compact.json"; 
 
 
 // ==========================================
 // 2. INITIALISATION DU RADAR (CENTRÉ SUR TON SECTEUR)
 // ==========================================
-// Coordonnées de base pour le Bas-Rhin
 const LAT_BASE = 48.72;
 const LON_BASE = 7.78;
 
@@ -40,7 +39,6 @@ async function loadLocalRadar() {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        // Point central de référence sous forme de simple tableau [lat, lon]
         const centreBase = [LAT_BASE, LON_BASE];
         const RAYON_MAX_METRES = 50000; // 50 kilomètres
         let compteurCibles = 0;
@@ -49,7 +47,6 @@ async function loadLocalRadar() {
             let lat = null;
             let lon = null;
 
-            // Extraction des coordonnées du fichier compacté
             if (station.geom && station.geom.lat) {
                 lat = parseFloat(station.geom.lat);
                 lon = parseFloat(station.geom.lon);
@@ -60,11 +57,8 @@ async function loadLocalRadar() {
 
             if (lat && !isNaN(lat) && lon && !isNaN(lon)) {
                 const positionStation = [lat, lon];
-                
-                // Utilisation de map.distance() qui est 100% stable
                 const distanceMetres = map.distance(centreBase, positionStation);
 
-                // Si la station est dans le rayon, on l'affiche
                 if (distanceMetres <= RAYON_MAX_METRES) {
                     compteurCibles++;
 
