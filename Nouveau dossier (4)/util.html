@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Carburant - Dashboard Sniper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Style Dark Map */
+        .leaflet-container { background: #111827; }
+        .dark-tiles { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+        /* Custom Popup Style */
+        .leaflet-popup-content-wrapper { background: #1f2937; color: white; border: 1px solid #374151; }
+        .leaflet-popup-tip { background: #1f2937; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+
+    <nav class="p-6 flex justify-between items-center border-b border-gray-800">
+        <h1 class="text-xl font-bold tracking-tighter uppercase">Radar<span class="text-green-500">Sniper</span></h1>
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live Analysis</span>
+        </div>
+    </nav>
+<div style="background: #1f2937; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #374151;">
+    <label for="json-file-input" style="color: #22c55e; font-weight: bold; display: block; margin-bottom: 8px; font-family: sans-serif;">🎯 RADAR TEMPS RÉEL :</label>
+    <input type="file" id="json-file-input" accept=".json" style="color: #9ca3af; font-family: sans-serif;" />
+</div>
+    <main class="max-w-6xl mx-auto px-6 py-10">
+        
+        <div class="grid lg:grid-cols-3 gap-8 mb-10">
+            
+            <div class="bg-gray-800 p-8 rounded-3xl border border-gray-700 shadow-2xl flex flex-col justify-center">
+                <h3 class="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">Timing de Plein</h3>
+                <div id="status-icon" class="text-6xl mb-4">✅</div>
+                <div id="timer-display" class="text-6xl font-black mb-2 text-green-500">ACHETER</div>
+                <p id="timer-sub" class="text-gray-400 font-medium">Prix au plancher détecté.</p>
+            </div>
+
+            <div class="lg:col-span-2 bg-gray-800 p-8 rounded-3xl border border-gray-700 shadow-2xl">
+                <h3 class="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">L'Analyse du Sniper</h3>
+                <div class="flex gap-4">
+                    <div class="w-1 bg-green-500 rounded-full"></div>
+                    <p id="sniper-comment" class="text-xl leading-relaxed text-gray-200 italic">
+                        "Chargement de l'analyse en cours..."
+                    </p>
+                </div>
+                <div class="mt-6 flex gap-6 text-sm">
+                    <div><span class="text-gray-500">Brent:</span> <span id="val-brent" class="font-mono text-green-400">--</span></div>
+                    <div><span class="text-gray-500">Marge:</span> <span id="val-marge" class="font-mono text-green-400">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-3xl border border-gray-700 shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-gray-700">
+                <h3 class="font-bold uppercase tracking-widest text-sm flex items-center gap-2">
+                    Stations Radar (67)
+                </h3>
+            </div>
+            <div id="map" class="h-[500px] z-0"></div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="config.js"></script>
+</body>
+</html>
