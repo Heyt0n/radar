@@ -2,119 +2,240 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Carburant - Dashboard Sniper</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Radar Carburant - Système Tactique</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
-        body {
+        :root {
+            --bg-principal: #0b0f19;
+            --bg-panneau: #111827;
+            --bg-carte: #1f2937;
+            --accent-vert: #22c55e;
+            --accent-rouge: #ef4444;
+            --texte-principal: #f3f4f6;
+            --texte-secondaire: #9ca3af;
+        }
+
+        * {
             margin: 0;
             padding: 0;
-            background-color: #0b0f19;
-            color: #f3f4f6;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texte-principal);
             height: 100vh;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
+        /* En-tête du système */
+        header {
+            background-color: var(--bg-panneau);
+            padding: 12px 20px;
+            border-bottom: 1px solid #1f2937;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--texte-principal);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        header h1::before {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent-vert);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-vert);
+        }
+
+        /* Conteneur Principal Intégré */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 45px); /* Reste de l'écran après le header */
+            flex-direction: row; /* Côte à côte sur PC */
+        }
+
+        /* Panneau d'analyse (Indicateurs / Commentaire) */
         #sidebar {
-            width: 350px;
-            background-color: #111827;
+            width: 320px;
+            background-color: var(--bg-panneau);
             padding: 20px;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
             display: flex;
             flex-direction: column;
             gap: 20px;
-            z-index: 10;
+            overflow-y: auto;
             border-right: 1px solid #1f2937;
+            z-index: 5;
+        }
+
+        .widget {
+            background: rgba(31, 41, 55, 0.5);
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .widget-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--texte-secondaire);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        #timer-display {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 800;
+            text-align: center;
+            letter-spacing: -1px;
+        }
+
+        .stats-grid {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: #1f2937;
+            padding: 10px;
+            border-radius: 8px;
+            flex: 1;
+            text-align: center;
+        }
+
+        .stat-box span {
+            display: block;
+            font-size: 10px;
+            color: var(--texte-secondaire);
+            margin-bottom: 4px;
+        }
+
+        .stat-box b {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+        }
+
+        #sniper-comment {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #d1d5db;
+            font-style: italic;
+        }
+
+        /* LE BLOC CARTE : Géré de manière agressive pour le mobile */
+        #map-container {
+            flex: 1;
+            position: relative;
+            height: 100%;
+            background-color: var(--bg-carte);
         }
 
         #map {
-            flex: 1;
+            width: 100%;
             height: 100%;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
         }
 
-        .card {
-            background-color: #1f2937;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #374151;
-        }
+        /* RESPONSIVE DESIGN (BREAKPOINT SARTPHONE) */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column-reverse; /* La carte passe au-dessus, le panneau en bas */
+            }
 
-        h2, h3 {
-            margin-top: 0;
-            color: #22c55e;
-            text-transform: uppercase;
-            font-size: 14px;
-            letter-spacing: 1px;
-        }
+            #sidebar {
+                width: 100%;
+                height: 220px; /* Panneau compact en bas de l'écran sur mobile */
+                border-right: none;
+                border-top: 1px solid #1f2937;
+                padding: 15px;
+                gap: 12px;
+            }
 
-        .status-box {
-            text-align: center;
-            padding: 15px;
-            background: #111827;
-            border-radius: 8px;
-            font-size: 24px;
-            font-weight: 900;
-            margin-top: 10px;
-        }
+            #map-container {
+                flex: 1;
+                height: calc(100% - 220px);
+            }
 
-        .data-line {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            font-family: monospace;
-            font-size: 14px;
-        }
-
-        .comment-box {
-            background: #111827;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            color: #9ca3af;
-            font-style: italic;
-            line-height: 1.4;
-            min-height: 50px;
+            #timer-display {
+                font-size: 22px;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div style="text-align:center; padding-bottom:10px; border-bottom:1px solid #1f2937;">
-            <h1 style="font-size:20px; margin:0; color:#fff; font-weight:800;">🛰️ RADAR CARBURANT</h1>
-            <span style="font-size:10px; color:#6b7280; tracking:2px;">LIVE ANALYSIS MODE</span>
-        </div>
+    <header>
+        <h1>Radar Tactique</h1>
+    </header>
 
-        <div class="card">
-            <h3>🎯 Timing de Plein</h3>
-            <div id="timer-display" class="status-box" style="color: #6b7280;">
-                <span id="status-icon">⏳</span> EN ATTENTE
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>💬 L'Analyse du Sniper</h3>
-            <div id="sniper-comment" class="comment-box">Connexion au Google Sheets...</div>
+    <div class="app-container">
+        
+        <aside id="sidebar">
             
-            <div style="margin-top:15px; border-top:1px solid #374151; padding-top:10px;">
-                <div class="data-line"><span>Brent :</span><span id="val-brent" style="color:#fff;">--</span></div>
-                <div class="data-line"><span>Marge :</span><span id="val-marge" style="color:#fff;">--</span></div>
+            <div class="widget">
+                <div class="widget-title">Signal d'Action</div>
+                <div id="timer-display">ANALYSE...</div>
             </div>
-        </div>
 
-        <div style="margin-top:auto; font-size:11px; color:#4b5563; text-align:center;">
-            RadarSniper v2.0 &copy; 2026
-        </div>
+            <div class="widget">
+                <div class="widget-title">Indicateurs de Marché</div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span>Cours Brent</span>
+                        <b id="val-brent">-- $</b>
+                    </div>
+                    <div class="stat-box">
+                        <span>Marge Brute</span>
+                        <b id="val-marge">--</b>
+                    </div>
+                </div>
+            </div>
+
+            <div class="widget" style="flex: 1;">
+                <div class="widget-title">Briefing Analyste</div>
+                <div id="sniper-comment">En attente de synchronisation avec le tableur de suivi...</div>
+            </div>
+
+        </aside>
+
+        <main id="map-container">
+            <div id="map"></div>
+        </main>
+
     </div>
 
-    <div id="map"></div>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    
     <script src="script.js"></script>
+
 </body>
 </html>
