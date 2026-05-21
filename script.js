@@ -34,83 +34,77 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 // ==========================================
-// 3. CHARGEMENT ET FILTRAGE DES STATIONS
+// 3. CHARGEMENT ET FILTRAGE DES STATIONS (FLUX AUTONOME)
 // ==========================================
+
+// Fonction de calcul de distance (Haversine) pour cibler ton rayon de 15km
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
 async function fetchLiveStations(centerLat, centerLon) {
     try {
-        console.log("Radar : Lecture du fichier compressé national...");
+        console.log("Radar : Alignement sur le fichier compressé national...");
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Fichier introuvable');
+        if (!response.ok) throw new Error('Fichier stations_france.json introuvable');
         
         const stations = await response.json();
-        console.log(`Radar : ${stations.length} stations chargées depuis le fichier local.`);
+        console.log(`Radar : ${stations.length} stations chargées en mémoire.`);
 
-        // Nettoyage des anciens marqueurs
+        // Nettoyage complet des anciens marqueurs sur la carte avant rafraîchissement
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        let compteur = 0;
+        // Sécurisation du formatage des prix (évite les bugs d'affichage N.C)
+        const formatPrix = (valeur) => {
+            if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return "N.C";
+            return parseFloat(valeur).toFixed(3) + " €";
+        };
+
+        let stationsDansZone = 0;
 
         stations.forEach(station => {
-            // Lecture des clés courtes générées par ton Python (lt = latitude, ln = longitude)
+            // Lecture des coordonnées courtes générées par ton script Python (lt et ln)
             let lat = station.lt;
             let lon = station.ln;
 
             if (lat && lon) {
-                // Calcul de la distance par rapport au centre (géolocalisé ou par défaut)
+                // Calcul de la distance entre l'appareil et la station
                 let distance = getDistance(centerLat, centerLon, lat, lon);
 
+                // Verrouillage sur ton périmètre de 15km
                 if (distance <= RAYON_KM) {
-                    compteur++;
+                    stationsDansZone++;
 
-                    // Décodage des clés courtes de prix (gz, e10, 95, 98)
-                    const gazole = station.gz ? parseFloat(station.gz).toFixed(3) + " €" : "N.C";
-                    const sp95 = station["95"] ? parseFloat(station["95"]).toFixed(3) + " €" : "N.C";
-                    const e10 = station.e10 ? parseFloat(station.e10).toFixed(3) + " €" : "N.C";
-                    const sp98 = station["98"] ? parseFloat(station["98"]).toFixed(3) + " €" : "N.C";
+                    // Décodage des clés de prix courtes (gz, 95, e10, 98)
+                    const gazole = formatPrix(station.gz);
+                    const sp95   = formatPrix(station["95"]);
+                    const e10    = formatPrix(station.e10);
+                    const sp98   = formatPrix(station["98"]);
 
+                    // Génération du marqueur Leaflet
                     const marker = L.marker([lat, lon]).addTo(map);
+                    
+                    // Design du Popup Tactique en mode sombre
                     marker.bindPopup(`
-                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:200px;">
-                            <h4 style="margin:0 0 4px 0; color:#22c55e; text-transform:uppercase; font-size:13px;">${station.n}</h4>
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#9ca3af;">${station.a} (${station.v})</p>
+                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);">
+                            <h4 style="margin:0 0 2px 0; color:#22c55e; text-transform:uppercase; font-size:13px; font-weight:bold;">${station.n}</h4>
+                            <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af; font-style:italic;">${station.a} (${station.v})</p>
+                            <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km de toi</p>
+                            
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
-                                <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
-                            </div>
-                        </div>
-                    `);
-                }
-            }
-        });
-
-        console.log(`Radar : Tactique OK. ${compteur} stations affichées dans un rayon de ${RAYON_KM}km.`);
-    } catch (e) {
-        console.error("Erreur filtrage carte :", e);
-    }
-}
-
-// Déclenchement basé sur la géolocalisation de l'appareil
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            // L'utilisateur accepte la position : on centre la carte sur lui
-            const userLat = position.coords.latitude;
-            const userLon = position.coords.longitude;
-            map.setView([userLat, userLon], 11);
-            fetchLiveStations(userLat, userLon);
-        },
-        () => {
-            // Refus ou erreur : on prend les coordonnées par défaut (Hœrdt)
-            fetchLiveStations(DEF_LAT, DEF_LON);
-        }
-    );
-} else {
-    fetchLiveStations(DEF_LAT, DEF_LON);
-}
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b style="color:#fff;">${gazole}</b></div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b style="color:#fff;">${e10}</b></div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b style="color:#fff;">${sp95}</b></div>
+                                <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b style="color:#fff;">${sp98}</b></div>
 
 // ==========================================
 // 4. MOTEUR TRADING (GOOGLE SHEETS)
