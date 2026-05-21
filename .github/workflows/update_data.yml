@@ -1,0 +1,35 @@
+name: Actualisation Automatique du Radar
+
+on:
+  schedule:
+    # Se déclenche automatiquement tous les jours à 4h00 du matin (Heure UTC)
+    - cron: '0 4 * * *'
+  workflow_dispatch: # Permet aussi de lancer le script à la main en 1 clic
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Récupération du code source
+      uses: actions/checkout@v4
+
+    - name: Installation de Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Installation des dépendances
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Exécution du script de compression
+      run: python compress_data.py
+
+    - name: Sauvegarde et déploiement du fichier JSON sur GitHub
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
+        git add stations_france.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour automatique des prix" && git push)
