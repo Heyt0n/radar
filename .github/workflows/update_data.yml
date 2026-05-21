@@ -2,9 +2,12 @@ name: Actualisation Automatique du Radar
 
 on:
   schedule:
-    # Se déclenche automatiquement tous les jours à 4h00 du matin (Heure UTC)
     - cron: '0 4 * * *'
-  workflow_dispatch: # Permet aussi de lancer le script à la main en 1 clic
+  workflow_dispatch: 
+
+# ICI : On donne explicitement le droit d'écrire et de pousser des fichiers
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -32,4 +35,5 @@ jobs:
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
         git add stations_france.json
+        # Le script vérifie s'il y a des changements avant de push pour éviter de faire des commits vides
         git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour automatique des prix" && git push)
