@@ -34,10 +34,10 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 // ==========================================
-// 3. CHARGEMENT ET FILTRAGE DES STATIONS (FLUX AUTONOME)
+// 3. CHARGEMENT ET FILTRAGE DES STATIONS (FLUX AUTONOME CORRIGÉ)
 // ==========================================
 
-// Fonction de calcul de distance (Haversine) pour cibler ton rayon de 15km
+// Fonction de calcul de distance (Haversine) - Version corrigée sans bug
 function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Rayon de la Terre en km
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -58,12 +58,12 @@ async function fetchLiveStations(centerLat, centerLon) {
         const stations = await response.json();
         console.log(`Radar : ${stations.length} stations chargées en mémoire.`);
 
-        // Nettoyage complet des anciens marqueurs sur la carte avant rafraîchissement
+        // Nettoyage complet des anciens marqueurs
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        // Sécurisation du formatage des prix (évite les bugs d'affichage N.C)
+        // Sécurisation du formatage des prix (gère parfaitement les ruptures de stock sans crasher)
         const formatPrix = (valeur) => {
             if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return "N.C";
             return parseFloat(valeur).toFixed(3) + " €";
@@ -72,28 +72,24 @@ async function fetchLiveStations(centerLat, centerLon) {
         let stationsDansZone = 0;
 
         stations.forEach(station => {
-            // Lecture des coordonnées courtes générées par ton script Python (lt et ln)
             let lat = station.lt;
             let lon = station.ln;
 
             if (lat && lon) {
-                // Calcul de la distance entre l'appareil et la station
                 let distance = getDistance(centerLat, centerLon, lat, lon);
 
                 // Verrouillage sur ton périmètre de 15km
                 if (distance <= RAYON_KM) {
                     stationsDansZone++;
 
-                    // Décodage des clés de prix courtes (gz, 95, e10, 98)
+                    // Décodage sécurisé des clés courtes
                     const gazole = formatPrix(station.gz);
                     const sp95   = formatPrix(station["95"]);
                     const e10    = formatPrix(station.e10);
                     const sp98   = formatPrix(station["98"]);
 
-                    // Génération du marqueur Leaflet
                     const marker = L.marker([lat, lon]).addTo(map);
                     
-                    // Design du Popup Tactique en mode sombre
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);">
                             <h4 style="margin:0 0 2px 0; color:#22c55e; text-transform:uppercase; font-size:13px; font-weight:bold;">${station.n}</h4>
@@ -105,7 +101,39 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b style="color:#fff;">${e10}</b></div>
                                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b style="color:#fff;">${sp95}</b></div>
                                 <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b style="color:#fff;">${sp98}</b></div>
+                            </div>
+                        </div>
+                    `);
+                }
+            }
+        });
 
+        console.log(`🎯 Radar : Scan terminé. ${stationsDansZone} stations verrouillées.`);
+        
+        const statusText = document.getElementById('status-text');
+        if (statusText) statusText.innerText = `${stationsDansZone} stations actives`;
+
+    } catch (e) {
+        console.error("❌ Erreur d'alignement de la carte :", e);
+    }
+}
+
+// Déclenchement automatique via la géolocalisation
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const userLat = position.coords.latitude;
+            const userLon = position.coords.longitude;
+            map.setView([userLat, userLon], 11);
+            fetchLiveStations(userLat, userLon);
+        },
+        () => {
+            fetchLiveStations(DEF_LAT, DEF_LON);
+        }
+    );
+} else {
+    fetchLiveStations(DEF_LAT, DEF_LON);
+}
 // ==========================================
 // 4. MOTEUR TRADING (GOOGLE SHEETS)
 // ==========================================
