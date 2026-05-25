@@ -1,75 +1,47 @@
 // ==========================================
-// MOTEUR TRADING, MARGE & BRIEF MACRO
+// CAPTURE AUTOMATIQUE DES COURS LIVE (YFINANCE API)
 // ==========================================
 
-// Colle ici le lien CSV de ton Google Sheets où tu écris ton commentaire du soir
-const GOOGLE_SHEETS_COMMENTAIRE_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV";
-
-// Valeurs de marché (ajustables manuellement ici si tu veux)
-let coursBrent = 83.50;      
-let coursEuroDollar = 1.0850; 
-
-// 1. Chargement de ton commentaire global écrit à la main
-async function chargerBriefDuSoir() {
+async function fetchLiveMarketData() {
     try {
-        if (!GOOGLE_SHEETS_COMMENTAIRE_URL || GOOGLE_SHEETS_COMMENTAIRE_URL.includes("VOTRE_URL")) return;
+        // Utilisation des flux de Yahoo Finance via un proxy AllOrigins pour éviter les blocages de sécurité
+        const urlBrent = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/BZ=F");
+        const urlFX = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X");
+
+        const [resBrent, resFX] = await Promise.all([fetch(urlBrent), fetch(urlFX)]);
         
-        const proxyURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_COMMENTAIRE_URL);
-        const response = await fetch(proxyURL);
-        const csvText = await response.text();
-        
-        Papa.parse(csvText, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
-                const lignes = results.data;
-                if (lignes.length > 0) {
-                    // On prend ton tout dernier commentaire en bas du tableau
-                    const dernierBrief = lignes[lignes.length - 1];
-                    const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || "Aucun brief macro disponible ce soir.";
-                    
-                    if(document.getElementById('sniper-comment')) {
-                        document.getElementById('sniper-comment').innerText = tonTexte;
-                    }
-                }
+        const dataBrent = await resBrent.json();
+        const dataFX = await resFX.json();
+
+        // Extraction des prix spots en temps réel
+        coursBrent = dataBrent.chart.result[0].meta.regularMarketPrice;
+        coursEuroDollar = dataFX.chart.result[0].meta.regularMarketPrice;
+
+        console.log(`🎯 Flux Live Activé - Brent: ${coursBrent}$, EUR/USD: ${coursEuroDollar}`);
+
+        // Mise à jour visuelle des labels sur ton interface
+        if(document.getElementById('val-brent')) {
+            document.getElementById('val-brent').innerText = coursBrent.toFixed(2) + " $";
+        }
+    } catch (e) {
+        console.error("Échec de la synchronisation des marchés en direct, repli sur les valeurs de secours.", e);
+        // Valeurs de repli si l'API externe est saturée
+        coursBrent = 83.50;
+        coursEuroDollar = 1.0850;
+    }
+}
+
+// Remplacer l'initialisation par le déclenchement automatique
+document.addEventListener("DOMContentLoaded", () => {
+    chargerBriefDuSoir();
+    fetchLiveMarketData(); // Lance la capture des cours dès le chargement
+    
+    const selectElem = document.getElementById('select-carburant');
+    if (selectElem) {
+        selectElem.addEventListener('change', () => {
+            if (derniereStationSelectionnee) {
+                analyserStationUnique(derniereStationSelectionnee);
             }
         });
-    } catch (e) {
-        console.error("Erreur de chargement du brief macro :", e);
     }
-}
-
-// 2. Calcul automatique de la jauge de marge par station au clic
-function analyserStationUnique(nomStation, prixCarburant) {
-    const displayMarge = document.getElementById('val-marge');
-    const displayStatut = document.getElementById('timer-display'); // Bouton ACHETER / ATTENDRE
-    
-    if (isNaN(prixCarburant)) return;
-
-    // Formule tactique affinée (Fret + TICPE + TVA)
-    const prixBrentLitreEUR = (coursBrent / 159) / coursEuroDollar;
-    const prixBrutArriveRaffinerie = prixBrentLitreEUR + 0.08;
-    const prixStationHT = (prixCarburant / 1.20) - 0.61; 
-    const margeBruteCentimes = (prixStationHT - prixBrutArriveRaffinerie) * 100;
-
-    // Affichage de la marge de la station
-    if (displayMarge) displayMarge.innerText = margeBruteCentimes.toFixed(1) + " cts/L";
-
-    // Ajustement de la jauge d'action
-    if (displayStatut) {
-        if (margeBruteCentimes <= 12) {
-            displayStatut.innerText = "ACHETER";
-            displayStatut.style.color = "#22c55e";
-        } else if (margeBruteCentimes > 12 && margeBruteCentimes <= 22) {
-            displayStatut.innerText = "NEUTRE";
-            displayStatut.style.color = "#f59e0b";
-        } else {
-            displayStatut.innerText = "ATTENDRE";
-            displayStatut.style.color = "#ef4444";
-        }
-    }
-}
-
-// Lancement global
-chargerBriefDuSoir();
-if(document.getElementById('val-brent')) document.getElementById('val-brent').innerText = coursBrent.toFixed(2) + " $";
+});
