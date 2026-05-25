@@ -1,12 +1,15 @@
 // ==========================================
-// 1. CONFIGURATION DES SOURCES
+// 1. CONFIGURATION DES SOURCES & ETAT
 // ==========================================
 const API_URL = "stations_france.json"; 
 
-// Position par défaut si l'utilisateur refuse la géolocalisation (Secteur Hœrdt / Haguenau)
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
-const RAYON_KM = 15; // Filtre de zone à 15km
+const RAYON_KM = 15; 
+
+// On stocke les stations en mémoire globale pour pouvoir rafraîchir au changement de menu
+let stationsGlobales = [];
+let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 
 // ==========================================
 // 2. INITIALISATION DE LA CARTE
@@ -14,12 +17,11 @@ const RAYON_KM = 15; // Filtre de zone à 15km
 var map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; CARTO &copy; OpenStreetMap'
+    attribution: '© CARTO © OpenStreetMap'
 }).addTo(map);
 
-// Fonction de calcul de distance (Haversine) - SÉCURISÉE ET CORRIGÉE
 function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Rayon de la Terre en km
+    const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -29,53 +31,67 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+// Fonction pour créer des icônes Leaflet colorées personnalisées
+function creerIconeMarqueur(couleur) {
+    return new L.Icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+}
+
 // ==========================================
-// 3. CHARGEMENT ET FILTRAGE DES STATIONS
+// 3. CHARGEMENT ET FILTRAGE DYNAMIQUE
 // ==========================================
 async function fetchLiveStations(centerLat, centerLon) {
     try {
-        console.log("Radar : Lecture du fichier compressé national...");
-        const response = await fetch(API_URL);
-        if (!response.ok) throw new Error('Fichier stations_france.json introuvable');
+        dernierePosition = { lat: centerLat, lon: centerLon };
         
-        const stations = await response.json();
-        console.log(`Radar : ${stations.length} stations chargées depuis le fichier local.`);
+        if (stationsGlobales.length === 0) {
+            console.log("Radar : Acquisition du flux national...");
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error('Fichier stations_france.json introuvable');
+            stationsGlobales = await response.json();
+        }
 
-        // Nettoyage des anciens marqueurs
+        // Récupération du type de carburant sélectionné dans le menu HTML (gz, e10, 95 ou 98)
+        const selectElem = document.getElementById('select-carburant');
+        const carburantCible = selectElem ? selectElem.value : 'gz';
+
+        // Nettoyage des marqueurs
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
 
-        // Sécurisation du formatage des prix (gère proprement les ruptures de stock)
         const formatPrix = (valeur) => {
-            if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return "N.C";
-            return parseFloat(valeur).toFixed(3) + " €";
+            if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return null;
+            return parseFloat(valeur);
         };
 
-        let compteur = 0;
-        let prixLePlusEleve = 0;
-        let stationLaPlusChereNom = "Aucune";
+        // --- BALISSAGE DES PRIX MIN / MAX DANS TON RAYON ---
+        let prixMin = Infinity;
+        let prixMax = -Infinity;
 
-        // Premier passage rapide : Détection de la station la plus chère du secteur (sur le Gazole)
-        stations.forEach(station => {
-            let lat = station.lt;
-            let lon = station.ln;
-            if (lat && lon) {
-                let distance = getDistance(centerLat, centerLon, lat, lon);
-                if (distance <= RAYON_KM && station.gz) {
-                    if (station.gz > prixLePlusEleve) {
-                        prixLePlusEleve = station.gz;
-                        stationLaPlusChereNom = `${station.n} (${station.v})`;
+        stationsGlobales.forEach(station => {
+            if (station.lt && station.ln) {
+                let distance = getDistance(centerLat, centerLon, station.lt, station.ln);
+                if (distance <= RAYON_KM) {
+                    let prix = formatPrix(station[carburantCible]);
+                    if (prix) {
+                        if (prix < prixMin) prixMin = prix;
+                        if (prix > prixMax) prixMax = prix;
                     }
                 }
             }
         });
 
-        // Affichage de la pire station dans les logs (en attendant ton intégration HTML)
-        console.log(`⚠️ Alerte Secteur - Station la plus chère détectée : ${stationLaPlusChereNom} à ${prixLePlusEleve.toFixed(3)} €`);
+        let compteur = 0;
 
-        // Deuxième passage : Affichage des stations cibles
-        stations.forEach(station => {
+        // --- DEUXIÈME PASSAGE : DESSIN DES CIBLES AVEC LEUR COULEUR ---
+        stationsGlobales.forEach(station => {
             let lat = station.lt;
             let lon = station.ln;
 
@@ -85,51 +101,68 @@ async function fetchLiveStations(centerLat, centerLon) {
                 if (distance <= RAYON_KM) {
                     compteur++;
 
-                    const gazole = formatPrix(station.gz);
-                    const sp95   = formatPrix(station["95"]);
-                    const e10    = formatPrix(station.e10);
-                    const sp98   = formatPrix(station["98"]);
-
-                    // Génération du lien de routage GPS vers Google Maps
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
-
-                    const marker = L.marker([lat, lon]).addTo(map);
+                    const pGazole = formatPrix(station.gz);
+                    const pSp95   = formatPrix(station["95"]);
+                    const pE10    = formatPrix(station.e10);
+                    const pSp98   = formatPrix(station["98"]);
                     
-                    // Liaison tactique avec ton fichier trading.js au clic sur la station
+                    let prixCourant = formatPrix(station[carburantCible]);
+
+                    // Choix tactique de la couleur du marqueur
+                    let couleurMarker = 'blue'; // Par défaut : bleu
+                    if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+                        if (prixCourant === prixMin) couleurMarker = 'green'; // Le moins cher du secteur
+                        else if (prixCourant === prixMax) couleurMarker = 'red'; // Le plus cher à éviter
+                    }
+
+                    // Lien URL Google Maps corrigé et esthétique
+                    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&query=${encodeURIComponent(station.n)}`;
+
+                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker) }).addTo(map);
+                    
                     marker.on('click', function() {
                         if (station.gz && typeof analyserStationUnique === "function") {
                             analyserStationUnique(station.n, station.gz);
                         }
                     });
 
-                    // Design de la popup avec indicateur de distance et bouton itinéraire
                     marker.bindPopup(`
-                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);">
+                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px;">
                             <h4 style="margin:0 0 2px 0; color:#22c55e; text-transform:uppercase; font-size:13px; font-weight:bold;">${station.n}</h4>
                             <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af;">${station.a} (${station.v})</p>
                             <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km</p>
                             
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace; margin-bottom:12px;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Gazole :</span><b>${gazole}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95-E10 :</span><b>${e10}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>SP95 :</span><b>${sp95}</b></div>
-                                <div style="display:flex; justify-content:space-between;"><span>SP98 :</span><b>${sp98}</b></div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === 'gz' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>Gazole :</span><b>${pGazole ? pGazole.toFixed(3)+' €' : 'N.C'}</b></div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === 'e10' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP95-E10 :</span><b>${pE10 ? pE10.toFixed(3)+' €' : 'N.C'}</b></div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === '95' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP95 :</span><b>${pSp95 ? pSp95.toFixed(3)+' €' : 'N.C'}</b></div>
+                                <div style="display:flex; justify-content:space-between; ${carburantCible === '98' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP98 :</span><b>${pSp98 ? pSp98.toFixed(3)+' €' : 'N.C'}</b></div>
                             </div>
 
-                            <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase; transition: background 0.2s;">🗺️ Itinéraire Google Maps</a>
+                            <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase;">🗺️ Itinéraire Maps</a>
                         </div>
                     `);
                 }
             }
         });
 
-        console.log(`Radar : Tactique OK. ${compteur} stations affichées dans un rayon de ${RAYON_KM}km.`);
+        console.log(`Radar : Filtrage appliqué pour [${carburantCible}]. ${compteur} stations cartographiées.`);
     } catch (e) {
         console.error("Erreur filtrage carte :", e);
     }
 }
 
-// Déclenchement basé sur la géolocalisation de l'appareil
+// Écouteur sur le menu déroulant : recalcul automatique au changement de carburant
+document.addEventListener("DOMContentLoaded", () => {
+    const selectElem = document.getElementById('select-carburant');
+    if (selectElem) {
+        selectElem.addEventListener('change', () => {
+            fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+        });
+    }
+});
+
+// Déclenchement initial basé sur la géolocalisation
 if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -138,9 +171,7 @@ if (navigator.geolocation) {
             map.setView([userLat, userLon], 11);
             fetchLiveStations(userLat, userLon);
         },
-        () => {
-            fetchLiveStations(DEF_LAT, DEF_LON);
-        }
+        () => { fetchLiveStations(DEF_LAT, DEF_LON); }
     );
 } else {
     fetchLiveStations(DEF_LAT, DEF_LON);
