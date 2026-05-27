@@ -1,18 +1,20 @@
 // ==========================================
-// 1. CONFIGURATION DES SOURCES & ETAT
+// 1. CONFIGURATION DES SOURCES & ÉTAT GLOBAL
 // ==========================================
 const API_URL = "stations_france.json"; 
+
+// Colle ici le lien CSV de ton Google Sheets où tu écris ton brief tous les soirs
+const GOOGLE_SHEETS_COMMENTAIRE_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 const RAYON_KM = 15; 
 
-// On stocke les stations en mémoire globale pour pouvoir rafraîchir au changement de menu
 let stationsGlobales = [];
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 
 // ==========================================
-// 2. INITIALISATION DE LA CARTE
+// 2. INITIALISATION DE LA CARTE (THEME SOMBRE)
 // ==========================================
 var map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
@@ -31,7 +33,6 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Fonction pour créer des icônes Leaflet colorées personnalisées
 function creerIconeMarqueur(couleur) {
     return new L.Icon({
         iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
@@ -44,24 +45,54 @@ function creerIconeMarqueur(couleur) {
 }
 
 // ==========================================
-// 3. CHARGEMENT ET FILTRAGE DYNAMIQUE
+// 3. CHARGEMENT DE TON BRIEF MACRO PERSO
+// ==========================================
+async function chargerBriefDuSoir() {
+    try {
+        if (!GOOGLE_SHEETS_COMMENTAIRE_URL || GOOGLE_SHEETS_COMMENTAIRE_URL.includes("VOTRE_URL")) return;
+        
+        const proxyURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_SHEETS_COMMENTAIRE_URL);
+        const response = await fetch(proxyURL);
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const lignes = results.data;
+                if (lignes.length > 0) {
+                    // On récupère la toute dernière ligne en bas de ton tableau Excel/Sheets
+                    const dernierBrief = lignes[lignes.length - 1];
+                    const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || "Aucun brief disponible pour le moment.";
+                    
+                    // Injection directe dans ton panneau HTML
+                    if(document.getElementById('sniper-comment')) {
+                        document.getElementById('sniper-comment').innerText = tonTexte;
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error("Erreur chargement Brief Sheets :", e);
+    }
+}
+
+// ==========================================
+// 4. TRAITEMENT ET FILTRAGE DES STATIONS
 // ==========================================
 async function fetchLiveStations(centerLat, centerLon) {
     try {
         dernierePosition = { lat: centerLat, lon: centerLon };
         
         if (stationsGlobales.length === 0) {
-            console.log("Radar : Acquisition du flux national...");
             const response = await fetch(API_URL);
-            if (!response.ok) throw new Error('Fichier stations_france.json introuvable');
+            if (!response.ok) throw new Error('Fichier introuvable');
             stationsGlobales = await response.json();
         }
 
-        // Récupération du type de carburant sélectionné dans le menu HTML (gz, e10, 95 ou 98)
         const selectElem = document.getElementById('select-carburant');
-        const carburantCible = selectElem ? selectElem.value : 'gz';
+        const carburantActif = selectElem ? selectElem.value : 'gz';
 
-        // Nettoyage des marqueurs
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
@@ -71,7 +102,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             return parseFloat(valeur);
         };
 
-        // --- BALISSAGE DES PRIX MIN / MAX DANS TON RAYON ---
+        // SCAN DU PRIX MIN ET MAX DE TA ZONE DE 15KM
         let prixMin = Infinity;
         let prixMax = -Infinity;
 
@@ -79,7 +110,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             if (station.lt && station.ln) {
                 let distance = getDistance(centerLat, centerLon, station.lt, station.ln);
                 if (distance <= RAYON_KM) {
-                    let prix = formatPrix(station[carburantCible]);
+                    let prix = formatPrix(station[carburantActif]);
                     if (prix) {
                         if (prix < prixMin) prixMin = prix;
                         if (prix > prixMax) prixMax = prix;
@@ -90,7 +121,6 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         let compteur = 0;
 
-        // --- DEUXIÈME PASSAGE : DESSIN DES CIBLES AVEC LEUR COULEUR ---
         stationsGlobales.forEach(station => {
             let lat = station.lt;
             let lon = station.ln;
@@ -106,25 +136,23 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pE10    = formatPrix(station.e10);
                     const pSp98   = formatPrix(station["98"]);
                     
-                    let prixCourant = formatPrix(station[carburantCible]);
+                    let prixCourant = formatPrix(station[carburantActif]);
 
-                    // Choix tactique de la couleur du marqueur
-                    let couleurMarker = 'blue'; // Par défaut : bleu
+                    // Code couleur automatique
+                    let couleurMarker = 'blue'; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
-                        if (prixCourant === prixMin) couleurMarker = 'green'; // Le moins cher du secteur
-                        else if (prixCourant === prixMax) couleurMarker = 'red'; // Le plus cher à éviter
+                        if (prixCourant === prixMin) couleurMarker = 'green'; 
+                        else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Lien URL Google Maps corrigé et esthétique
-                    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&query=${encodeURIComponent(station.n)}`;
+                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}&query_place_id=${encodeURIComponent(station.n)}`;
 
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker) }).addTo(map);
-                    
-                    marker.on('click', function() {
-                        if (station.gz && typeof analyserStationUnique === "function") {
-                            analyserStationUnique(station.n, station.gz);
-                        }
-                    });
+
+                    const afficherLignePrix = (label, prix, code) => {
+                        const styleHighlight = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
+                        return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${styleHighlight}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Rupture'}</b></div>`;
+                    };
 
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px;">
@@ -133,10 +161,10 @@ async function fetchLiveStations(centerLat, centerLon) {
                             <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km</p>
                             
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace; margin-bottom:12px;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === 'gz' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>Gazole :</span><b>${pGazole ? pGazole.toFixed(3)+' €' : 'N.C'}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === 'e10' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP95-E10 :</span><b>${pE10 ? pE10.toFixed(3)+' €' : 'N.C'}</b></div>
-                                <div style="display:flex; justify-content:space-between; margin-bottom:5px; ${carburantCible === '95' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP95 :</span><b>${pSp95 ? pSp95.toFixed(3)+' €' : 'N.C'}</b></div>
-                                <div style="display:flex; justify-content:space-between; ${carburantCible === '98' ? 'background:#374151; padding:2px; border-radius:4px;' : ''}"><span>SP98 :</span><b>${pSp98 ? pSp98.toFixed(3)+' €' : 'N.C'}</b></div>
+                                ${afficherLignePrix('Gazole', pGazole, 'gz')}
+                                ${afficherLignePrix('SP95-E10', pE10, 'e10')}
+                                ${afficherLignePrix('SP95', pSp95, '95')}
+                                ${afficherLignePrix('SP98', pSp98, '98')}
                             </div>
 
                             <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase;">🗺️ Itinéraire Maps</a>
@@ -146,14 +174,18 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
-        console.log(`Radar : Filtrage appliqué pour [${carburantCible}]. ${compteur} stations cartographiées.`);
+        console.log(`Radar : ${compteur} stations cartographiées.`);
     } catch (e) {
         console.error("Erreur filtrage carte :", e);
     }
 }
 
-// Écouteur sur le menu déroulant : recalcul automatique au changement de carburant
+// ==========================================
+// 5. INITIALISATION DES ÉCOUTEURS
+// ==========================================
 document.addEventListener("DOMContentLoaded", () => {
+    chargerBriefDuSoir(); // On charge ton texte dès l'ouverture de l'application
+    
     const selectElem = document.getElementById('select-carburant');
     if (selectElem) {
         selectElem.addEventListener('change', () => {
@@ -162,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// Déclenchement initial basé sur la géolocalisation
+// Géolocalisation
 if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -174,5 +206,7 @@ if (navigator.geolocation) {
         () => { fetchLiveStations(DEF_LAT, DEF_LON); }
     );
 } else {
+    fetchLiveStations(DEF_LAT, DEF_LON);
+}
     fetchLiveStations(DEF_LAT, DEF_LON);
 }
