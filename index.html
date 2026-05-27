@@ -6,7 +6,6 @@
     <title>Radar Carburant - Système Tactique</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
@@ -83,7 +82,7 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
             overflow-y: auto;
             border-right: 1px solid #1f2937;
             z-index: 5;
@@ -105,40 +104,6 @@
             font-weight: 600;
         }
 
-        #timer-display {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 28px;
-            font-weight: 800;
-            text-align: center;
-            letter-spacing: -1px;
-        }
-
-        .stats-grid {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .stat-box {
-            background: #1f2937;
-            padding: 10px;
-            border-radius: 8px;
-            flex: 1;
-            text-align: center;
-        }
-
-        .stat-box span {
-            display: block;
-            font-size: 10px;
-            color: var(--texte-secondaire);
-            margin-bottom: 4px;
-        }
-
-        .stat-box b {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 14px;
-        }
-
         #sniper-comment {
             font-size: 13px;
             line-height: 1.5;
@@ -146,7 +111,27 @@
             font-style: italic;
         }
 
-        /* LE BLOC CARTE : Géré de manière agressive pour le mobile */
+        /* Style spécifique pour la zone des Favoris */
+        #liste-favoris {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .favori-item {
+            background: #1f2937;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-vert);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* LE BLOC CARTE */
         #map-container {
             flex: 1;
             position: relative;
@@ -164,7 +149,7 @@
             right: 0;
         }
 
-        /* RESPONSIVE DESIGN (BREAKPOINT SARTPHONE) */
+        /* RESPONSIVE DESIGN (BREAKPOINT SMARTPHONE) */
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column-reverse; /* La carte passe au-dessus, le panneau en bas */
@@ -172,7 +157,7 @@
 
             #sidebar {
                 width: 100%;
-                height: 220px; /* Panneau compact en bas de l'écran sur mobile */
+                height: 250px; /* Panneau optimisé pour faire défiler les favoris et le brief */
                 border-right: none;
                 border-top: 1px solid #1f2937;
                 padding: 15px;
@@ -181,11 +166,7 @@
 
             #map-container {
                 flex: 1;
-                height: calc(100% - 220px);
-            }
-
-            #timer-display {
-                font-size: 22px;
+                height: calc(100% - 250px);
             }
         }
     </style>
@@ -193,42 +174,41 @@
 <body>
 
     <header>
-        <h1>RADAR CARBURANT </h1>
+        <h1>RADAR CARBURANT</h1>
     </header>
 
     <div class="app-container">
         
         <aside id="sidebar">
             
+            <!-- Le briefing de l'expert passe en pole position -->
             <div class="widget">
-                <div class="widget-title">Signal d'Action</div>
-                <div id="timer-display">ANALYSE...</div>
-            </div>
-            
- <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:8px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer;">
-    <option value="gz">⛽ Gazole</option>
-    <option value="e10">⛽ SP95-E10</option>
-    <option value="95">⛽ SP95</option>
-    <option value="98">⛽ SP98</option>
-</select>
-            
-            <div class="widget">
-                <div class="widget-title">Indicateurs de Marché</div>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <span>Cours Brent</span>
-                        <b id="val-brent">-- $</b>
-                    </div>
-                    <div class="stat-box">
-                        <span>Marge Brute</span>
-                        <b id="val-marge">--</b>
-                    </div>
-                </div>
-            </div>
-
-            <div class="widget" style="flex: 1;">
                 <div class="widget-title">Briefing Analyste</div>
                 <div id="sniper-comment">En attente de synchronisation avec le tableur de suivi...</div>
+            </div>
+            
+            <!-- Menu de sélection tactique du carburant -->
+            <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-family:inherit;">
+                <option value="gz">⛽ Gazole</option>
+                <option value="e10">⛽ SP95-E10</option>
+                <option value="95">⛽ SP95</option>
+                <option value="98">⛽ SP98</option>
+            </select>
+            
+            <!-- Nouvelle section dédiée aux Stations Favorites -->
+            <div class="widget" style="flex: 1;">
+                <div class="widget-title">Stations Favorites</div>
+                <div id="liste-favoris">
+                    <!-- Les éléments favoris seront injectés ici par ton script JavaScript -->
+                    <div class="favori-item">
+                        <span>Total Hœrdt</span>
+                        <b style="color: var(--accent-vert);">En veille</b>
+                    </div>
+                    <div class="favori-item">
+                        <span>Leclerc Haguenau</span>
+                        <b style="color: var(--accent-vert);">En veille</b>
+                    </div>
+                </div>
             </div>
 
         </aside>
@@ -239,12 +219,11 @@
 
     </div>
 
+    <!-- Scripts de fonctionnement du système -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     
     <script src="script.js"></script>
-
-
-<script src="commentaire.js"></script>
+    <script src="commentaire.js"></script>
 </body>
 </html>
