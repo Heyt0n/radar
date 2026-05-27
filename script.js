@@ -9,7 +9,7 @@ const RAYON_KM = 15;
 
 let stationsGlobales = [];
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
-let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; // Sauvegarde pour le bouton réinitialiser
+let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 let favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
 
 // ==========================================
@@ -43,8 +43,46 @@ function creerIconeMarqueur(couleur) {
     });
 }
 
+// Fonction chirurgicale pour nettoyer et formater les vrais noms de stations
+function extraireVraiNom(station) {
+    let nomBrut = station.n || "";
+    let ville = station.v || "";
+    
+    // Si le nom est vide, générique ou juste "Station", on reconstruit une identité propre
+    if (!nomBrut || nomBrut.toLowerCase().trim() === "station" || nomBrut.length < 3) {
+        // On essaie de deviner via l'adresse ou la marque, sinon on fait Marque + Ville
+        let marque = "Station";
+        let adresse = (station.a || "").toLowerCase();
+        
+        if (adresse.includes("total")) marque = "Total";
+        else if (adresse.includes("leclerc")) marque = "E.Leclerc";
+        else if (adresse.includes("carrefour")) marque = "Carrefour";
+        else if (adresse.includes("intermarche")) marque = "Intermarché";
+        else if (adresse.includes("systeme u") || adresse.includes("super u")) marque = "Super U";
+        else if (adresse.includes("auchan")) marque = "Auchan";
+        else if (adresse.includes("esso")) marque = "Esso";
+        else if (adresse.includes("avanti")) marque = "Avanti";
+        else if (adresse.includes("bp ")) marque = "BP";
+        
+        return ville ? `${marque} - ${ville}` : `${marque} Indépendante`;
+    }
+    
+    // Si la ville n'est pas dans le nom, on la rajoute proprement pour le contexte
+    if (ville && !nomBrut.toLowerCase().includes(ville.toLowerCase())) {
+        return `${nomBrut} - ${ville}`;
+    }
+    
+    return nomBrut;
+}
+
+// Formatage des prix pour intercepter proprement les ruptures (0 ou null)
+function formatPrix(valeur) {
+    if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return null;
+    return parseFloat(valeur);
+}
+
 // ==========================================
-// 3. MOTEUR TACTIQUE : GESTION DES FAVORIS
+// 3. MOTEUR TACTIQUE : GESTION DES FAVORIS MULTI-ZONES
 // ==========================================
 function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
@@ -66,23 +104,42 @@ function afficherFavoris() {
         return;
     }
     
+    const selectElem = document.getElementById('select-carburant');
+    const carburantActif = selectElem ? selectElem.value : 'gz';
+    
     conteneur.innerHTML = '';
+    
     favoris.forEach(f => {
+        // Recherche en temps réel de cette station dans notre base de données globale
+        // pour extraire son prix actuel, même si elle est à 500 km !
+        const stationDataLive = stationsGlobales.find(s => latCentree(s.lt, f.lat) && lonCentree(s.ln, f.lon)) || 
+                                stationsGlobales.find(s => extraireVraiNom(s) === f.nom);
+        
+        let affichagePrix = "Rupture";
+        if (stationDataLive) {
+            let prix = formatPrix(stationDataLive[carburantActif]);
+            if (prix) affichagePrix = `${prix.toFixed(3)} €`;
+        }
+        
         const item = document.createElement('div');
         item.className = 'favori-item';
         item.style.cursor = 'pointer';
         item.style.marginBottom = '8px';
         
-        // Clic sur le nom pour centrer la carte sur le favori
         item.innerHTML = `
-            <div style="flex: 1;" onclick="map.setView([${f.lat}], [${f.lon}], 14); fetchLiveStations(${f.lat}, ${f.lon});">
-                <span style="font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">${f.nom}</span>
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px;" onclick="map.setView([${f.lat}], [${f.lon}], 14); fetchLiveStations(${f.lat}, ${f.lon});">
+                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; font-size:11px;">${f.nom}</span>
+                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert);">${affichagePrix}</b>
             </div>
             <button onclick="event.stopPropagation(); basculerFavori('${f.nom.replace(/'/g, "\\'")}', ${f.lat}, ${f.lon});" style="background:none; border:none; color:var(--accent-rouge); cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px;">✕</button>
         `;
         conteneur.appendChild(item);
     });
 }
+
+// Fonctions outils pour comparer les coordonnées géographiques à l'arrondi près
+function latCentree(l1, l2) { return Math.abs(parseFloat(l1) - parseFloat(l2)) < 0.005; }
+function lonCentree(l1, l2) { return Math.abs(parseFloat(l1) - parseFloat(l2)) < 0.005; }
 
 // ==========================================
 // 4. FONCTION RECHERCHE DE VILLE (GEOCODING)
@@ -101,15 +158,12 @@ async function rechercherVille() {
             const newLat = parseFloat(data[0].lat);
             const newLon = parseFloat(data[0].lon);
             
-            console.log(`Cible verrouillée : ${query} (${newLat}, ${newLon})`);
             map.setView([newLat, newLon], 12);
             fetchLiveStations(newLat, newLon);
         } else {
             alert("Ville introuvable. Veuillez vérifier l'orthographe.");
         }
-    } catch (e) {
-        console.error("Erreur de recherche de ville :", e);
-    }
+    } catch (e) { console.error("Erreur de recherche de ville :", e); }
 }
 
 // ==========================================
@@ -123,6 +177,8 @@ async function fetchLiveStations(centerLat, centerLon) {
             const response = await fetch(API_URL);
             if (!response.ok) throw new Error('Fichier introuvable');
             stationsGlobales = await response.json();
+            // Une fois les stations chargées la première fois, on rafraîchit l'affichage des favoris
+            afficherFavoris();
         }
 
         const selectElem = document.getElementById('select-carburant');
@@ -131,11 +187,6 @@ async function fetchLiveStations(centerLat, centerLon) {
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) map.removeLayer(layer);
         });
-
-        const formatPrix = (valeur) => {
-            if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return null;
-            return parseFloat(valeur);
-        };
 
         let prixMin = Infinity;
         let prixMax = -Infinity;
@@ -167,6 +218,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pSp98   = formatPrix(station["98"]);
                     
                     let prixCourant = formatPrix(station[carburantActif]);
+                    let vraiNomStation = extraireVraiNom(station);
 
                     let couleurMarker = 'blue'; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
@@ -174,7 +226,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}&query_place_id=${encodeURIComponent(station.n)}`;
+                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}&query_place_id=${encodeURIComponent(vraiNomStation)}`;
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker) }).addTo(map);
 
                     const afficherLignePrix = (label, prix, code) => {
@@ -182,16 +234,14 @@ async function fetchLiveStations(centerLat, centerLon) {
                         return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${styleHighlight}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Rupture'}</b></div>`;
                     };
 
-                    // Détermination du bouton Étoile selon l'état actuel
-                    const estFavori = favoris.some(f => f.nom === station.n);
+                    const estFavori = favoris.some(f => f.nom === vraiNomStation);
                     const texteBoutonFavori = estFavori ? "⭐ Enlever des Favoris" : "⭐ Ajouter aux Favoris";
                     const couleurBoutonFavori = estFavori ? "#ef4444" : "#22c55e";
 
-                    // Injection propre des fonctions d'ajout au clic dans la popup
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px;">
-                            <h4 style="margin:0 0 2px 0; color:#22c55e; text-transform:uppercase; font-size:13px; font-weight:bold;">${station.n}</h4>
-                            <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af;">${station.a} (${station.v})</p>
+                            <h4 style="margin:0 0 2px 0; color:#22c55e; text-transform:uppercase; font-size:13px; font-weight:bold;">${vraiNomStation}</h4>
+                            <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af;">${station.a || ''} (${station.v || ''})</p>
                             <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km</p>
                             
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace; margin-bottom:12px;">
@@ -201,13 +251,16 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 ${afficherLignePrix('SP98', pSp98, '98')}
                             </div>
 
-                            <button onclick="basculerFavori('${station.n.replace(/'/g, "\\'")}', ${lat}, ${lon}); this.innerText='Validé !';" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
+                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon}); this.innerText='Validé !';" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
                             <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase;">🗺️ Itinéraire Maps</a>
                         </div>
                     `);
                 }
             }
         });
+        
+        // On actualise aussi les favoris après calcul de la zone
+        afficherFavoris();
     } catch (e) { console.error("Erreur filtrage carte :", e); }
 }
 
@@ -215,7 +268,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 // 6. INITIALISATION DES ÉCOUTEURS
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-    afficherFavoris(); // Chargement initial de la mémoire locale
+    afficherFavoris(); 
 
     const selectElem = document.getElementById('select-carburant');
     if (selectElem) {
@@ -224,7 +277,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Écouteurs pour la recherche
     const btnSearch = document.getElementById('btn-search');
     if (btnSearch) btnSearch.addEventListener('click', rechercherVille);
     
@@ -235,11 +287,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Bouton de réinitialisation (Retour au secteur d'Hœrdt / position réelle)
     const btnReset = document.getElementById('btn-reset');
     if (btnReset) {
         btnReset.addEventListener('click', () => {
-            if (inputSearch) inputSearch.value = ''; // Nettoie le champ texte
+            if (inputSearch) inputSearch.value = ''; 
             map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
             fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
         });
@@ -262,5 +313,4 @@ if (navigator.geolocation) {
     fetchLiveStations(DEF_LAT, DEF_LON);
 }
 
-// Rendre la fonction accessible depuis les fenêtres Popups de Leaflet
 window.basculerFavori = basculerFavori;
