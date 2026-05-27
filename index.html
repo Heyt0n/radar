@@ -180,38 +180,36 @@
     <div class="app-container">
         
         <aside id="sidebar">
-            
-            <!-- Le briefing de l'expert passe en pole position -->
-            <div class="widget">
-                <div class="widget-title">Briefing Analyste</div>
-                <div id="sniper-comment">En attente de synchronisation avec le tableur de suivi...</div>
-            </div>
-            
-            <!-- Menu de sélection tactique du carburant -->
-            <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-family:inherit;">
-                <option value="gz">⛽ Gazole</option>
-                <option value="e10">⛽ SP95-E10</option>
-                <option value="95">⛽ SP95</option>
-                <option value="98">⛽ SP98</option>
-            </select>
-            
-            <!-- Nouvelle section dédiée aux Stations Favorites -->
-            <div class="widget" style="flex: 1;">
-                <div class="widget-title">Stations Favorites</div>
-                <div id="liste-favoris">
-                    <!-- Les éléments favoris seront injectés ici par ton script JavaScript -->
-                    <div class="favori-item">
-                        <span>Total Hœrdt</span>
-                        <b style="color: var(--accent-vert);">En veille</b>
-                    </div>
-                    <div class="favori-item">
-                        <span>Leclerc Haguenau</span>
-                        <b style="color: var(--accent-vert);">En veille</b>
-                    </div>
-                </div>
-            </div>
+    
+    <div class="widget">
+        <div class="widget-title">Briefing Analyste</div>
+        <div id="sniper-comment">En attente de synchronisation avec le tableur de suivi...</div>
+    </div>
+    
+    <div class="widget">
+        <div class="widget-title">Cible / Localisation</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
+            <button id="btn-search" style="background: #3b82f6; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+        </div>
+        <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">📍 Retour Ma Position</button>
+    </div>
+    
+    <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-family:inherit;">
+        <option value="gz">⛽ Gazole</option>
+        <option value="e10">⛽ SP95-E10</option>
+        <option value="95">⛽ SP95</option>
+        <option value="98">⛽ SP98</option>
+    </select>
+    
+    <div class="widget" style="flex: 1;">
+        <div class="widget-title">Stations Favorites</div>
+        <div id="liste-favoris">
+            <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
+        </div>
+    </div>
 
-        </aside>
+</aside>
 
         <main id="map-container">
             <div id="map"></div>
