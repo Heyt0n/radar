@@ -3,12 +3,12 @@
 // ==========================================
 
 // 1. Colle ici ton lien Google Sheets publié au format CSV (.csv)
-const GOOGLE_SHEETS_COMMENTAIRE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRlZeqlhRu75u42M8mfM5TagCXgfh-rl6ZD-qDm25Q2lSlLBYSTMBIioY_JzgdDDByohc-K2EIIuiBY/pubhtml";
+const GOOGLE_SHEETS_COMMENTAIRE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRlZeqlhRu75u42M8mfM5TagCXgfh-rl6ZD-qDm25Q2lSlLBYSTMBIioY_JzgdDDByohc-K2EIIuiBY/pub?output=csv";
 
 async function chargerBriefDuSoir() {
     try {
         // Sécurité si l'URL n'est pas encore remplie
-        if (!GOOGLE_SHEETS_COMMENTAIRE_URL || GOOGLE_SHEETS_COMMENTAIRE_URL.includes("https://docs.google.com/spreadsheets/d/e/2PACX-1vRlZeqlhRu75u42M8mfM5TagCXgfh-rl6ZD-qDm25Q2lSlLBYSTMBIioY_JzgdDDByohc-K2EIIuiBY/pubhtml")) {
+        if (!GOOGLE_SHEETS_COMMENTAIRE_URL || GOOGLE_SHEETS_COMMENTAIRE_URL.includes("https://docs.google.com/spreadsheets/d/e/2PACX-1vRlZeqlhRu75u42M8mfM5TagCXgfh-rl6ZD-qDm25Q2lSlLBYSTMBIioY_JzgdDDByohc-K2EIIuiBY/pub?output=csv")) {
             console.log("Brief : URL Google Sheets non configurée.");
             return;
         }
