@@ -4,7 +4,7 @@
 const API_URL = "stations_france.json"; 
 
 // Colle ici le lien CSV de ton Google Sheets où tu écris ton brief tous les soirs
-const GOOGLE_SHEETS_COMMENTAIRE_URL = "VOTRE_URL_PUBLIEE_AU_FORMAT_CSV"; 
+const GOOGLE_SHEETS_COMMENTAIRE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRlZeqlhRu75u42M8mfM5TagCXgfh-rl6ZD-qDm25Q2lSlLBYSTMBIioY_JzgdDDByohc-K2EIIuiBY/pub?output=csv"; 
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
