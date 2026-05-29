@@ -15,11 +15,16 @@
             --bg-carte: #1f2937;
             --accent-vert: #22c55e;
             --accent-bleu: #3b82f6;
+            --accent-rouge: #ef4444;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -34,85 +39,53 @@
         /* HEADER */
         header {
             background-color: var(--bg-panneau);
-            padding: 0 20px;
+            padding: 12px 20px;
             border-bottom: 1px solid #1f2937;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            z-index: 100;
+            z-index: 10;
             height: 50px;
-            flex-shrink: 0;
         }
 
-        header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-
-        /* BOUTON BURGER ☰ */
-        .burger-btn {
-            background: none;
-            border: none;
+        header h1 {
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             color: var(--texte-principal);
-            font-size: 24px;
-            cursor: pointer;
-            z-index: 1100;
-            padding: 5px;
         }
 
-        /* VOLET COULISSANT (MENU BURGER) */
-        .burger-menu {
-            position: fixed;
-            top: 0;
-            right: -280px; /* Caché à droite par défaut */
-            width: 280px;
-            height: 100%;
-            background-color: var(--bg-panneau);
-            border-left: 1px solid #1f2937;
-            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
-            z-index: 1000;
-            transition: right 0.3s ease; /* Animation de glisse */
-            padding: 70px 20px 20px 20px; /* Espace en haut pour ne pas cacher le bouton */
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .burger-menu.open {
-            right: 0; /* Glisse à l'écran */
-        }
-
-        /* VOILE SOMBRE DE FOND */
-        .menu-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 999;
-        }
-        .menu-overlay.active { display: block; }
-
-        /* LIENS DU MENU */
-        .menu-link {
+        /* MENU DÉROULANT DE NAVIGATION (STYLE SÉLECTEUR) */
+        .nav-dropdown {
             background: #1f2937;
-            color: var(--texte-principal);
+            color: white;
             border: 1px solid #374151;
-            padding: 14px;
+            padding: 6px 12px;
             border-radius: 8px;
-            text-align: left;
             font-weight: 600;
-            font-size: 14px;
-            text-decoration: none;
+            font-size: 13px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            outline: none;
         }
-        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
+
+        /* CONTENEUR DE PAGES */
+        .page-content {
+            display: none;
+            flex: 1;
+            height: calc(100vh - 50px);
+        }
+
+        .page-content.active {
+            display: flex;
+        }
 
         /* STRUCTURE PAGE CARTE */
         .app-container {
             display: flex;
             flex: 1;
             width: 100%;
-            height: calc(100vh - 50px);
+            height: 100%;
             flex-direction: row;
         }
 
@@ -123,44 +96,204 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            overflow-y: auto;
+            overflow-y: auto; /* Permet le défilement du panneau si l'écran est petit */
             border-right: 1px solid #1f2937;
             z-index: 5;
             flex-shrink: 0;
         }
 
-        .widget { background: rgba(31, 41, 55, 0.5); border: 1px solid #374151; border-radius: 12px; padding: 14px; }
-        .widget-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 8px; font-weight: 600; }
-        
-        #select-carburant { background: #1f2937; color: white; border: 1px solid #374151; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
-        #sniper-comment { font-size: 13px; line-height: 1.5; color: #d1d5db; font-style: italic; }
-        #liste-favoris { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
-
-        .favori-item {
-            background: #1f2937; padding: 10px; border-radius: 8px; border-left: 3px solid var(--accent-vert);
-            display: flex; justify-content: space-between; align-items: center;
+        .widget {
+            background: rgba(31, 41, 55, 0.5);
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 14px;
         }
 
-        #map-container { flex: 1; height: 100%; position: relative; }
-        #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+        .widget-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--texte-secondaire);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
 
+        #select-carburant {
+            background: #1f2937;
+            color: white;
+            border: 1px solid #374151;
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #sniper-comment {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #d1d5db;
+            font-style: italic;
+        }
+
+        #liste-favoris {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .favori-item {
+            background: #1f2937;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-vert);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #map-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+        }
+
+        /* PAGES COMPTE & OUTILS */
+        .standard-page {
+            padding: 30px;
+            overflow-y: auto;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* RESPONSIVE SMARTPHONE */
         @media (max-width: 768px) {
-            body { position: fixed; width: 100%; }
-            .app-container { flex-direction: column-reverse; }
-            #sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; }
-            #map-container { flex: 1; }
+            body {
+                position: fixed;
+                width: 100%;
+            }
+
+            .app-container {
+                flex-direction: column-reverse; /* Carte en haut, panneau en bas */
+            }
+
+            #sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 45vh; /* Bloque le panneau à 45% max de l'écran */
+                border-right: none;
+                border-top: 1px solid #1f2937;
+                padding: 12px;
+                gap: 10px;
+            }
+
+            #map-container {
+                flex: 1;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
-    <nav class="burger-menu" id="burgerMenu">
-        <a href="radar.html" class="menu-link active">📡 Radar Tactique</a>
-        <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
-        <a href="compte.html" class="menu-link">👤 Mon Compte</a>
-    </nav>
-
+    <!-- EN-TÊTE AVEC LE MENU DÉROULANT DE NAVIGATION -->
     <header>
         <h1>Radar Carburant</h1>
-        <button class="burger-btn" onclick
+        
+        <!-- Le menu déroulant pour changer de vue (comme pour changer de discussion) -->
+        <select class="nav-dropdown" onchange="changerPage(this.value)">
+            <option value="page-map">📡 Radar Tactique</option>
+            <option value="page-outils">📊 Outils & Stats</option>
+            <option value="page-compte">👤 Mon Compte</option>
+        </select>
+    </header>
+
+    <!-- PAGE 1 : RADAR PRINCIPAL -->
+    <div id="page-map" class="page-content active">
+        <div class="app-container">
+            
+            <!-- PANNEAU LATÉRAL RESTRUCTURÉ SELON TES ORDRES -->
+            <aside id="sidebar">
+                
+                <!-- 1. SÉLECTION DU CARBURANT -->
+                <select id="select-carburant">
+                    <option value="gz">Gazole</option>
+                    <option value="e10">SP95-E10</option>
+                    <option value="95">SP95</option>
+                    <option value="98">SP98</option>
+                </select>
+                
+                <!-- 2. BARRE POUR CHANGER DE VILLE -->
+                <div class="widget">
+                    <div class="widget-title">Cible / Localisation</div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
+                        <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+                    </div>
+                    <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
+                </div>
+
+                <!-- 3. BRIEFING ANALYSTE -->
+                <div class="widget">
+                    <div class="widget-title">Briefing Analyste</div>
+                    <div id="sniper-comment">En attente de synchronisation...</div>
+                </div>
+                
+                <!-- 4. LISTE DES FAVORIS -->
+                <div class="widget" style="flex: 1;">
+                    <div class="widget-title">Stations Favorites</div>
+                    <div id="liste-favoris">
+                        <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
+                    </div>
+                </div>
+
+            </aside>
+
+            <!-- LA CARTE -->
+            <main id="map-container">
+                <div id="map"></div>
+            </main>
+
+        </div>
+    </div>
+
+    <!-- PAGE 2 : OUTILS ET STATS -->
+    <div id="page-outils" class="page-content">
+        <div class="standard-page">
+            <div class="widget">
+                <h2 style="font-size: 18px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Outils & Analyses Avancées</h2>
+                <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.6;">
+                    Cet espace accueillera les graphiques d'évolution, historiques et autres modules exclusifs à forte valeur ajoutée.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 3 : MON COMPTE -->
+    <div id="page-compte" class="page-content">
+        <div class="standard-page">
+            <div class="widget">
+                <h2 style="font-size: 18px; margin-bottom: 5px;">👤 Profil de l'Opérateur</h2>
+                <p style="font-size: 12px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 15px;">Gestion de votre accès</p>
+                <div style="background: #1f2937; padding: 15px; border-radius: 8px;">
+                    <b style="color: var(--accent-vert);">Compte Invité (Local)</b>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
