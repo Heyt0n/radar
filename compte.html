@@ -2,52 +2,242 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Carburant - Profil</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Radar Carburant - Profil Opérateur</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
         :root {
             --bg-principal: #0b0f19;
             --bg-panneau: #111827;
+            --bg-carte: #1f2937;
             --accent-vert: #22c55e;
             --accent-bleu: #3b82f6;
+            --accent-orange: #f97316;
+            --accent-rouge: #ef4444;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
         }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-principal); color: var(--texte-principal); min-height: 100vh; }
-        
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texte-principal);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER */
         header {
-            background-color: var(--bg-panneau); padding: 0 20px; border-bottom: 1px solid #1f2937;
-            display: flex; justify-content: space-between; align-items: center; height: 50px; z-index: 100; position: relative;
+            background-color: var(--bg-panneau);
+            padding: 0 20px;
+            border-bottom: 1px solid #1f2937;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 50px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
+
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-        
-        .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px; }
-        
-        .burger-menu {
-            position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau);
-            border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 1000;
-            transition: right 0.3s ease; padding: 70px 20px 20px 20px; display: flex; flex-direction: column; gap: 10px;
+
+        /* BOUTON BURGER ☰ */
+        .burger-btn {
+            background: none;
+            border: none;
+            color: var(--texte-principal);
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 2001;
+            padding: 5px;
         }
+
+        /* MENU BURGER COULISSANT */
+        .burger-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100%;
+            background-color: var(--bg-panneau);
+            border-left: 1px solid #1f2937;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+            z-index: 2000;
+            transition: right 0.3s ease;
+            padding: 70px 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
         .burger-menu.open { right: 0; }
-        
-        .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
+
+        /* VOILE SOMBRE DE FOND */
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1999;
+        }
         .menu-overlay.active { display: block; }
-        
+
+        /* LIENS DU MENU */
         .menu-link {
-            background: #1f2937; color: var(--texte-principal); border: 1px solid #374151; padding: 14px;
-            border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px;
+            background: #1f2937;
+            color: var(--texte-principal);
+            border: 1px solid #374151;
+            padding: 14px;
+            border-radius: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
         }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
-        
-        .standard-page { padding: 30px; width: 100%; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        .widget { background: var(--bg-panneau); border: 1px solid #374151; border-radius: 12px; padding: 20px; }
+
+        /* CONTENEUR PRINCIPAL DE LA PAGE */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* CARD STYLE (WIDGETS) */
+        .widget {
+            background: var(--bg-panneau);
+            border: 1px solid #374151;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #1f2937;
+            padding-bottom: 10px;
+        }
+
+        .widget-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--texte-secondaire);
+            font-weight: 700;
+        }
+
+        /* GRILLE D'INFORMATIONS */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 550px) {
+            .info-grid { grid-template-columns: 1fr; }
+        }
+
+        .info-box {
+            background: rgba(31, 41, 55, 0.4);
+            border: 1px solid #374151;
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: var(--texte-secondaire);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* COMPTEUR COMPACT */
+        .counter-badge {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-carte);
+            color: var(--accent-orange);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+
+        /* FORMULAIRES & BOUTONS */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            color: var(--texte-secondaire);
+            font-weight: 600;
+        }
+
+        .form-group input {
+            background: #1f2937;
+            color: white;
+            border: 1px solid #374151;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-bleu);
+        }
+
+        .btn {
+            background: var(--accent-bleu);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background: var(--accent-rouge); }
     </style>
 </head>
 <body>
 
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
+    <div class="menu-overlay" id="menuOverlay"></div>
     <nav class="burger-menu" id="burgerMenu">
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
@@ -56,31 +246,57 @@
 
     <header>
         <h1>Radar Carburant</h1>
-        <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
+        <button class="burger-btn" id="burgerBtn">☰</button>
     </header>
 
-    <div class="standard-page">
+    <div class="main-content">
+        
         <div class="widget">
-            <h2 style="font-size: 18px; margin-bottom: 5px;">👤 Profil de l'Opérateur</h2>
-            <p style="font-size: 12px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 20px;">Gestion de votre accès</p>
-            
-            <div style="background: #1f2937; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <span style="display: block; font-size: 11px; color: var(--texte-secondaire); margin-bottom: 4px;">Statut actuel</span>
-                <b style="color: var(--accent-vert);">Compte Invité (Local)</b>
+            <div class="widget-header">
+                <div class="widget-title">Statut Session</div>
+                <span class="counter-badge" id="favoris-count">0 Cible(s)</span>
             </div>
-            
-            <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.5;">
-                C'est ici qu'on viendra brancher le formulaire de connexion et le futur bouton pour s'abonner.
-            </p>
+            <div class="info-grid">
+                <div class="info-box" style="border-left: 3px solid var(--accent-vert);">
+                    <div class="info-label">Type d'Accès</div>
+                    <div class="info-value">Profil Opérateur (Local)</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Stockage Cloud</div>
+                    <div class="info-value" style="color: var(--texte-secondaire);">Non synchronisé</div>
+                </div>
+            </div>
         </div>
+
+        <div class="widget">
+            <div class="widget-header">
+                <div class="widget-title">Configurations Profil</div>
+            </div>
+            <form id="profile-form">
+                <div class="form-group">
+                    <label for="user-pseudo">Identifiant / Pseudo</label>
+                    <input type="text" id="user-pseudo" placeholder="Ex: Chasseur_67">
+                </div>
+                <div class="form-group">
+                    <label for="user-rayon">Rayon d'action par défaut (km)</label>
+                    <input type="number" id="user-rayon" value="15" min="5" max="50">
+                </div>
+                <button type="submit" class="btn">Enregistrer les préférences</button>
+            </form>
+        </div>
+
+        <div class="widget" style="border-color: rgba(239, 68, 68, 0.3);">
+            <div class="widget-header">
+                <div class="widget-title" style="color: var(--accent-rouge);">Zone de Purge</div>
+            </div>
+            <p style="font-size: 12px; color: var(--texte-secondaire); margin-bottom: 15px; line-height: 1.5;">
+                La réinitialisation supprimera définitivement vos cibles favorites enregistrées sur cet appareil ainsi que vos préférences locales.
+            </p>
+            <button class="btn btn-danger" id="btn-purge">Réinitialiser les données locales</button>
+        </div>
+
     </div>
 
-    <script>
-        // Script local ultra-léger dédié uniquement à la bascule du menu
-        function toggleBurgerMenu() {
-            document.getElementById('burgerMenu').classList.toggle('open');
-            document.getElementById('menuOverlay').classList.toggle('active');
-        }
-    </script>
+    <script src="compte.js"></script>
 </body>
 </html>
