@@ -313,40 +313,24 @@ if (navigator.geolocation) {
 window.basculerFavori = basculerFavori;
 
 // ==========================================
-// 7. ROUTAGE ET NAVIGATION ENTRE LES PAGES
+// 7. GESTION DES PAGES VIA SÉLECTEUR DÉROULANT
 // ==========================================
 function changerPage(pageId) {
-    // 1. Masquer toutes les pages
+    // 1. Masquer toutes les sections
     const toutesLesPages = document.querySelectorAll('.page-content');
     toutesLesPages.forEach(page => page.classList.remove('active'));
 
-    // 2. Afficher la page demandée
+    // 2. Afficher la section sélectionnée
     const pageCible = document.getElementById(pageId);
     if (pageCible) pageCible.classList.add('active');
 
-    // 3. Mettre à jour l'état visuel des boutons PC
-    const boutonsPc = document.querySelectorAll('.nav-btn');
-    boutonsPc.forEach(btn => btn.classList.remove('active'));
-    // Retrouve le bouton PC correspondant à la fonction lancée
-    const boutonPcActif = Array.from(boutonsPc).find(btn => btn.getAttribute('onclick').includes(pageId));
-    if (boutonPcActif) boutonPcActif.classList.add('active');
-
-    // 4. Mettre à jour l'état visuel des boutons Mobile
-    const boutonsMobile = document.querySelectorAll('.nav-mobile-item');
-    boutonsMobile.forEach(btn => btn.classList.remove('active'));
-    
-    // Associe l'id du bouton mobile correspondant
-    let idMobile = 'm-btn-' + pageId;
-    const boutonMobileActif = document.getElementById(idMobile);
-    if (boutonMobileActif) boutonMobileActif.classList.add('active');
-
-    // 5. Correctif Leaflet : Force la carte à recalculer sa taille réelle s'il y a eu un changement de page
+    // 3. Forcer la carte Leaflet à se réajuster proprement si on revient dessus
     if (pageId === 'page-map' && typeof map !== 'undefined') {
         setTimeout(() => {
             map.invalidateSize();
-        }, 100);
+        }, 150);
     }
 }
 
-// Rendre la fonction accessible globalement
+// Rendre la fonction accessible pour le select HTML
 window.changerPage = changerPage;
