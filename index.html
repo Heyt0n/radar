@@ -16,16 +16,11 @@
             --accent-vert: #22c55e;
             --accent-bleu: #3b82f6;
             --accent-rouge: #ef4444;
-            --accent-or: #eab308;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -37,129 +32,31 @@
             overflow: hidden;
         }
 
-        /* HEADER AVEC BURGER */
         header {
             background-color: var(--bg-panneau);
-            padding: 0 20px;
+            padding: 12px 20px;
             border-bottom: 1px solid #1f2937;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 15px;
-            z-index: 100;
+            z-index: 10;
             height: 50px;
             flex-shrink: 0;
         }
 
-        #burger-btn {
-            background: none;
-            border: none;
-            color: var(--texte-principal);
-            font-size: 24px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 5px;
+        header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+
+        .nav-dropdown {
+            background: #1f2937; color: white; border: 1px solid #374151;
+            padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;
         }
 
-        header h1 {
-            font-size: 16px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* STRUCTURATION DES PAGES */
-        .main-container {
-            flex: 1;
-            display: flex;
-            position: relative;
-            height: calc(100vh - 50px);
-            overflow: hidden;
-        }
-
-        /* LE MENU LATÉRAL COULISSANT (STYLE GEMINI) */
-        #nav-sidebar {
-            position: absolute;
-            top: 0;
-            left: -280px; /* Masqué à gauche */
-            width: 280px;
-            height: 100%;
-            background-color: var(--bg-panneau);
-            border-right: 1px solid #1f2937;
-            z-index: 2000;
-            transition: left 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            gap: 10px;
-        }
-
-        #nav-sidebar.open {
-            left: 0; /* Glisse à l'écran */
-        }
-
-        /* Voile noir transparent en arrière-plan du menu */
-        #menu-overlay {
-            display: none;
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 1999;
-        }
-
-        #menu-overlay.active {
-            display: block;
-        }
-
-        .menu-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--texte-secondaire);
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .menu-btn {
-            background: #1f2937;
-            color: var(--texte-principal);
-            border: 1px solid #374151;
-            padding: 12px 15px;
-            border-radius: 8px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.2s;
-        }
-
-        .menu-btn.active, .menu-btn:hover {
-            background: var(--accent-bleu);
-            border-color: var(--accent-bleu);
-            color: white;
-        }
-
-        /* CONTENUS */
-        .page-content {
-            display: none;
-            width: 100%;
-            height: 100%;
-        }
-
-        .page-content.active {
-            display: flex;
-        }
-
-        /* STRUCTURE PAGE RADAR */
         .app-container {
             display: flex;
             flex: 1;
             width: 100%;
-            height: 100%;
+            height: calc(100vh - 50px);
+            flex-direction: row;
         }
 
         #sidebar {
@@ -171,204 +68,82 @@
             gap: 12px;
             overflow-y: auto;
             border-right: 1px solid #1f2937;
+            z-index: 5;
             flex-shrink: 0;
         }
 
-        .widget {
-            background: rgba(31, 41, 55, 0.5);
-            border: 1px solid #374151;
-            border-radius: 12px;
-            padding: 14px;
-        }
-
-        .widget-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--texte-secondaire);
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        #select-carburant {
-            background: #1f2937;
-            color: white;
-            border: 1px solid #374151;
-            padding: 10px;
-            border-radius: 8px;
-            width: 100%;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #sniper-comment {
-            font-size: 13px;
-            line-height: 1.5;
-            color: #d1d5db;
-            font-style: italic;
-        }
-
-        #liste-favoris {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            font-size: 12px;
-        }
+        .widget { background: rgba(31, 41, 55, 0.5); border: 1px solid #374151; border-radius: 12px; padding: 14px; }
+        .widget-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 8px; font-weight: 600; }
+        
+        #select-carburant { background: #1f2937; color: white; border: 1px solid #374151; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
+        #sniper-comment { font-size: 13px; line-height: 1.5; color: #d1d5db; font-style: italic; }
+        #liste-favoris { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
 
         .favori-item {
-            background: #1f2937;
-            padding: 10px;
-            border-radius: 8px;
-            border-left: 3px solid var(--accent-vert);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            background: #1f2937; padding: 10px; border-radius: 8px; border-left: 3px solid var(--accent-vert);
+            display: flex; justify-content: space-between; align-items: center;
         }
 
-        #map-container {
-            flex: 1;
-            height: 100%;
-            position: relative;
-        }
+        #map-container { flex: 1; height: 100%; position: relative; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
-        #map {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0; bottom: 0; left: 0; right: 0;
-        }
-
-        .standard-page {
-            padding: 30px;
-            overflow-y: auto;
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* RE-STYLISATION DES POPUPS DE LA CARTE POUR MARQUER LES FAVORIS */
-        .favori-popup-border {
-            border: 2px solid var(--accent-or) !important;
-            box-shadow: 0 0 10px var(--accent-or) !important;
-        }
-
-        /* RESPONSIVE SMARTPHONE */
         @media (max-width: 768px) {
-            body {
-                position: fixed;
-                width: 100%;
-            }
-
-            .app-container {
-                flex-direction: column-reverse;
-            }
-
-            #sidebar {
-                width: 100%;
-                height: auto;
-                max-height: 45vh;
-                border-right: none;
-                border-top: 1px solid #1f2937;
-                padding: 12px;
-                gap: 10px;
-            }
-
-            #map-container {
-                flex: 1;
-            }
+            body { position: fixed; width: 100%; }
+            .app-container { flex-direction: column-reverse; }
+            #sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; }
+            #map-container { flex: 1; }
         }
     </style>
 </head>
 <body>
 
-    <!-- ENTÊTE CONSTANT -->
     <header>
-        <button id="burger-btn" onclick="toggleMenu()">☰</button>
         <h1>Radar Carburant</h1>
+        <select class="nav-dropdown" onchange="window.location.href=this.value;">
+            <option value="radar.html" selected>📡 Radar Tactique</option>
+            <option value="outils.html">📊 Outils & Stats</option>
+            <option value="compte.html">👤 Mon Compte</option>
+        </select>
     </header>
 
-    <div class="main-container">
-        
-        <!-- VOILE SOMBRE INTERACTIF -->
-        <div id="menu-overlay" onclick="toggleMenu()"></div>
+    <div class="app-container">
+        <aside id="sidebar">
+            <!-- 1. CARBURANT -->
+            <select id="select-carburant">
+                <option value="gz">Gazole</option>
+                <option value="e10">SP95-E10</option>
+                <option value="95">SP95</option>
+                <option value="98">SP98</option>
+            </select>
+            
+            <!-- 2. VILLE -->
+            <div class="widget">
+                <div class="widget-title">Cible / Localisation</div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
+                    <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+                </div>
+                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
+            </div>
 
-        <!-- LE VRAI MENU BURGER COULISSANT (STYLE GEMINI) -->
-        <aside id="nav-sidebar">
-            <div class="menu-title">Applications & Profil</div>
-            <button class="menu-btn active" onclick="changerPage('page-map')">📡 Radar Tactique</button>
-            <button class="menu-btn" onclick="changerPage('page-outils')">📊 Outils & Stats</button>
-            <button class="menu-btn" onclick="changerPage('page-compte')">👤 Mon Compte</button>
+            <!-- 3. BRIEFING -->
+            <div class="widget">
+                <div class="widget-title">Briefing Analyste</div>
+                <div id="sniper-comment">En attente de synchronisation...</div>
+            </div>
+            
+            <!-- 4. FAVORIS -->
+            <div class="widget" style="flex: 1;">
+                <div class="widget-title">Stations Favorites</div>
+                <div id="liste-favoris">
+                    <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
+                </div>
+            </div>
         </aside>
 
-        <!-- ZONE EN-COURS : PAGE RADAR AVEC TON ORDRE PRÉFÉRÉ -->
-        <div id="page-map" class="page-content active">
-            <div class="app-container">
-                
-                <aside id="sidebar">
-                    <!-- 1. SÉLECTION DU CARBURANT -->
-                    <select id="select-carburant">
-                        <option value="gz">Gazole</option>
-                        <option value="e10">SP95-E10</option>
-                        <option value="95">SP95</option>
-                        <option value="98">SP98</option>
-                    </select>
-                    
-                    <!-- 2. BARRE DE VILLE -->
-                    <div class="widget">
-                        <div class="widget-title">Cible / Localisation</div>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
-                            <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
-                        </div>
-                        <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
-                    </div>
-
-                    <!-- 3. BRIEFING -->
-                    <div class="widget">
-                        <div class="widget-title">Briefing Analyste</div>
-                        <div id="sniper-comment">En attente de synchronisation...</div>
-                    </div>
-                    
-                    <!-- 4. FAVORIS -->
-                    <div class="widget" style="flex: 1;">
-                        <div class="widget-title">Stations Favorites</div>
-                        <div id="liste-favoris">
-                            <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
-                        </div>
-                    </div>
-                </aside>
-
-                <!-- LA CARTE -->
-                <main id="map-container">
-                    <div id="map"></div>
-                </main>
-
-            </div>
-        </div>
-
-        <!-- ZONE INTERNE : OUTILS -->
-        <div id="page-outils" class="page-content">
-            <div class="standard-page">
-                <div class="widget">
-                    <h2 style="font-size: 18px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Analyses Tactiques</h2>
-                    <p style="font-size: 13px; color: var(--texte-secondaire);">Espace réservé aux données graphiques futures.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- ZONE INTERNE : COMPTE -->
-        <div id="page-compte" class="page-content">
-            <div class="standard-page">
-                <div class="widget">
-                    <h2 style="font-size: 18px; margin-bottom: 10px;">👤 Profil Utilisateur</h2>
-                    <p style="font-size: 13px; color: var(--texte-secondaire);">Espace réservé à la future passerelle d'accès.</p>
-                </div>
-            </div>
-        </div>
-
+        <main id="map-container">
+            <div id="map"></div>
+        </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
