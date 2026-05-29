@@ -5,7 +5,10 @@ const API_URL = "stations_france.json";
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
-const RAYON_KM = 15; 
+
+// AVANT : const RAYON_KM = 15;
+// MAINTENANT : On récupère le rayon du compte, s'il n'existe pas on met 15 par défaut
+let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15; 
 
 let stationsGlobales = [];
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
