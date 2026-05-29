@@ -312,3 +312,17 @@ if (navigator.geolocation) {
 
 window.basculerFavori = basculerFavori;
 
+// ==========================================
+// 7. CONTRÔLE DU VOLET MENU BURGER COULISSANT
+// ==========================================
+function toggleBurgerMenu() {
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+}
+// Rend la fonction disponible pour le clic sur le bouton HTML
+window.toggleBurgerMenu = toggleBurgerMenu;
