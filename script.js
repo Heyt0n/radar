@@ -312,25 +312,3 @@ if (navigator.geolocation) {
 
 window.basculerFavori = basculerFavori;
 
-// ==========================================
-// 7. GESTION DES PAGES VIA SÉLECTEUR DÉROULANT
-// ==========================================
-function changerPage(pageId) {
-    // 1. Masquer toutes les sections
-    const toutesLesPages = document.querySelectorAll('.page-content');
-    toutesLesPages.forEach(page => page.classList.remove('active'));
-
-    // 2. Afficher la section sélectionnée
-    const pageCible = document.getElementById(pageId);
-    if (pageCible) pageCible.classList.add('active');
-
-    // 3. Forcer la carte Leaflet à se réajuster proprement si on revient dessus
-    if (pageId === 'page-map' && typeof map !== 'undefined') {
-        setTimeout(() => {
-            map.invalidateSize();
-        }, 150);
-    }
-}
-
-// Rendre la fonction accessible pour le select HTML
-window.changerPage = changerPage;
