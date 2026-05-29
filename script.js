@@ -6,7 +6,8 @@ const API_URL = "stations_france.json";
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 
-// Lecture dynamique du rayon configuré sur la page mon compte (15 km par défaut)
+// AVANT : const RAYON_KM = 15;
+// MAINTENANT : On récupère le rayon du compte, s'il n'existe pas on met 15 par défaut
 let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15; 
 
 let stationsGlobales = [];
@@ -34,14 +35,15 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Système du "Demi-Ping" : Conserve la couleur du prix et ajoute un badge ⭐ or/orange discret si favori
+// Génération de l'icône avec le système de "Demi-Ping" (Badge favori sans écraser la couleur du prix)
 function creerIconeMarqueur(couleur, estFavori) {
     if (estFavori) {
+        // Si c'est un favori, on utilise un DivIcon pour superposer l'icône couleur et le badge ⭐
         return L.divIcon({
             html: `
                 <div style="position: relative; width: 25px; height: 41px;">
                     <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block;">
-                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); font-weight: bold;">⭐</div>
+                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">⭐</div>
                 </div>
             `,
             className: '',
@@ -51,6 +53,7 @@ function creerIconeMarqueur(couleur, estFavori) {
         });
     }
 
+    // Marqueur standard si pas en favori
     return new L.Icon({
         iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -61,7 +64,6 @@ function creerIconeMarqueur(couleur, estFavori) {
     });
 }
 
-// Extraction propre : Combine "Enseigne - Adresse, Ville" pour éviter les doublons anonymes
 function extraireVraiNom(station) {
     let nomBrut = (station.n || "").trim();
     let ville = (station.v || "").trim();
@@ -70,6 +72,7 @@ function extraireVraiNom(station) {
     let marque = "Station";
     let adresseMinuscule = adresseBrute.toLowerCase();
     
+    // Détection de l'enseigne dans l'adresse si le nom est manquant ou générique
     if (adresseMinuscule.includes("total")) marque = "Total";
     else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
     else if (adresseMinuscule.includes("carrefour")) marque = "Carrefour";
@@ -80,14 +83,17 @@ function extraireVraiNom(station) {
     else if (adresseMinuscule.includes("avanti")) marque = "Avanti";
     else if (adresseMinuscule.includes("bp ")) marque = "BP";
 
+    // Si le nom du JSON est exploitable, on l'utilise comme base, sinon on prend la marque identifiée
     let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
     
+    // Formatage de l'adresse pour enlever l'enseigne répétée et garder uniquement la rue
     let rueClean = adresseBrute;
     if (rueClean.toLowerCase().startsWith(nomBase.toLowerCase())) {
         rueClean = rueClean.substring(nomBase.length).trim();
         if (rueClean.startsWith("-")) rueClean = rueClean.substring(1).trim();
     }
 
+    // Construction d'une identité unique textuelle (Enseigne - Rue, Ville)
     let identiteUnique = nomBase;
     if (rueClean) {
         identiteUnique += ` - ${rueClean}`;
@@ -115,6 +121,7 @@ function basculerFavori(nom, lat, lon) {
     }
     localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     
+    // Synchronisation instantanée
     fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
 }
 
@@ -150,7 +157,7 @@ function afficherFavoris() {
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" onclick="map.setView([${f.lat}], ${f.lon}, 14); fetchLiveStations(${f.lat}, ${f.lon});">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${f.nom}">${f.nom}</span>
-                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
+                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;"></b style="font-family:'JetBrains>${affichagePrix}</b>
             </div>
             <button onclick="event.stopPropagation(); basculerFavori('${f.nom.replace(/'/g, "\\'")}', ${f.lat}, ${f.lon});" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px; flex-shrink: 0;">✕</button>
         `;
@@ -201,15 +208,15 @@ async function fetchLiveStations(centerLat, centerLon) {
         const selectElem = document.getElementById('select-carburant');
         const carburantActif = selectElem ? selectElem.value : 'gz';
 
-        // Nettoyage complet de la carte
+        // Nettoyage complet
         map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) map.removeLayer(layer);
+            if (layer instanceof L.Marker || layer instanceof L.DivIcon) map.removeLayer(layer);
         });
 
         let prixMin = Infinity;
         let prixMax = -Infinity;
 
-        // Étape 1 : Calcul des extrêmes de prix selon le rayon dynamique actif
+        // Étape 1 : Calcul des spreads de prix de la zone active
         stationsGlobales.forEach(station => {
             if (station.lt && station.ln) {
                 let distance = getDistance(centerLat, centerLon, station.lt, station.ln);
@@ -223,7 +230,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
-        // Étape 2 : Dessin des marqueurs
+        // Étape 2 : Projection des cibles sur la carte
         stationsGlobales.forEach(station => {
             let lat = station.lt;
             let lon = station.ln;
@@ -241,16 +248,17 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pSp98   = formatPrix(station["98"]);
                     let prixCourant = formatPrix(station[carburantActif]);
 
+                    // Choix dynamique de la couleur selon le positionnement de prix
                     let couleurMarker = 'blue'; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
                         if (prixCourant === prixMin) couleurMarker = 'green'; 
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Format API officiel de recherche Google Maps : Force l'affichage du nom en toutes lettres
                     const requeteRecherche = encodeURIComponent(`${vraiNomStation}`);
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
+const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
+                    // Injection de l'icône avec le statut favori (Pour l'affichage du badge demi-ping)
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori) }).addTo(map);
 
                     const afficherLignePrix = (label, prix, code) => {
@@ -290,9 +298,6 @@ async function fetchLiveStations(centerLat, centerLon) {
 // 6. INITIALISATION DES ÉCOUTEURS
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-    // Re-lecture dynamique du rayon à chaque initialisation de la page
-    RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15;
-
     afficherFavoris(); 
 
     const selectElem = document.getElementById('select-carburant');
@@ -344,4 +349,11 @@ window.basculerFavori = basculerFavori;
 // ==========================================
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
-    const overlay = document.getElementById('menuOverlay
+    const overlay = document.getElementById('menuOverlay');
+    
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+}
+window.toggleBurgerMenu = toggleBurgerMenu;
