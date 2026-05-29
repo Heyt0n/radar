@@ -15,7 +15,6 @@
             --bg-carte: #1f2937;
             --accent-vert: #22c55e;
             --accent-bleu: #3b82f6;
-            --accent-rouge: #ef4444;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
         }
@@ -32,25 +31,83 @@
             overflow: hidden;
         }
 
+        /* HEADER */
         header {
             background-color: var(--bg-panneau);
-            padding: 12px 20px;
+            padding: 0 20px;
             border-bottom: 1px solid #1f2937;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            z-index: 10;
+            z-index: 100;
             height: 50px;
             flex-shrink: 0;
         }
 
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
-        .nav-dropdown {
-            background: #1f2937; color: white; border: 1px solid #374151;
-            padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;
+        /* BOUTON BURGER ☰ */
+        .burger-btn {
+            background: none;
+            border: none;
+            color: var(--texte-principal);
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1100;
+            padding: 5px;
         }
 
+        /* VOLET COULISSANT (MENU BURGER) */
+        .burger-menu {
+            position: fixed;
+            top: 0;
+            right: -280px; /* Caché à droite par défaut */
+            width: 280px;
+            height: 100%;
+            background-color: var(--bg-panneau);
+            border-left: 1px solid #1f2937;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+            z-index: 1000;
+            transition: right 0.3s ease; /* Animation de glisse */
+            padding: 70px 20px 20px 20px; /* Espace en haut pour ne pas cacher le bouton */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .burger-menu.open {
+            right: 0; /* Glisse à l'écran */
+        }
+
+        /* VOILE SOMBRE DE FOND */
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999;
+        }
+        .menu-overlay.active { display: block; }
+
+        /* LIENS DU MENU */
+        .menu-link {
+            background: #1f2937;
+            color: var(--texte-principal);
+            border: 1px solid #374151;
+            padding: 14px;
+            border-radius: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
+
+        /* STRUCTURE PAGE CARTE */
         .app-container {
             display: flex;
             flex: 1;
@@ -97,56 +154,13 @@
 </head>
 <body>
 
+    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
+    <nav class="burger-menu" id="burgerMenu">
+        <a href="radar.html" class="menu-link active">📡 Radar Tactique</a>
+        <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
+        <a href="compte.html" class="menu-link">👤 Mon Compte</a>
+    </nav>
+
     <header>
         <h1>Radar Carburant</h1>
-        <select class="nav-dropdown" onchange="window.location.href=this.value;">
-            <option value="radar.html" selected>📡 Radar Tactique</option>
-            <option value="outils.html">📊 Outils & Stats</option>
-            <option value="compte.html">👤 Mon Compte</option>
-        </select>
-    </header>
-
-    <div class="app-container">
-        <aside id="sidebar">
-            <!-- 1. CARBURANT -->
-            <select id="select-carburant">
-                <option value="gz">Gazole</option>
-                <option value="e10">SP95-E10</option>
-                <option value="95">SP95</option>
-                <option value="98">SP98</option>
-            </select>
-            
-            <!-- 2. VILLE -->
-            <div class="widget">
-                <div class="widget-title">Cible / Localisation</div>
-                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                    <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
-                    <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
-                </div>
-                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
-            </div>
-
-            <!-- 3. BRIEFING -->
-            <div class="widget">
-                <div class="widget-title">Briefing Analyste</div>
-                <div id="sniper-comment">En attente de synchronisation...</div>
-            </div>
-            
-            <!-- 4. FAVORIS -->
-            <div class="widget" style="flex: 1;">
-                <div class="widget-title">Stations Favorites</div>
-                <div id="liste-favoris">
-                    <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
-                </div>
-            </div>
-        </aside>
-
-        <main id="map-container">
-            <div id="map"></div>
-        </main>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="script.js"></script>
-</body>
-</html>
+        <button class="burger-btn" onclick
