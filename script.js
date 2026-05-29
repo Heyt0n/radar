@@ -252,8 +252,8 @@ async function fetchLiveStations(centerLat, centerLon) {
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // URL Google Maps renforcée avec Coordonnées + Recherche textuelle explicite
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}&query_place_id=${encodeURIComponent(vraiNomStation)}`;
+                    const requeteRecherche = encodeURIComponent(`${vraiNomStation}`);
+const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
                     // Injection de l'icône avec le statut favori (Pour l'affichage du badge demi-ping)
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori) }).addTo(map);
