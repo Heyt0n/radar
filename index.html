@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Radar Carburant</title>
+    <title>Radar Carburant - Système Tactique</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
@@ -34,151 +34,83 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: fixed;
-            width: 100%;
         }
 
-        /* BARRE SUPÉRIEURE CONSTANTE */
+        /* HEADER */
         header {
             background-color: var(--bg-panneau);
-            height: 50px;
-            padding: 0 15px;
+            padding: 12px 20px;
             border-bottom: 1px solid #1f2937;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 15px;
-            z-index: 100;
-            flex-shrink: 0;
-        }
-
-        /* Bouton Menu Burger ☰ */
-        #menu-toggle {
-            background: none;
-            border: none;
-            color: var(--texte-principal);
-            font-size: 22px;
-            cursor: pointer;
-            padding: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            z-index: 10;
+            height: 50px;
         }
 
         header h1 {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* STRUCTURE GLOBALE DE CONTENU */
-        .main-container {
-            flex: 1;
-            display: flex;
-            position: relative;
-            height: calc(100vh - 50px);
-            overflow: hidden;
-        }
-
-        /* LE MENU DÉROULANT LATÉRAL (STYLE GEMINI) */
-        #sidebar {
-            position: absolute;
-            top: 0;
-            left: -300px; /* Caché à gauche par défaut */
-            width: 300px;
-            height: 100%;
-            background-color: var(--bg-panneau);
-            border-right: 1px solid #1f2937;
-            z-index: 1000;
-            transition: left 0.3s ease; /* Animation fluide de glissement */
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            gap: 15px;
-        }
-
-        #sidebar.open {
-            left: 0; /* S'ouvre quand on clique */
-        }
-
-        /* Voile noir transparent quand le menu est ouvert */
-        #sidebar-overlay {
-            display: none;
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        }
-
-        #sidebar-overlay.active {
-            display: block;
-        }
-
-        /* BOUTONS DE NAVIGATION DANS LE MENU */
-        .menu-nav-links {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            border-bottom: 1px solid #1f2937;
-            padding-bottom: 15px;
-        }
-
-        .menu-link {
-            background: #1f2937;
+            letter-spacing: 1px;
             color: var(--texte-principal);
+        }
+
+        /* MENU DÉROULANT DE NAVIGATION (STYLE SÉLECTEUR) */
+        .nav-dropdown {
+            background: #1f2937;
+            color: white;
             border: 1px solid #374151;
-            padding: 12px;
+            padding: 6px 12px;
             border-radius: 8px;
-            text-align: left;
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            outline: none;
         }
 
-        .menu-link.active {
-            background: var(--accent-bleu);
-            border-color: var(--accent-bleu);
-        }
-
-        /* CONTENU DES PAGES (ZONES INTERNES) */
+        /* CONTENEUR DE PAGES */
         .page-content {
             display: none;
-            width: 100%;
-            height: 100%;
-            overflow-y: auto; /* Active le défilement propre à l'intérieur de la page */
-            -webkit-overflow-scrolling: touch;
+            flex: 1;
+            height: calc(100vh - 50px);
         }
 
         .page-content.active {
-            display: block;
+            display: flex;
         }
 
-        /* CONFIGURATION SPÉCIFIQUE DE LA CARTE */
-        #page-map {
-            position: relative;
-            overflow: hidden;
-        }
-
-        #map {
+        /* STRUCTURE PAGE CARTE */
+        .app-container {
+            display: flex;
+            flex: 1;
             width: 100%;
             height: 100%;
-            position: absolute;
-            top: 0; left: 0;
+            flex-direction: row;
         }
 
-        /* COMPOSANTS STANDARDS RE-STYLISÉS */
+        #sidebar {
+            width: 320px;
+            background-color: var(--bg-panneau);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto; /* Permet le défilement du panneau si l'écran est petit */
+            border-right: 1px solid #1f2937;
+            z-index: 5;
+            flex-shrink: 0;
+        }
+
         .widget {
             background: rgba(31, 41, 55, 0.5);
             border: 1px solid #374151;
             border-radius: 12px;
-            padding: 15px;
+            padding: 14px;
         }
 
         .widget-title {
-            font-size: 10px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--texte-secondaire);
@@ -186,12 +118,29 @@
             font-weight: 600;
         }
 
+        #select-carburant {
+            background: #1f2937;
+            color: white;
+            border: 1px solid #374151;
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #sniper-comment {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #d1d5db;
+            font-style: italic;
+        }
+
         #liste-favoris {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            overflow-y: auto;
-            flex: 1; /* Prend toute la place restante dans le menu coulissant */
+            font-size: 12px;
         }
 
         .favori-item {
@@ -204,87 +153,141 @@
             align-items: center;
         }
 
+        #map-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+        }
+
+        /* PAGES COMPTE & OUTILS */
         .standard-page {
-            padding: 20px;
+            padding: 30px;
+            overflow-y: auto;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            max-width: 600px;
-            margin: 0 auto;
+            gap: 20px;
+        }
+
+        /* RESPONSIVE SMARTPHONE */
+        @media (max-width: 768px) {
+            body {
+                position: fixed;
+                width: 100%;
+            }
+
+            .app-container {
+                flex-direction: column-reverse; /* Carte en haut, panneau en bas */
+            }
+
+            #sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 45vh; /* Bloque le panneau à 45% max de l'écran */
+                border-right: none;
+                border-top: 1px solid #1f2937;
+                padding: 12px;
+                gap: 10px;
+            }
+
+            #map-container {
+                flex: 1;
+            }
         }
     </style>
 </head>
 <body>
 
+    <!-- EN-TÊTE AVEC LE MENU DÉROULANT DE NAVIGATION -->
     <header>
-        <button id="menu-toggle" onclick="toggleMenu()">☰</button>
         <h1>Radar Carburant</h1>
+        
+        <!-- Le menu déroulant pour changer de vue (comme pour changer de discussion) -->
+        <select class="nav-dropdown" onchange="changerPage(this.value)">
+            <option value="page-map">📡 Radar Tactique</option>
+            <option value="page-outils">📊 Outils & Stats</option>
+            <option value="page-compte">👤 Mon Compte</option>
+        </select>
     </header>
 
-    <div class="main-container">
-        <div id="sidebar-overlay" onclick="toggleMenu()"></div>
-
-        <aside id="sidebar">
-            <div class="widget-title" style="margin-bottom: 5px;">Navigation Système</div>
-            <nav class="menu-nav-links">
-                <button class="menu-link active" onclick="changerPage('page-map')">📡 Radar Tactique</button>
-                <button class="menu-link" onclick="changerPage('page-outils')">📊 Outils & Stats</button>
-                <button class="menu-link" onclick="changerPage('page-compte')">👤 Mon Compte</button>
-            </nav>
-
-            <div class="widget">
-                <div class="widget-title">Cible / Localisation</div>
-                <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-                    <input type="text" id="search-ville" placeholder="Ex: Bordeaux..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 12px;">
-                    <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔍</button>
-                </div>
-                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 6px; border-radius: 6px; cursor: pointer; font-size: 10px; text-transform: uppercase;">📍 Ma Position</button>
-            </div>
-
-            <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size: 13px;">
-                <option value="gz">⛽ Gazole</option>
-                <option value="e10">⛽ SP95-E10</option>
-                <option value="95">⛽ SP95</option>
-                <option value="98">⛽ SP98</option>
-            </select>
-
-            <div class="widget" style="flex: 1; display: flex; flex-direction: column; min-height: 150px;">
-                <div class="widget-title">Vos Favoris</div>
-                <div id="liste-favoris">
-                    <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic; margin-top: 10px;">Aucun favori enregistré.</p>
-                </div>
-            </div>
-        </aside>
-
-        <div id="page-map" class="page-content active">
-            <div id="map"></div>
-        </div>
-
-        <div id="page-outils" class="page-content">
-            <div class="standard-page">
+    <!-- PAGE 1 : RADAR PRINCIPAL -->
+    <div id="page-map" class="page-content active">
+        <div class="app-container">
+            
+            <!-- PANNEAU LATÉRAL RESTRUCTURÉ SELON TES ORDRES -->
+            <aside id="sidebar">
+                
+                <!-- 1. SÉLECTION DU CARBURANT -->
+                <select id="select-carburant">
+                    <option value="gz">Gazole</option>
+                    <option value="e10">SP95-E10</option>
+                    <option value="95">SP95</option>
+                    <option value="98">SP98</option>
+                </select>
+                
+                <!-- 2. BARRE POUR CHANGER DE VILLE -->
                 <div class="widget">
-                    <h2 style="font-size: 16px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Outils Analytiques</h2>
-                    <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.5;">
-                        Les graphiques d'évolution des prix et le planificateur de road-trip seront injectés ici.
-                    </p>
-                </div>
-                <div class="widget" style="height: 400px; display: flex; align-items: center; justify-content: center; border-style: dashed;">
-                    <span style="color: var(--texte-secondaire);">[Zone Graphique Futur]</span>
-                </div>
-                <div class="widget" style="height: 400px; display: flex; align-items: center; justify-content: center; border-style: dashed;">
-                    <span style="color: var(--texte-secondaire);">[Zone Historique Prix]</span>
-                </div>
-            </div>
-        </div>
-
-        <div id="page-compte" class="page-content">
-            <div class="standard-page">
-                <div class="widget">
-                    <h2 style="font-size: 16px; margin-bottom: 10px;">👤 Profil Opérateur</h2>
-                    <div style="background: #1f2937; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 12px; color: var(--accent-vert); font-weight: bold;">Accès Démo</span>
-                        <span style="background: rgba(34, 197, 94, 0.15); color: var(--accent-vert); padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">STANDBY</span>
+                    <div class="widget-title">Cible / Localisation</div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
+                        <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
                     </div>
+                    <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
+                </div>
+
+                <!-- 3. BRIEFING ANALYSTE -->
+                <div class="widget">
+                    <div class="widget-title">Briefing Analyste</div>
+                    <div id="sniper-comment">En attente de synchronisation...</div>
+                </div>
+                
+                <!-- 4. LISTE DES FAVORIS -->
+                <div class="widget" style="flex: 1;">
+                    <div class="widget-title">Stations Favorites</div>
+                    <div id="liste-favoris">
+                        <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
+                    </div>
+                </div>
+
+            </aside>
+
+            <!-- LA CARTE -->
+            <main id="map-container">
+                <div id="map"></div>
+            </main>
+
+        </div>
+    </div>
+
+    <!-- PAGE 2 : OUTILS ET STATS -->
+    <div id="page-outils" class="page-content">
+        <div class="standard-page">
+            <div class="widget">
+                <h2 style="font-size: 18px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Outils & Analyses Avancées</h2>
+                <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.6;">
+                    Cet espace accueillera les graphiques d'évolution, historiques et autres modules exclusifs à forte valeur ajoutée.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 3 : MON COMPTE -->
+    <div id="page-compte" class="page-content">
+        <div class="standard-page">
+            <div class="widget">
+                <h2 style="font-size: 18px; margin-bottom: 5px;">👤 Profil de l'Opérateur</h2>
+                <p style="font-size: 12px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 15px;">Gestion de votre accès</p>
+                <div style="background: #1f2937; padding: 15px; border-radius: 8px;">
+                    <b style="color: var(--accent-vert);">Compte Invité (Local)</b>
                 </div>
             </div>
         </div>
