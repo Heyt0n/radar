@@ -32,7 +32,25 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-function creerIconeMarqueur(couleur) {
+// Génération de l'icône avec le système de "Demi-Ping" (Badge favori sans écraser la couleur du prix)
+function creerIconeMarqueur(couleur, estFavori) {
+    if (estFavori) {
+        // Si c'est un favori, on utilise un DivIcon pour superposer l'icône couleur et le badge ⭐
+        return L.divIcon({
+            html: `
+                <div style="position: relative; width: 25px; height: 41px;">
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block;">
+                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">⭐</div>
+                </div>
+            `,
+            className: '',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34]
+        });
+    }
+
+    // Marqueur standard si pas en favori
     return new L.Icon({
         iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -44,31 +62,43 @@ function creerIconeMarqueur(couleur) {
 }
 
 function extraireVraiNom(station) {
-    let nomBrut = station.n || "";
-    let ville = station.v || "";
+    let nomBrut = (station.n || "").trim();
+    let ville = (station.v || "").trim();
+    let adresseBrute = (station.a || "").trim();
     
-    if (!nomBrut || nomBrut.toLowerCase().trim() === "station" || nomBrut.length < 3) {
-        let marque = "Station";
-        let adresse = (station.a || "").toLowerCase();
-        
-        if (adresse.includes("total")) marque = "Total";
-        else if (adresse.includes("leclerc")) marque = "E.Leclerc";
-        else if (adresse.includes("carrefour")) marque = "Carrefour";
-        else if (adresse.includes("intermarche")) marque = "Intermarché";
-        else if (adresse.includes("systeme u") || adresse.includes("super u")) marque = "Super U";
-        else if (adresse.includes("auchan")) marque = "Auchan";
-        else if (adresse.includes("esso")) marque = "Esso";
-        else if (adresse.includes("avanti")) marque = "Avanti";
-        else if (adresse.includes("bp ")) marque = "BP";
-        
-        return ville ? `${marque} - ${ville}` : `${marque} Indépendante`;
+    let marque = "Station";
+    let adresseMinuscule = adresseBrute.toLowerCase();
+    
+    // Détection de l'enseigne dans l'adresse si le nom est manquant ou générique
+    if (adresseMinuscule.includes("total")) marque = "Total";
+    else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
+    else if (adresseMinuscule.includes("carrefour")) marque = "Carrefour";
+    else if (adresseMinuscule.includes("intermarche")) marque = "Intermarché";
+    else if (adresseMinuscule.includes("systeme u") || adresseMinuscule.includes("super u") || adresseMinuscule.includes("u utile")) marque = "Super U";
+    else if (adresseMinuscule.includes("auchan")) marque = "Auchan";
+    else if (adresseMinuscule.includes("esso")) marque = "Esso";
+    else if (adresseMinuscule.includes("avanti")) marque = "Avanti";
+    else if (adresseMinuscule.includes("bp ")) marque = "BP";
+
+    // Si le nom du JSON est exploitable, on l'utilise comme base, sinon on prend la marque identifiée
+    let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
+    
+    // Formatage de l'adresse pour enlever l'enseigne répétée et garder uniquement la rue
+    let rueClean = adresseBrute;
+    if (rueClean.toLowerCase().startsWith(nomBase.toLowerCase())) {
+        rueClean = rueClean.substring(nomBase.length).trim();
+        if (rueClean.startsWith("-")) rueClean = rueClean.substring(1).trim();
+    }
+
+    // Construction d'une identité unique textuelle (Enseigne - Rue, Ville)
+    let identiteUnique = nomBase;
+    if (rueClean) {
+        identiteUnique += ` - ${rueClean}`;
+    } else if (ville) {
+        identiteUnique += ` - ${ville}`;
     }
     
-    if (ville && !nomBrut.toLowerCase().includes(ville.toLowerCase())) {
-        return `${nomBrut} - ${ville}`;
-    }
-    
-    return nomBrut;
+    return identiteUnique;
 }
 
 function formatPrix(valeur) {
@@ -88,7 +118,7 @@ function basculerFavori(nom, lat, lon) {
     }
     localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     
-    // Crucial : On rafraîchit la carte ET le panneau pour appliquer le changement visuel immédiatement
+    // Synchronisation instantanée
     fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
 }
 
@@ -122,11 +152,11 @@ function afficherFavoris() {
         item.style.marginBottom = '8px';
         
         item.innerHTML = `
-            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px;" onclick="map.setView([${f.lat}], [${f.lon}], 14); fetchLiveStations(${f.lat}, ${f.lon});">
-                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; font-size:11px;">${f.nom}</span>
-                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert);">${affichagePrix}</b>
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" onclick="map.setView([${f.lat}], ${f.lon}, 14); fetchLiveStations(${f.lat}, ${f.lon});">
+                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${f.nom}">${f.nom}</span>
+                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;"></b style="font-family:'JetBrains>${affichagePrix}</b>
             </div>
-            <button onclick="event.stopPropagation(); basculerFavori('${f.nom.replace(/'/g, "\\'")}', ${f.lat}, ${f.lon});" style="background:none; border:none; color:var(--accent-rouge); cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px;">✕</button>
+            <button onclick="event.stopPropagation(); basculerFavori('${f.nom.replace(/'/g, "\\'")}', ${f.lat}, ${f.lon});" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px; flex-shrink: 0;">✕</button>
         `;
         conteneur.appendChild(item);
     });
@@ -175,15 +205,15 @@ async function fetchLiveStations(centerLat, centerLon) {
         const selectElem = document.getElementById('select-carburant');
         const carburantActif = selectElem ? selectElem.value : 'gz';
 
-        // Nettoyage de la carte avant re-génération
+        // Nettoyage complet
         map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) map.removeLayer(layer);
+            if (layer instanceof L.Marker || layer instanceof L.DivIcon) map.removeLayer(layer);
         });
 
-        // Calcul du prix min/max uniquement dans la zone active (15 km)
         let prixMin = Infinity;
         let prixMax = -Infinity;
 
+        // Étape 1 : Calcul des spreads de prix de la zone active
         stationsGlobales.forEach(station => {
             if (station.lt && station.ln) {
                 let distance = getDistance(centerLat, centerLon, station.lt, station.ln);
@@ -197,7 +227,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
-        // Affichage des stations
+        // Étape 2 : Projection des cibles sur la carte
         stationsGlobales.forEach(station => {
             let lat = station.lt;
             let lon = station.ln;
@@ -206,10 +236,8 @@ async function fetchLiveStations(centerLat, centerLon) {
                 let distance = getDistance(centerLat, centerLon, lat, lon);
                 let vraiNomStation = extraireVraiNom(station);
                 
-                // Détection : Est-ce que cette station fait partie de mes favoris ?
                 const estFavori = favoris.some(f => f.nom === vraiNomStation);
 
-                // CONDITION : On l'affiche si elle est dans le rayon de 15km OU si c'est un favori permanent
                 if (distance <= RAYON_KM || estFavori) {
                     const pGazole = formatPrix(station.gz);
                     const pSp95   = formatPrix(station["95"]);
@@ -217,17 +245,18 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pSp98   = formatPrix(station["98"]);
                     let prixCourant = formatPrix(station[carburantActif]);
 
-                    // Choix de la couleur : Si c'est un favori hors-zone ou dans la zone, on met une icône OR (jaune)
+                    // Choix dynamique de la couleur selon le positionnement de prix
                     let couleurMarker = 'blue'; 
-                    if (estFavori) {
-                        couleurMarker = 'orange'; // Couleur Or/Orange pour identifier tes cibles favorites
-                    } else if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+                    if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
                         if (prixCourant === prixMin) couleurMarker = 'green'; 
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
+                    // URL Google Maps renforcée avec Coordonnées + Recherche textuelle explicite
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}&query_place_id=${encodeURIComponent(vraiNomStation)}`;
-                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker) }).addTo(map);
+                    
+                    // Injection de l'icône avec le statut favori (Pour l'affichage du badge demi-ping)
+                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori) }).addTo(map);
 
                     const afficherLignePrix = (label, prix, code) => {
                         const styleHighlight = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
@@ -238,8 +267,8 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const couleurBoutonFavori = estFavori ? "#ef4444" : "#22c55e";
 
                     marker.bindPopup(`
-                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:220px;">
-                            <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:13px; font-weight:bold;">${estFavori ? '⭐ ' : ''}${vraiNomStation}</h4>
+                        <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:240px;">
+                            <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold; line-height:1.4;">${vraiNomStation}</h4>
                             <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af;">${station.a || ''} (${station.v || ''})</p>
                             <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km de ta recherche</p>
                             
@@ -324,5 +353,4 @@ function toggleBurgerMenu() {
         overlay.classList.toggle('active');
     }
 }
-// Rend la fonction disponible pour le clic sur le bouton HTML
 window.toggleBurgerMenu = toggleBurgerMenu;
