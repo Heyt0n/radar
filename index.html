@@ -58,22 +58,22 @@
         }
 
         /* MENU BURGER COULISSANT */
-        .burger-menu {
-            position: fixed;
-            top: 0;
-            right: -280px;
-            width: 280px;
-            height: 100%;
-            background-color: var(--bg-panneau);
-            border-left: 1px solid #1f2937;
-            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
-            z-index: 1000;
-            transition: right 0.3s ease;
-            padding: 70px 20px 20px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+           .burger-menu {
+    position: fixed;
+    top: 0;
+    right: -280px;
+    width: 280px;
+    height: 100%;
+    background-color: var(--bg-panneau);
+    border-left: 1px solid #1f2937;
+    box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+    z-index: 2000; /* <-- Augmenté de 1000 à 2000 pour passer devant Leaflet */
+    transition: right 0.3s ease;
+    padding: 70px 20px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
         .burger-menu.open { right: 0; }
 
