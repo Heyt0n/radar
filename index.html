@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Radar Carburant - Système Tactique</title>
+    <title>Radar Carburant</title>
 
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
@@ -34,125 +36,164 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            position: fixed;
+            width: 100%;
         }
 
-        /* En-tête du système */
+        /* BARRE SUPÉRIEURE CONSTANTE */
         header {
             background-color: var(--bg-panneau);
-            padding: 12px 20px;
+            height: 50px;
+            padding: 0 15px;
             border-bottom: 1px solid #1f2937;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            z-index: 10;
+            gap: 15px;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        /* Bouton Menu Burger ☰ */
+        #menu-toggle {
+            background: none;
+            border: none;
+            color: var(--texte-principal);
+            font-size: 22px;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         header h1 {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
+        }
+
+        /* STRUCTURE GLOBALE DE CONTENU */
+        .main-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            height: calc(100vh - 50px);
+            overflow: hidden;
+        }
+
+        /* LE MENU DÉROULANT LATÉRAL */
+        #sidebar {
+            position: absolute;
+            top: 0;
+            left: -300px;
+            width: 300px;
+            height: 100%;
+            background-color: var(--bg-panneau);
+            border-right: 1px solid #1f2937;
+            z-index: 1000;
+            transition: left 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+        }
+
+        #sidebar.open {
+            left: 0;
+        }
+
+        /* Voile noir transparent en fond de menu */
+        #sidebar-overlay {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+
+        #sidebar-overlay.active {
+            display: block;
+        }
+
+        /* BOUTONS DE NAVIGATION INTERNE */
+        .menu-nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-bottom: 1px solid #1f2937;
+            padding-bottom: 15px;
+        }
+
+        .menu-link {
+            background: #1f2937;
             color: var(--texte-principal);
+            border: 1px solid #374151;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 8px;
-        }
-
-        header h1::before {
-            content: '';
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            background-color: var(--accent-vert);
-            border-radius: 50%;
-            box-shadow: 0 0 8px var(--accent-vert);
-        }
-
-        /* Navigation Haute (Pour PC) */
-        .nav-pc {
-            display: flex;
             gap: 10px;
         }
 
-        .nav-btn {
-            background: #1f2937;
-            color: var(--texte-secondaire);
-            border: 1px solid #374151;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-
-        .nav-btn.active, .nav-btn:hover {
+        .menu-link.active {
             background: var(--accent-bleu);
-            color: white;
             border-color: var(--accent-bleu);
         }
 
-        /* Conteneur de pages */
+        /* CONTENU DES PAGES (ZONES INTERNES) */
         .page-content {
-            display: none; /* Masqué par défaut */
-            flex: 1;
-            height: calc(100vh - 45px);
+            display: none;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .page-content.active {
-            display: flex; /* Affiché si actif */
+            display: block;
         }
 
-        /* PAGE CARTE : Structure d'origine */
-        .app-container {
-            display: flex;
-            flex: 1;
+        /* ZONE CARTE SPECIFIQUE */
+        #page-map {
+            position: relative;
+            overflow: hidden;
+        }
+
+        #map {
             width: 100%;
-            flex-direction: row;
+            height: 100%;
+            position: absolute;
+            top: 0; left: 0;
         }
 
-        #sidebar {
-            width: 320px;
-            background-color: var(--bg-panneau);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            overflow-y: auto;
-            border-right: 1px solid #1f2937;
-            z-index: 5;
-        }
-
+        /* BLOCS DESIGN (WIDGETS) */
         .widget {
             background: rgba(31, 41, 55, 0.5);
             border: 1px solid #374151;
             border-radius: 12px;
-            padding: 16px;
+            padding: 15px;
         }
 
         .widget-title {
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--texte-secondaire);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-weight: 600;
-        }
-
-        #sniper-comment {
-            font-size: 13px;
-            line-height: 1.5;
-            color: #d1d5db;
-            font-style: italic;
         }
 
         #liste-favoris {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 200px;
             overflow-y: auto;
-            font-size: 12px;
+            flex: 1;
         }
 
         .favori-item {
@@ -165,200 +206,114 @@
             align-items: center;
         }
 
-        #map-container {
-            flex: 1;
-            position: relative;
-            height: 100%;
-            background-color: var(--bg-carte);
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0; bottom: 0; left: 0; right: 0;
-        }
-
-        /* PAGES GENERIQUES (Outils / Compte) */
         .standard-page {
-            flex-direction: column;
-            padding: 30px;
-            overflow-y: auto;
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-            gap: 20px;
-        }
-
-        /* Barre de navigation basse (Uniquement pour Mobile) */
-        .nav-mobile {
-            display: none;
-            background-color: var(--bg-panneau);
-            border-top: 1px solid #1f2937;
-            height: 60px;
-            justify-content: space-around;
-            align-items: center;
-            position: fixed;
-            bottom: 0; width: 100%; z-index: 100;
-        }
-
-        .nav-mobile-item {
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            color: var(--texte-secondaire);
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 10px;
-            font-weight: 600;
-            gap: 4px;
-        }
-
-        .nav-mobile-item.active {
-            color: var(--accent-bleu);
-        }
-
-        .nav-mobile-item span { font-size: 18px; }
-
-        /* RESPONSIVE DESIGN */
-        @media (max-width: 768px) {
-            body {
-                position: fixed;
-                width: 100%;
-            }
-
-            .nav-pc { display: none; } /* Cache la navigation haute */
-            .nav-mobile { display: flex; } /* Affiche la navigation basse */
-
-            .page-content {
-                height: calc(100vh - 105px); /* Ajuste l'espace avec le menu du bas */
-            }
-
-            .app-container {
-                flex-direction: column-reverse;
-            }
-
-            #sidebar {
-                width: 100%;
-                height: auto;
-                max-height: 40vh;
-                border-right: none;
-                border-top: 1px solid #1f2937;
-                padding: 12px;
-                gap: 10px;
-            }
-
-            #map-container {
-                flex: 1;
-            }
-
-            .standard-page {
-                padding: 15px;
-                padding-bottom: 80px; /* Évite que le contenu soit caché par le menu mobile */
-            }
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto;
         }
     </style>
 </head>
 <body>
 
+    <!-- BARRE SUPERIEURE FIXE -->
     <header>
+        <button id="menu-toggle" onclick="toggleMenu()">☰</button>
         <h1>Radar Carburant</h1>
-        <nav class="nav-pc">
-            <button class="nav-btn active" onclick="changerPage('page-map')">📡 Radar Tactique</button>
-            <button class="nav-btn" onclick="changerPage('page-outils')">📊 Outils & Stats</button>
-            <button class="nav-btn" onclick="changerPage('page-compte')">👤 Mon Compte</button>
-        </nav>
     </header>
 
-    <div id="page-map" class="page-content active">
-        <div class="app-container">
-            <aside id="sidebar">
+    <div class="main-container">
+        <!-- VOILE SOMBRE POUR FERMETURE TACTILE -->
+        <div id="sidebar-overlay" onclick="toggleMenu()"></div>
+
+        <!-- LE MENU DÉROULANT LATÉRAL -->
+        <aside id="sidebar">
+            <div class="widget-title" style="margin-bottom: 5px;">Navigation Système</div>
+            <nav class="menu-nav-links">
+                <button class="menu-link active" onclick="changerPage('page-map')">📡 Radar Tactique</button>
+                <button class="menu-link" onclick="changerPage('page-outils')">📊 Outils & Stats</button>
+                <button class="menu-link" onclick="changerPage('page-compte')">👤 Mon Compte</button>
+            </nav>
+
+            <!-- 1. SÉLECTION DU CARBURANT -->
+            <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size: 13px;">
+                <option value="gz">⛽ Gazole</option>
+                <option value="e10">⛽ SP95-E10</option>
+                <option value="95">⛽ SP95</option>
+                <option value="98">⛽ SP98</option>
+            </select>
+
+            <!-- 2. BARRE DE CHANGEMENT DE VILLE -->
+            <div class="widget">
+                <div class="widget-title">Cible / Localisation</div>
+                <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                    <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 12px;">
+                    <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔍</button>
+                </div>
+                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 6px; border-radius: 6px; cursor: pointer; font-size: 10px; text-transform: uppercase;">📍 Ma Position</button>
+            </div>
+
+            <!-- 3. BRIEFING ANALYSTE -->
+            <div class="widget">
+                <div class="widget-title">Briefing Analyste</div>
+                <div id="sniper-comment" style="font-size: 13px; line-height: 1.5; color: #d1d5db; font-style: italic;">En attente de synchronisation...</div>
+            </div>
+
+            <!-- 4. LISTE DES FAVORIS -->
+            <div class="widget" style="flex: 1; display: flex; flex-direction: column; min-height: 150px;">
+                <div class="widget-title">Vos Favoris</div>
+                <div id="liste-favoris">
+                    <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic; margin-top: 10px;">Aucun favori enregistré.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ZONE INTERNE DYNAMIQUE DES PAGES -->
+        <!-- Page 1 : Radar (La Carte) -->
+        <div id="page-map" class="page-content active">
+            <div id="map"></div>
+        </div>
+
+        <!-- Page 2 : Outils Avancés (Avec défilement vertical débloqué) -->
+        <div id="page-outils" class="page-content">
+            <div class="standard-page">
                 <div class="widget">
-                    <div class="widget-title">Briefing Analyste</div>
-                    <div id="sniper-comment">En attente de synchronisation...</div>
+                    <h2 style="font-size: 16px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Analyses & Statistiques Évolutives</h2>
+                    <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.5;">
+                        Cet espace accueillera les fonctionnalités exclusives : graphiques d'évolution des prix sur 30 jours, alertes ciblées de baisse de prix sur vos favoris, et estimateurs tactiques de coût de trajet.
+                    </p>
                 </div>
-                
+                <div class="widget" style="height: 350px; display: flex; align-items: center; justify-content: center; border-style: dashed;">
+                    <span style="color: var(--texte-secondaire);">[Zone Graphiques - Contenu à forte valeur ajoutée]</span>
+                </div>
+                <div class="widget" style="height: 350px; display: flex; align-items: center; justify-content: center; border-style: dashed;">
+                    <span style="color: var(--texte-secondaire);">[Zone Historiques et Planification]</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3 : Mon Compte -->
+        <div id="page-compte" class="page-content">
+            <div class="standard-page">
                 <div class="widget">
-                    <div class="widget-title">Cible / Localisation</div>
-                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                        <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
-                        <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+                    <h2 style="font-size: 16px; margin-bottom: 10px;">👤 Profil de l'Opérateur</h2>
+                    <div style="background: #1f2937; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="display: block; font-size: 11px; color: var(--texte-secondaire);">Niveau d'accès requis</span>
+                            <b style="color: var(--accent-vert);">Mode Démo Local</b>
+                        </div>
+                        <span style="background: rgba(34, 197, 94, 0.15); color: var(--accent-vert); padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">STANDBY</span>
                     </div>
-                    <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
-                </div>
-                
-                <select id="select-carburant" style="background:#1f2937; color:white; border:1px solid #374151; padding:10px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer;">
-                    <option value="gz">⛽ Gazole</option>
-                    <option value="e10">⛽ SP95-E10</option>
-                    <option value="95">⛽ SP95</option>
-                    <option value="98">⛽ SP98</option>
-                </select>
-                
-                <div class="widget" style="flex: 1;">
-                    <div class="widget-title">Stations Favorites</div>
-                    <div id="liste-favoris">
-                        <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
-                    </div>
-                </div>
-            </aside>
-
-            <main id="map-container">
-                <div id="map"></div>
-            </main>
-        </div>
-    </div>
-
-    <div id="page-outils" class="page-content">
-        <div class="standard-page">
-            <div class="widget">
-                <h2 style="font-size: 18px; margin-bottom: 10px; color: var(--accent-bleu);">📊 Analyses & Graphiques Avancés</h2>
-                <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.6;">
-                    Cet espace accueillera les fonctionnalités exclusives à forte valeur ajoutée : graphiques d'évolution des prix sur 30 jours, alertes de baisse de prix sur vos favoris, et estimateur de coût de trajet personnalisé.
-                </p>
-            </div>
-            <div class="widget">
-                <div class="widget-title">Prochaine mise à jour tactique</div>
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent-vert);">[MODULE EN COURS DE DEVELOPPEMENT]</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="page-compte" class="page-content">
-        <div class="standard-page">
-            <div class="widget">
-                <h2 style="font-size: 18px; margin-bottom: 5px;">👤 Profil de l'Opérateur</h2>
-                <p style="font-size: 12px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 15px;">Gestion des accès au système</p>
-                
-                <div style="background: #1f2937; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="display: block; font-size: 11px; color: var(--texte-secondaire);">Statut de l'accès</span>
-                        <b style="color: var(--accent-vert);">Compte Invité (Mode Démo)</b>
-                    </div>
-                    <span style="background: rgba(34, 197, 94, 0.2); color: var(--accent-vert); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">ACTIF</span>
-                </div>
-
-                <div style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.5;">
-                    Vos stations favorites sont actuellement sauvegardées localement sur cet appareil. Pour y accéder depuis n'importe quel écran, le module de synchronisation Cloud sera requis.
                 </div>
             </div>
         </div>
     </div>
 
-    <nav class="nav-mobile">
-        <button class="nav-mobile-item active" id="m-btn-page-map" onclick="changerPage('page-map')">
-            <span>📡</span>Radar
-        </button>
-        <button class="nav-mobile-item" id="m-btn-page-outils" onclick="changerPage('page-outils')">
-            <span>📊</span>Outils
-        </button>
-        <button class="nav-mobile-item" id="m-btn-page-compte" onclick="changerPage('page-compte')">
-            <span>👤</span>Compte
-        </button>
-    </nav>
-
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- Moteurs de l'application -->
     <script src="script.js"></script>
     <script src="commentaire.js"></script>
 </body>
