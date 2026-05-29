@@ -297,6 +297,14 @@ const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requete
 // ==========================================
 // 6. INITIALISATION DES ÉCOUTEURS
 // ==========================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    // On s'assure de recharger la configuration du rayon enregistrée par l'opérateur
+    RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15;
+
+    afficherFavoris(); 
+    // ... reste de tes écouteurs (select-carburant, btn-search, etc.)
+
 document.addEventListener("DOMContentLoaded", () => {
     afficherFavoris(); 
 
