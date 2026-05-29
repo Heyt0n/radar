@@ -311,3 +311,42 @@ if (navigator.geolocation) {
 }
 
 window.basculerFavori = basculerFavori;
+
+// ==========================================
+// 7. ROUTAGE ET NAVIGATION ENTRE LES PAGES
+// ==========================================
+function changerPage(pageId) {
+    // 1. Masquer toutes les pages
+    const toutesLesPages = document.querySelectorAll('.page-content');
+    toutesLesPages.forEach(page => page.classList.remove('active'));
+
+    // 2. Afficher la page demandée
+    const pageCible = document.getElementById(pageId);
+    if (pageCible) pageCible.classList.add('active');
+
+    // 3. Mettre à jour l'état visuel des boutons PC
+    const boutonsPc = document.querySelectorAll('.nav-btn');
+    boutonsPc.forEach(btn => btn.classList.remove('active'));
+    // Retrouve le bouton PC correspondant à la fonction lancée
+    const boutonPcActif = Array.from(boutonsPc).find(btn => btn.getAttribute('onclick').includes(pageId));
+    if (boutonPcActif) boutonPcActif.classList.add('active');
+
+    // 4. Mettre à jour l'état visuel des boutons Mobile
+    const boutonsMobile = document.querySelectorAll('.nav-mobile-item');
+    boutonsMobile.forEach(btn => btn.classList.remove('active'));
+    
+    // Associe l'id du bouton mobile correspondant
+    let idMobile = 'm-btn-' + pageId;
+    const boutonMobileActif = document.getElementById(idMobile);
+    if (boutonMobileActif) boutonMobileActif.classList.add('active');
+
+    // 5. Correctif Leaflet : Force la carte à recalculer sa taille réelle s'il y a eu un changement de page
+    if (pageId === 'page-map' && typeof map !== 'undefined') {
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+    }
+}
+
+// Rendre la fonction accessible globalement
+window.changerPage = changerPage;
