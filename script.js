@@ -1,4 +1,13 @@
 // ==========================================
+// 0. SÉCURITÉ : VÉRIFICATION DE LA SESSION
+// ==========================================
+if (localStorage.getItem("radar_session_active") !== "true") {
+    // Si l'opérateur n'est pas identifié, interception immédiate et redirection
+    window.location.href = "connexion.html";
+}
+
+
+// ==========================================
 // 1. CONFIGURATION DES SOURCES & ÉTAT GLOBAL
 // ==========================================
 const API_URL = "stations_france.json"; 
