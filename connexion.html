@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Radar Carburant - Accès Opérateur</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-principal: #0b0f19;
+            --bg-panneau: #111827;
+            --accent-bleu: #3b82f6;
+            --accent-vert: #22c55e;
+            --texte-principal: #f3f4f6;
+            --texte-secondaire: #9ca3af;
+            --border-couleur: #1f2937;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texte-principal);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* CONTENEUR CENTRAL */
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-panneau);
+            border: 1px solid var(--border-couleur);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .auth-header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .auth-header p {
+            font-size: 13px;
+            color: var(--texte-secondaire);
+        }
+
+        /* FORMULAIRES */
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            color: var(--texte-secondaire);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input {
+            background: #1f2937;
+            color: white;
+            border: 1px solid var(--border-couleur);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-bleu);
+        }
+
+        /* BOUTONS */
+        .btn {
+            background: var(--accent-bleu);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .btn:hover { opacity: 0.9; }
+
+        .btn-skip {
+            background: transparent;
+            color: var(--texte-secondaire);
+            border: 1px solid var(--border-couleur);
+            margin-top: 0;
+        }
+        .btn-skip:hover {
+            background: rgba(255,255,255,0.02);
+            color: white;
+        }
+
+        /* BASGULE CONNEXION / INSCRIPTION */
+        .auth-toggle {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--texte-secondaire);
+        }
+
+        .auth-toggle span {
+            color: var(--accent-bleu);
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .auth-toggle span:hover { text-decoration: underline; }
+
+        /* CLASSE CACHÉE POUR LE BASCULEMENT */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container">
+        
+        <div class="auth-header">
+            <h1 id="auth-title">Connexion</h1>
+            <p id="auth-subtitle">Accédez à votre terminal de ciblage</p>
+        </div>
+
+        <form class="auth-form" id="auth-form">
+            
+            <div class="form-group hidden" id="group-pseudo">
+                <label for="input-pseudo">Identifiant / Pseudo</label>
+                <input type="text" id="input-pseudo" placeholder="Ex: Chasseur_67">
+            </div>
+
+            <div class="form-group">
+                <label for="input-email">Adresse Email</label>
+                <input type="email" id="input-email" placeholder="operateur@radar.com" required>
+            </div>
+
+            <div class="form-group">
+                <label for="input-password">Mot de passe</label>
+                <input type="password" id="input-password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="btn" id="btn-submit">Se connecter</button>
+            
+            <button type="button" class="btn btn-skip" id="btn-skip">Passer l'étape (Invité)</button>
+        </form>
+
+        <div class="auth-toggle">
+            <p id="toggle-text">Pas encore de compte ? <span id="toggle-link">Créer un profil</span></p>
+        </div>
+
+    </div>
+
+    <script src="connexion.js"></script>
+</body>
+</html>
