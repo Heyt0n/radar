@@ -1,18 +1,22 @@
 // ==========================================
-// CONFIGURATION ET ÉTAT DE LA PAGE
+// GESTION DE L'ACCÈS AVEC LE MOTEUR SUPABASE
 // ==========================================
 let modeInscription = false;
 
-document.addEventListener("DOMContentLoaded", () => {
-    // 1. ANCHOR : Sécurité et Redirection automatique
-    // Si l'utilisateur est déjà connecté ou a déjà choisi le mode invité, on l'envoie sur la carte
-    const sessionActive = localStorage.getItem("radar_session_active");
-    if (sessionActive === "true") {
+document.addEventListener("DOMContentLoaded", async () => {
+    
+    // 1. VÉRIFICATION DE LA VRAIE SESSION LIVE
+    // Supabase va vérifier si l'utilisateur est déjà connecté en ligne
+    const { data: { session } } = await _supabase.auth.getSession();
+    
+    if (session) {
+        // Si une session active existe, on valide en local et on redirige sans attendre
+        localStorage.setItem("radar_session_active", "true");
         window.location.href = "index.html";
-        return; // Stoppe le script ici
+        return;
     }
 
-    // Éléments du DOM
+    // Récupération des éléments du DOM
     const authForm = document.getElementById("auth-form");
     const authTitle = document.getElementById("auth-title");
     const authSubtitle = document.getElementById("auth-subtitle");
@@ -22,52 +26,80 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleLink = document.getElementById("toggle-link");
     const toggleText = document.getElementById("toggle-text");
 
-    // 2. GESTION DU BASCULEMENT (CONNEXION <=> INSCRIPTION)
-    toggleLink.addEventListener("click", () => {
-        modeInscription = !modeInscription;
+    // 2. BASCULEMENT CONNEXION <=> INSCRIPTION
+    if (toggleLink) {
+        toggleLink.addEventListener("click", function handleToggle() {
+            modeInscription = !modeInscription;
 
-        if (modeInscription) {
-            authTitle.textContent = "Inscription";
-            authSubtitle.textContent = "Créez votre profil d'opérateur local";
-            btnSubmit.textContent = "Créer mon compte";
-            groupPseudo.classList.remove("hidden");
-            document.getElementById("input-pseudo").required = true;
-            toggleText.innerHTML = `Déjà inscrit ? <span id='toggle-link'>Se connecter</span>`;
-        } else {
-            authTitle.textContent = "Connexion";
-            authSubtitle.textContent = "Accédez à votre terminal de ciblage";
-            btnSubmit.textContent = "Se connecter";
-            groupPseudo.classList.add("hidden");
-            document.getElementById("input-pseudo").required = false;
-            toggleText.innerHTML = `Pas encore de compte ? <span id='toggle-link'>Créer un profil</span>`;
-        }
+            if (modeInscription) {
+                authTitle.textContent = "Inscription";
+                authSubtitle.textContent = "Créez votre profil d'opérateur en ligne";
+                btnSubmit.textContent = "Créer mon compte";
+                groupPseudo.classList.remove("hidden");
+                document.getElementById("input-pseudo").required = true;
+                toggleText.innerHTML = `Déjà inscrit ? <span id="toggle-link">Se connecter</span>`;
+            } else {
+                authTitle.textContent = "Connexion";
+                authSubtitle.textContent = "Accédez à votre terminal de ciblage";
+                btnSubmit.textContent = "Se connecter";
+                groupPseudo.classList.add("hidden");
+                document.getElementById("input-pseudo").required = false;
+                toggleText.innerHTML = `Pas encore de compte ? <span id="toggle-link">Créer un profil</span>`;
+            }
+            // Réattacher proprement l'événement sur le nouveau lien généré
+            document.getElementById("toggle-link").addEventListener("click", handleToggle);
+        });
+    }
 
-        // Réattacher l'écouteur sur le nouveau lien généré dynamiquement
-        document.getElementById("toggle-link").addEventListener("click", arguments.callee);
-    });
-
-    // 3. LOGIQUE DE SOUMISSION (SIMULATION POUR INSTANT)
-    authForm.addEventListener("submit", (e) => {
+    // 3. ACTION PRINCIPALE : CONNEXION OU INSCRIPTION REELLE
+    authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
 
         const email = document.getElementById("input-email").value.trim();
         const password = document.getElementById("input-password").value;
-        
+
         if (modeInscription) {
             const pseudo = document.getElementById("input-pseudo").value.trim();
-            // Simulation d'inscription : on enregistre son pseudo directement dans le profil
+            
+            // INSCRIPTION SUR SUPABASE
+            const { data, error } = await _supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: { display_name: pseudo } // On stocke le pseudo dans les métadonnées Supabase
+                }
+            });
+
+            if (error) {
+                alert(`Erreur d'inscription : ${error.message}`);
+                return;
+            }
+
             localStorage.setItem("radar_pseudo", pseudo);
-            alert(`Profil ${pseudo} créé avec succès en local !`);
+            alert("Compte créé avec succès dans le Cloud ! Connexion en cours...");
         }
 
-        // On active la session pour qu'il n'ait plus jamais à repasser par ici
+        // CONNEXION SUR SUPABASE
+        const { data: signInData, error: signInError } = await _supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (signInError) {
+            alert(`Erreur d'identification : ${signInError.message}`);
+            return;
+        }
+
+        // Si la connexion réussit : on active les verrous locaux et on fonce sur la carte
+        const userPseudo = signInData.user.user_metadata.display_name || "Opérateur";
+        localStorage.setItem("radar_pseudo", userPseudo);
         localStorage.setItem("radar_session_active", "true");
+        
         window.location.href = "index.html";
     });
 
-    // 4. BOUTON SKIP / MODE INVITÉ
+    // 4. MODE INVITÉ (PASSER L'ÉTAPE)
     btnSkip.addEventListener("click", () => {
-        // On marque la session active même en invité pour ne plus afficher cette page
         localStorage.setItem("radar_session_active", "true");
         localStorage.setItem("radar_pseudo", "Invité");
         window.location.href = "index.html";
