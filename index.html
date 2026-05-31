@@ -58,24 +58,50 @@
         }
 
         /* MENU BURGER COULISSANT */
-           .burger-menu {
-    position: fixed;
-    top: 0;
-    right: -280px;
-    width: 280px;
-    height: 100%;
-    background-color: var(--bg-panneau);
-    border-left: 1px solid #1f2937;
-    box-shadow: -5px 0 25px rgba(0,0,0,0.5);
-    z-index: 2000; /* <-- Augmenté de 1000 à 2000 pour passer devant Leaflet */
-    transition: right 0.3s ease;
-    padding: 70px 20px 20px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+        .burger-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100%;
+            background-color: var(--bg-panneau);
+            border-left: 1px solid #1f2937;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+            z-index: 2000;
+            transition: right 0.3s ease;
+            padding: 20px; /* Réduit pour gérer l'organisation interne proprement */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
         .burger-menu.open { right: 0; }
+
+        /* HEADER INTERNE DU MENU */
+        .menu-user-header {
+            padding-top: 50px; /* Espace pour le bouton de fermeture mobile */
+            padding-bottom: 15px;
+            border-bottom: 1px solid #1f2937;
+            margin-bottom: 10px;
+        }
+        .menu-user-status {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-vert);
+            font-weight: 700;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .menu-user-greeting {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--texte-secondaire);
+        }
+        #nom-operateur {
+            color: var(--texte-principal);
+            font-weight: 800;
+        }
 
         /* VOILE SOMBRE DE FOND */
         .menu-overlay {
@@ -156,7 +182,13 @@
 <body>
 
     <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
+    
     <nav class="burger-menu" id="burgerMenu">
+        <div class="menu-user-header">
+            <span class="menu-user-status">📡 Système Connecté</span>
+            <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
+        </div>
+
         <a href="index.html" class="menu-link active">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
         <a href="compte.html" class="menu-link">👤 Mon Compte</a>
@@ -203,15 +235,14 @@
             <div id="map"></div>
         </main>
     </div>
- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="supabase-config.js"></script>
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script src="script.js"></script>
 
-    
-
-
-    
 </body>
 </html>
