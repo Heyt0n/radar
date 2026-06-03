@@ -1,98 +1,185 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Carburant - Outils Tactiques</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;600;800&display=swap" rel="stylesheet">
-    <style>
-        :root { 
-            --bg-principal: #0b0f19; 
-            --bg-panneau: #111827; 
-            --accent-bleu: #3b82f6; 
-            --accent-vert: #22c55e;
-            --texte-principal: #f3f4f6; 
-            --texte-secondaire: #9ca3af; 
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-principal); color: var(--texte-principal); min-height: 100vh; }
-        
-        header { background-color: var(--bg-panneau); padding: 0 20px; border-bottom: 1px solid #1f2937; display: flex; justify-content: space-between; align-items: center; height: 50px; z-index: 100; position: relative; }
-        header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-        
-        .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px; }
-        
-        /* MENU BURGER HARMONISÉ */
-        .burger-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau); border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .burger-menu.open { right: 0; }
-        
-        .menu-user-header { padding-top: 50px; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 10px; }
-        .menu-user-status { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-vert); font-weight: 700; display: block; margin-bottom: 4px; }
-        .menu-user-greeting { font-size: 15px; font-weight: 600; color: var(--texte-secondaire); }
-        #nom-operateur { color: var(--texte-principal); font-weight: 800; }
+document.addEventListener("DOMContentLoaded", async () => {
+    let instanceGraphique = null;
 
-        .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
-        .menu-overlay.active { display: block; }
-        
-        .menu-link { background: #1f2937; color: var(--texte-principal); border: 1px solid #374151; padding: 14px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
-        
-        .standard-page { padding: 30px; width: 100%; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        .widget { background: var(--bg-panneau); border: 1px solid #374151; border-radius: 12px; padding: 20px; }
-
-        /* SÉLECTEUR & CONTENEUR DU GRAPHIQUE */
-        select { background: #1f2937; color: white; border: 1px solid #374151; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 15px; outline: none; }
-        .chart-container { position: relative; width: 100%; height: 300px; margin-top: 15px; }
-    </style>
-</head>
-<body>
-
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
+    // Éléments HTML
+    const nomOperateurBadge = document.getElementById("nom-operateur");
+    const selectStation = document.getElementById("select-station-outils");
+    const graphiqueElem = document.getElementById("graphiquePrevisionnel");
     
-    <nav class="burger-menu" id="burgerMenu">
-        <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connecté</span>
-            <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
-        </div>
-        <a href="index.html" class="menu-link">📡 Radar Tactique</a>
-        <a href="outils.html" class="menu-link active">📊 Outils & Stats</a>
-        <a href="compte.html" class="menu-link">👤 Mon Compte</a>
-    </nav>
+    if (!graphiqueElem) {
+        console.error("Élément 'graphiquePrevisionnel' introuvable dans le HTML.");
+        return;
+    }
+    const ctx = graphiqueElem.getContext("2d");
 
-    <header>
-        <h1>Radar Carburant</h1>
-        <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
-    </header>
+    if (!selectStation) {
+        console.error("Élément 'select-station-outils' introuvable.");
+        return;
+    }
 
-    <div class="standard-page">
-        <div class="widget">
-            <h2 style="font-size: 18px; margin-bottom: 5px; color: var(--accent-bleu);">📊 Analyse Prédictive H24</h2>
-            <p style="font-size: 11px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 20px;">Projection algorithmique des prix</p>
+    // ==========================================
+    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO
+    // ==========================================
+    const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        window.location.href = "connexion.html";
+        return;
+    }
+
+    if (nomOperateurBadge && session.user.user_metadata) {
+        const pseudo = session.user.user_metadata.display_name || session.user.user_metadata.pseudo || "Opérateur";
+        nomOperateurBadge.textContent = pseudo;
+    }
+
+    // ==========================================
+    // 2. RÉCUPÉRATION DES STATIONS FAVORITES SINCE CLOUD
+    // ==========================================
+    async function chargerStationsFavorites() {
+        try {
+            // Option neutre par défaut
+            selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
+
+            const { data: favoris, error } = await _supabase
+                .from("stations_favorites")
+                .select("*")
+                .eq("user_id", session.user.id);
+
+            if (error) throw error;
+
+            if (favoris && favoris.length > 0) {
+                favoris.forEach(fav => {
+                    const option = document.createElement("option");
+                    
+                    // SÉCURITÉ REPRISE DE VALEUR : si id_station est vide, on prend le nom comme identifiant
+                    option.value = fav.id_station || fav.nom_station; 
+                    
+                    // Stockage des données critiques
+                    option.dataset.prixActuel = fav.dernier_prix || 1.850; 
+                    option.dataset.nom = fav.nom_station || "Station Carburant";
+                    
+                    option.textContent = `${fav.nom_station || "Station"} (${fav.ville || "Inconnue"})`;
+                    selectStation.appendChild(option);
+                });
+                console.log(`${favoris.length} stations injectées avec succès dans le sélecteur.`);
+            } else {
+                const option = document.createElement("option");
+                option.textContent = "Aucune station favorite trouvée";
+                option.disabled = true;
+                selectStation.appendChild(option);
+            }
+        } catch (err) {
+            console.error("Erreur chargement favoris tools:", err.message);
+        }
+    }
+
+    // ==========================================
+    // 3. L'ALGORITHME DE PRÉDICTION HORAIRE (LABORATOIRE)
+    // ==========================================
+    function genererCourbePredictive(prixActuel, stationId) {
+        let pointsGraphique = [];
+        let labelsHeures = [];
+        let heureActuelle = new Date();
+
+        const profilHoraireEnseigne = {
+            0: -0.015, 1: -0.015, 2: -0.018, 3: -0.020, 4: -0.022, 5: -0.010,
+            6: 0.000,  7: 0.005,  8: 0.008,  9: 0.004,  10: 0.002, 11: 0.005,
+            12: 0.012, 13: 0.010, 14: 0.005, 15: 0.003, 16: 0.006, 17: 0.014,
+            18: 0.018, 19: 0.010, 20: 0.002, 21: -0.005, 22: -0.010, 23: -0.012
+        };
+
+        for (let i = 0; i < 24; i++) {
+            let heureFuture = new Date(heureActuelle.getTime() + (i * 60 * 60 * 1000));
+            let h = heureFuture.getHours();
+
+            let coefficient = profilHoraireEnseigne[h] || 0;
+            let prixPredit = parseFloat(prixActuel) + coefficient;
+
+            let labelHeure = heureFuture.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             
-            <label style="font-size: 12px; color: var(--texte-secondaire); display: block; margin-bottom: 6px; font-weight: bold;">CIBLE RECHERCHÉE :</label>
-            <select id="select-station-outils">
-                <option value="">-- Sélectionner une station cible --</option>
-            </select>
-
-            <div class="chart-container">
-                <canvas id="graphiquePrevisionnel"></canvas>
-            </div>
-        </div>
-    </div>
-
-   <script>
-        function toggleBurgerMenu() {
-            document.getElementById('burgerMenu').classList.toggle('open');
-            document.getElementById('menuOverlay').classList.toggle('active');
+            labelsHeures.push(labelHeure);
+            pointsGraphique.push(prixPredit.toFixed(3));
         }
-    </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script src="supabase-config.js"></script>
+        return { labels: labelsHeures, data: pointsGraphique };
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.js"></script>
+    // ==========================================
+    // 4. MOTEUR D'AFFICHAGE ET DESIGN DU GRAPHIQUE (CHART.JS)
+    // ==========================================
+    function mettreAJourGraphique(labels, data, nomStation) {
+        if (instanceGraphique) {
+            instanceGraphique.destroy();
+        }
 
-    <script src="outils.js"></script>
-</body>
-</html>
+        instanceGraphique = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: `Estimation du prix (${nomStation})`,
+                    data: data,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#22c55e',
+                    pointRadius: 4,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#1f2937' },
+                        ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans' } }
+                    },
+                    y: {
+                        grid: { color: '#1f2937' },
+                        ticks: { 
+                            color: '#9ca3af', 
+                            font: { family: 'Plus Jakarta Sans' },
+                            callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Écouteur de changement sur le sélecteur de stations
+    selectStation.addEventListener("change", (e) => {
+        const optionSelectionnee = e.target.options[e.target.selectedIndex];
+        
+        // Sécurité assouplie : On vérifie juste qu'une option existe
+        if (!optionSelectionnee || optionSelectionnee.value === "") {
+            console.log("Sélection neutre ou vide détectée.");
+            return;
+        }
+
+        const prixBrut = optionSelectionnee.dataset.prixActuel || 1.850;
+        const nomStation = optionSelectionnee.dataset.nom || "Station";
+        const idStation = optionSelectionnee.value;
+
+        console.log(`🎯 Cible activée : ${nomStation} | Prix base : ${prixBrut} €`);
+
+        // Calcul des prévisions
+        const previsions = genererCourbePredictive(prixBrut, idStation);
+
+        // Tracé du graphique
+        try {
+            mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
+            console.log("📊 Graphique généré avec succès !");
+        } catch (chartError) {
+            console.error("Erreur Chart.js :", chartError.message);
+        }
+    });
+
+    // Initialisation
+    await chargerStationsFavorites();
+});
