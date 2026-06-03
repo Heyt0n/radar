@@ -72,3 +72,53 @@ function purgerDonnees() {
         window.location.reload();
     }
 }
+
+// Attendre que le document HTML soit complètement chargé
+document.addEventListener("DOMContentLoaded", async () => {
+    
+    // ==========================================
+    // 1. SÉCURITÉ : VÉRIFICATION DE LA SESSION
+    // ==========================================
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        console.log("Aucune session active trouvée. Redirection...");
+        window.location.href = "connexion.html"; // Remplace par ta page de login si besoin
+        return;
+    }
+
+    // Si tu as un élément pour afficher le pseudo sur la page compte, tu peux l'alimenter ici :
+    const nomUtilisateur = document.getElementById("nom-utilisateur-compte");
+    if (nomUtilisateur && session.user.user_metadata) {
+        // Ajuste "pseudo" selon le nom du champ dans ton user_metadata
+        nomUtilisateur.textContent = session.user.user_metadata.pseudo || "Opérateur";
+    }
+
+
+    // ==========================================
+    // 2. LOGIQUE DE DÉCONNEXION
+    // ==========================================
+    const btnDeconnexion = document.getElementById("btn-deconnexion");
+
+    if (btnDeconnexion) {
+        btnDeconnexion.addEventListener("click", async (e) => {
+            e.preventDefault(); // Empêche le comportement par défaut du lien ou bouton
+            
+            try {
+                // Demande de déconnexion à Supabase
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) throw error;
+
+                alert("Déconnexion réussie. Fermeture de la session tactique.");
+                
+                // Redirection immédiate vers l'accès au système
+                window.location.href = "connexion.html"; 
+                
+            } catch (err) {
+                console.error("Erreur lors de la déconnexion :", err.message);
+                alert("Erreur système lors de la déconnexion : " + err.message);
+            }
+        });
+    }
+});
