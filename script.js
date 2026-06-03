@@ -44,24 +44,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     declencherGeolocalisation();
 });
 
-// Fonction dédiée pour récupérer les favoris du Cloud
+// Fonction dédiée pour récupérer les favoris du Cloud depuis la nouvelle table
 async function chargerFavorisSupabase() {
     if (!currentUser) return;
     try {
         const { data, error } = await _supabase
-            .from('favoris')
+            .from('stations_favorites') // <-- Nouvelle table ciblée
             .select('*');
 
         if (error) throw error;
 
         // On remappe les données pour conserver la structure exacte du script d'origine
+        // tout en intégrant les données indispensables pour outils.js
         favoris = data.map(f => ({
             id_cloud: f.id, // Gardé en mémoire pour de futures suppressions ciblées
+            id_station: f.id_station, // Nécessaire pour l'analyse outils.js
             nom: f.nom_station,
-            lat: f.latitude,
-            lon: f.longitude
+            ville: f.ville || '',
+            prix: f.dernier_prix || 0,
+            lat: f.latitude || 0,
+            lon: f.longitude || 0
         }));
-        console.log(`${favoris.length} cibles synchronisées depuis le Cloud.`);
+        console.log(`${favoris.length} cibles tactiques synchronisées depuis le Cloud.`);
     } catch (err) {
         console.error("Erreur de récupération des favoris Cloud :", err.message);
         // Secours local en cas de perte de réseau
@@ -174,25 +178,33 @@ function formatPrix(valeur) {
 // ==========================================
 // 3. MOTEUR HYBRIDE CLOUD/LOCAL : GESTION DES FAVORIS
 // ==========================================
-async function basculerFavori(nom, lat, lon) {
+async function basculerFavori(nom, lat, lon, idStation = '', ville = '', prix = 0) {
     const index = favoris.findIndex(f => f.nom === nom);
 
     if (currentUser) {
         // --- LOGIQUE CLOUD SUPABASE ---
         if (index === -1) {
-            // Insertion dans la table Supabase
+            // Insertion complète dans la table stations_favorites
             const { error } = await _supabase
-                .from('favoris')
-                .insert([{ user_id: currentUser.id, nom_station: nom, latitude: lat, longitude: lon }]);
+                .from('stations_favorites')
+                .insert([{ 
+                    user_id: currentUser.id, 
+                    id_station: String(idStation), 
+                    nom_station: nom, 
+                    ville: ville,
+                    dernier_prix: parseFloat(prix) || 0,
+                    latitude: lat, 
+                    longitude: lon 
+                }]);
             
             if (error) {
                 alert(`Erreur de synchronisation Cloud : ${error.message}`);
                 return;
             }
         } else {
-            // Suppression dans la table Supabase
+            // Suppression dans la table stations_favorites
             const { error } = await _supabase
-                .from('favoris')
+                .from('stations_favorites')
                 .delete()
                 .eq('user_id', currentUser.id)
                 .eq('nom_station', nom);
@@ -208,7 +220,7 @@ async function basculerFavori(nom, lat, lon) {
     } else {
         // --- LOGIQUE INVITÉ LOCAL ---
         if (index === -1) {
-            favoris.push({ nom, lat, lon });
+            favoris.push({ nom, lat, lon, id_station: idStation, ville: ville, prix: prix });
         } else {
             favoris.splice(index, 1);
         }
@@ -349,7 +361,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Correction de la génération de l'URL Google Maps (Syntaxe de template propre)
+                    // Correction de la génération de l'URL Google Maps
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
@@ -377,7 +389,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 ${afficherLignePrix('SP98', pSp98, '98')}
                             </div>
 
-                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon});" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
+                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${station.id || ''}', '${(station.v || '').replace(/'/g, "\\'")}', ${prixCourant || 0});" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
                             <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase;">🗺️ Itinéraire Maps</a>
                         </div>
                     `);
