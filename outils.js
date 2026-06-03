@@ -160,17 +160,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         
-        if (!optionSelectionnee || !optionSelectionnee.value) return;
+        if (!optionSelectionnee || !optionSelectionnee.value) {
+            console.log("Sélection vide ou invalide.");
+            return;
+        }
 
         const prixBrut = optionSelectionnee.dataset.prixActuel;
         const nomStation = optionSelectionnee.dataset.nom;
         const idStation = optionSelectionnee.value;
 
+        console.log(`Cible sélectionnée : ${nomStation} | Prix d'origine : ${prixBrut} €`);
+
         // Déclenchement de la simulation prédictive
         const previsions = genererCourbePredictive(prixBrut, idStation);
 
         // Rendu graphique immédiat
-        mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
+        try {
+            mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
+            console.log("Graphique mis à jour avec succès.");
+        } catch (chartError) {
+            console.error("Erreur lors du rendu du graphique Chart.js :", chartError.message);
+        }
     });
 
     // Initialisation synchrone de la base de données
