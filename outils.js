@@ -4,32 +4,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Éléments HTML
     const nomOperateurBadge = document.getElementById("nom-operateur");
     const selectStation = document.getElementById("select-station-outils");
-    const ctx = document.getElementById("graphiquePrevisionnel").getContext("2d");
+    const graphiqueElem = document.getElementById("graphiquePrevisionnel");
+    
+    // Sécurité : Si le canvas du graphique n'existe pas sur cette page, on stoppe proprement
+    if (!graphiqueElem) {
+        console.error("Élément 'graphiquePrevisionnel' introuvable dans le HTML.");
+        return;
+    }
+    const ctx = graphiqueElem.getContext("2d");
+
+    // Sécurité : Si le sélecteur n'existe pas, on stoppe pour éviter de faire planter le reste
+    if (!selectStation) {
+        console.error("Élément 'select-station-outils' introuvable dans le HTML. Vérifie ton ID !");
+        return;
+    }
 
     // ==========================================
-    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO
+    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO (Synchronisé via _supabase)
     // ==========================================
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
 
     if (sessionError || !session) {
-        console.log("Session absente. Redirection...");
+        console.log("Session cloud absente. Redirection vers la page de connexion...");
         window.location.href = "connexion.html";
         return;
     }
 
-    // Affichage du pseudo dans le menu burger
+    // Affichage du pseudo dans le menu ou sur l'interface
     if (nomOperateurBadge && session.user.user_metadata) {
-        nomOperateurBadge.textContent = session.user.user_metadata.pseudo || "Opérateur";
+        const pseudo = session.user.user_metadata.display_name || session.user.user_metadata.pseudo || "Opérateur";
+        nomOperateurBadge.textContent = pseudo;
     }
 
     // ==========================================
-    // 2. RÉCUPÉRATION DES STATIONS FAVORITES SINCE SUPABASE
+    // 2. RÉCUPÉRATION DES STATIONS FAVORITES SINCE CLOUD
     // ==========================================
     async function chargerStationsFavorites() {
         try {
-            // Remplace "stations_favorites" par le vrai nom de ta table si nécessaire
-            const { data: favoris, error } = await supabase
-                .from("stations_favorites")
+            // Nettoyage préalable du sélecteur
+            selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
+
+            const { data: favoris, error } = await _supabase
+                .from("stations_favorites") // Cible la nouvelle table parfaitement configurée
                 .select("*")
                 .eq("user_id", session.user.id);
 
@@ -39,12 +55,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                 favoris.forEach(fav => {
                     const option = document.createElement("option");
                     option.value = fav.id_station; // L'ID unique de la station
-                    // On stocke le prix actuel directement dans l'attribut data pour notre formule
+                    
+                    // On stocke les métadonnées directement dans l'option pour l'algorithme
                     option.dataset.prixActuel = fav.dernier_prix || 1.850; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
+                    
                     option.textContent = `${fav.nom_station || "Station"} (${fav.ville || "Inconnue"})`;
                     selectStation.appendChild(option);
                 });
+                console.log(`${favoris.length} stations chargées dans le menu outils.`);
             } else {
                 const option = document.createElement("option");
                 option.textContent = "Aucune station favorite trouvée";
@@ -64,9 +83,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let labelsHeures = [];
         let heureActuelle = new Date();
 
-        // Profil comportemental type (En attendant d'analyser l'historique massif)
-        // Modélise les variations centimes d'euros selon l'heure (H24)
-        // Exemple : Baisse en fin de nuit, hausse légère aux heures de pointe de midi et 18h
+        // Profil comportemental type : modélise les spreads de prix selon l'heure (H24)
         const profilHoraireEnseigne = {
             0: -0.015, 1: -0.015, 2: -0.018, 3: -0.020, 4: -0.022, 5: -0.010,
             6: 0.000,  7: 0.005,  8: 0.008,  9: 0.004,  10: 0.002, 11: 0.005,
@@ -74,16 +91,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             18: 0.018, 19: 0.010, 20: 0.002, 21: -0.005, 22: -0.010, 23: -0.012
         };
 
-        // On boucle sur les 24 prochaines heures
+        // Boucle prévisionnelle sur les 24 prochaines heures
         for (let i = 0; i < 24; i++) {
             let heureFuture = new Date(heureActuelle.getTime() + (i * 60 * 60 * 1000));
             let h = heureFuture.getHours();
 
-            // Formule mathématique simplifiée : Prix de départ + coefficient de l'heure
             let coefficient = profilHoraireEnseigne[h] || 0;
             let prixPredit = parseFloat(prixActuel) + coefficient;
 
-            // Formatage de l'heure pour l'affichage du bas (ex: "08:00")
             let labelHeure = heureFuture.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             
             labelsHeures.push(labelHeure);
@@ -97,7 +112,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 4. MOTEUR D'AFFICHAGE ET DESIGN DU GRAPHIQUE (CHART.JS)
     // ==========================================
     function mettreAJourGraphique(labels, data, nomStation) {
-        // Si un graphique existe déjà, on le détruit avant de recréer le nouveau
         if (instanceGraphique) {
             instanceGraphique.destroy();
         }
@@ -110,11 +124,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     label: `Estimation du prix (${nomStation})`,
                     data: data,
                     borderColor: '#3b82f6', // Bleu tactique
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
                     borderWidth: 3,
-                    pointBackgroundColor: '#22c55e', // Points verts pour l'effet radar
+                    pointBackgroundColor: '#22c55e', // Points "pings" radars verts
                     pointRadius: 4,
-                    tension: 0.4, // Donne de belles courbes fluides
+                    tension: 0.4,
                     fill: true
                 }]
             },
@@ -122,7 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false } // On masque la légende pour garder ça épuré
+                    legend: { display: false }
                 },
                 scales: {
                     x: {
@@ -134,7 +148,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ticks: { 
                             color: '#9ca3af', 
                             font: { family: 'Plus Jakarta Sans' },
-                            // Force l'affichage à 3 décimales (ex: 1.845)
                             callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
                         }
                     }
@@ -147,19 +160,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         
-        if (!optionSelectionnee.value) return;
+        if (!optionSelectionnee || !optionSelectionnee.value) return;
 
         const prixBrut = optionSelectionnee.dataset.prixActuel;
         const nomStation = optionSelectionnee.dataset.nom;
         const idStation = optionSelectionnee.value;
 
-        // Déclenchement de l'algorithme prédictif
+        // Déclenchement de la simulation prédictive
         const previsions = genererCourbePredictive(prixBrut, idStation);
 
-        // Mise à jour visuelle immédiate
+        // Rendu graphique immédiat
         mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
     });
 
-    // Initialisation
+    // Initialisation synchrone de la base de données
     await chargerStationsFavorites();
 });
