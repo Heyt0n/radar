@@ -3,30 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Carburant - Outils</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>Radar Carburant - Outils Tactiques</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;600;800&display=swap" rel="stylesheet">
     <style>
-        /* Exactement les mêmes styles que compte.html */
-        :root { --bg-principal: #0b0f19; --bg-panneau: #111827; --accent-bleu: #3b82f6; --texte-principal: #f3f4f6; --texte-secondaire: #9ca3af; }
+        :root { 
+            --bg-principal: #0b0f19; 
+            --bg-panneau: #111827; 
+            --accent-bleu: #3b82f6; 
+            --accent-vert: #22c55e;
+            --texte-principal: #f3f4f6; 
+            --texte-secondaire: #9ca3af; 
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-principal); color: var(--texte-principal); min-height: 100vh; }
+        
         header { background-color: var(--bg-panneau); padding: 0 20px; border-bottom: 1px solid #1f2937; display: flex; justify-content: space-between; align-items: center; height: 50px; z-index: 100; position: relative; }
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        
         .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px; }
-        .burger-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau); border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 1000; transition: right 0.3s ease; padding: 70px 20px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* MENU BURGER HARMONISÉ */
+        .burger-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau); border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .burger-menu.open { right: 0; }
+        
+        .menu-user-header { padding-top: 50px; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 10px; }
+        .menu-user-status { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-vert); font-weight: 700; display: block; margin-bottom: 4px; }
+        .menu-user-greeting { font-size: 15px; font-weight: 600; color: var(--texte-secondaire); }
+        #nom-operateur { color: var(--texte-principal); font-weight: 800; }
+
         .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
         .menu-overlay.active { display: block; }
+        
         .menu-link { background: #1f2937; color: var(--texte-principal); border: 1px solid #374151; padding: 14px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
-        .standard-page { padding: 30px; width: 100%; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        
+        .standard-page { padding: 30px; width: 100%; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
         .widget { background: var(--bg-panneau); border: 1px solid #374151; border-radius: 12px; padding: 20px; }
+
+        /* SÉLECTEUR & CONTENEUR DU GRAPHIQUE */
+        select { background: #1f2937; color: white; border: 1px solid #374151; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 15px; outline: none; }
+        .chart-container { position: relative; width: 100%; height: 300px; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
+    
     <nav class="burger-menu" id="burgerMenu">
+        <div class="menu-user-header">
+            <span class="menu-user-status">📡 Système Connecté</span>
+            <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
+        </div>
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link active">📊 Outils & Stats</a>
         <a href="compte.html" class="menu-link">👤 Mon Compte</a>
@@ -39,11 +66,17 @@
 
     <div class="standard-page">
         <div class="widget">
-            <h2 style="font-size: 18px; margin-bottom: 5px; color: var(--accent-bleu);">📊 Outils & Stats</h2>
-            <p style="font-size: 12px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 20px;">Analyses de marché</p>
-            <p style="font-size: 13px; color: var(--texte-secondaire); line-height: 1.5;">
-                Zone de déploiement des futurs graphiques de spreads et historiques d'évolution des prix régionaux.
-            </p>
+            <h2 style="font-size: 18px; margin-bottom: 5px; color: var(--accent-bleu);">📊 Analyse Prédictive H24</h2>
+            <p style="font-size: 11px; color: var(--texte-secondaire); text-transform: uppercase; margin-bottom: 20px;">Projection algorithmique des prix</p>
+            
+            <label style="font-size: 12px; color: var(--texte-secondaire); display: block; margin-bottom: 6px; font-weight: bold;">CIBLE RECHERCHÉE :</label>
+            <select id="select-station-outils">
+                <option value="">-- Sélectionner une station cible --</option>
+            </select>
+
+            <div class="chart-container">
+                <canvas id="graphiquePrevisionnel"></canvas>
+            </div>
         </div>
     </div>
 
@@ -53,10 +86,14 @@
             document.getElementById('menuOverlay').classList.toggle('active');
         }
     </script>
-     <script src="https://vyrnkiedotmwrzoigziq.supabase.co/rest/v1/"></script>
-     <script src="supabase-config.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <script src="connexion.js"></script>
+    <script src="supabase-config.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="outils.js"></script>
 
 </body>
 </html>
