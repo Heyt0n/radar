@@ -6,31 +6,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selectStation = document.getElementById("select-station-outils");
     const graphiqueElem = document.getElementById("graphiquePrevisionnel");
     
-    // Sécurité : Si le canvas du graphique n'existe pas sur cette page, on stoppe proprement
     if (!graphiqueElem) {
         console.error("Élément 'graphiquePrevisionnel' introuvable dans le HTML.");
         return;
     }
     const ctx = graphiqueElem.getContext("2d");
 
-    // Sécurité : Si le sélecteur n'existe pas, on stoppe pour éviter de faire planter le reste
     if (!selectStation) {
-        console.error("Élément 'select-station-outils' introuvable dans le HTML. Vérifie ton ID !");
+        console.error("Élément 'select-station-outils' introuvable.");
         return;
     }
 
     // ==========================================
-    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO (Synchronisé via _supabase)
+    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO
     // ==========================================
     const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
 
     if (sessionError || !session) {
-        console.log("Session cloud absente. Redirection vers la page de connexion...");
         window.location.href = "connexion.html";
         return;
     }
 
-    // Affichage du pseudo dans le menu ou sur l'interface
     if (nomOperateurBadge && session.user.user_metadata) {
         const pseudo = session.user.user_metadata.display_name || session.user.user_metadata.pseudo || "Opérateur";
         nomOperateurBadge.textContent = pseudo;
@@ -41,11 +37,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ==========================================
     async function chargerStationsFavorites() {
         try {
-            // Nettoyage préalable du sélecteur
+            // Option neutre par défaut
             selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
 
             const { data: favoris, error } = await _supabase
-                .from("stations_favorites") // Cible la nouvelle table parfaitement configurée
+                .from("stations_favorites")
                 .select("*")
                 .eq("user_id", session.user.id);
 
@@ -54,16 +50,18 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (favoris && favoris.length > 0) {
                 favoris.forEach(fav => {
                     const option = document.createElement("option");
-                    option.value = fav.id_station; // L'ID unique de la station
                     
-                    // On stocke les métadonnées directement dans l'option pour l'algorithme
+                    // SÉCURITÉ REPRISE DE VALEUR : si id_station est vide, on prend le nom comme identifiant
+                    option.value = fav.id_station || fav.nom_station; 
+                    
+                    // Stockage des données critiques
                     option.dataset.prixActuel = fav.dernier_prix || 1.850; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
                     
                     option.textContent = `${fav.nom_station || "Station"} (${fav.ville || "Inconnue"})`;
                     selectStation.appendChild(option);
                 });
-                console.log(`${favoris.length} stations chargées dans le menu outils.`);
+                console.log(`${favoris.length} stations injectées avec succès dans le sélecteur.`);
             } else {
                 const option = document.createElement("option");
                 option.textContent = "Aucune station favorite trouvée";
@@ -83,7 +81,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         let labelsHeures = [];
         let heureActuelle = new Date();
 
-        // Profil comportemental type : modélise les spreads de prix selon l'heure (H24)
         const profilHoraireEnseigne = {
             0: -0.015, 1: -0.015, 2: -0.018, 3: -0.020, 4: -0.022, 5: -0.010,
             6: 0.000,  7: 0.005,  8: 0.008,  9: 0.004,  10: 0.002, 11: 0.005,
@@ -91,7 +88,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             18: 0.018, 19: 0.010, 20: 0.002, 21: -0.005, 22: -0.010, 23: -0.012
         };
 
-        // Boucle prévisionnelle sur les 24 prochaines heures
         for (let i = 0; i < 24; i++) {
             let heureFuture = new Date(heureActuelle.getTime() + (i * 60 * 60 * 1000));
             let h = heureFuture.getHours();
@@ -123,10 +119,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 datasets: [{
                     label: `Estimation du prix (${nomStation})`,
                     data: data,
-                    borderColor: '#3b82f6', // Bleu tactique
+                    borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.05)',
                     borderWidth: 3,
-                    pointBackgroundColor: '#22c55e', // Points "pings" radars verts
+                    pointBackgroundColor: '#22c55e',
                     pointRadius: 4,
                     tension: 0.4,
                     fill: true
@@ -160,29 +156,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         
-        if (!optionSelectionnee || !optionSelectionnee.value) {
-            console.log("Sélection vide ou invalide.");
+        // Sécurité assouplie : On vérifie juste qu'une option existe
+        if (!optionSelectionnee || optionSelectionnee.value === "") {
+            console.log("Sélection neutre ou vide détectée.");
             return;
         }
 
-        const prixBrut = optionSelectionnee.dataset.prixActuel;
-        const nomStation = optionSelectionnee.dataset.nom;
+        const prixBrut = optionSelectionnee.dataset.prixActuel || 1.850;
+        const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.value;
 
-        console.log(`Cible sélectionnée : ${nomStation} | Prix d'origine : ${prixBrut} €`);
+        console.log(`🎯 Cible activée : ${nomStation} | Prix base : ${prixBrut} €`);
 
-        // Déclenchement de la simulation prédictive
+        // Calcul des prévisions
         const previsions = genererCourbePredictive(prixBrut, idStation);
 
-        // Rendu graphique immédiat
+        // Tracé du graphique
         try {
             mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
-            console.log("Graphique mis à jour avec succès.");
+            console.log("📊 Graphique généré avec succès !");
         } catch (chartError) {
-            console.error("Erreur lors du rendu du graphique Chart.js :", chartError.message);
+            console.error("Erreur Chart.js :", chartError.message);
         }
     });
 
-    // Initialisation synchrone de la base de données
+    // Initialisation
     await chargerStationsFavorites();
 });
