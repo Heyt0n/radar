@@ -1,24 +1,50 @@
 // =========================================================================
-// RADAR CARBURANT - MOTEUR DE FLUX DIRECT & GRADIENT DYNAMIQUE (script-live.js)
+// RADAR CARBURANT - MOTEUR LIVE AVEC GRADIENT & RAYON TACTIQUE (script-live.js)
 // =========================================================================
 
 const URL_FLUX = "stations_france.json";
-const INTERVALLE_RAFRAICHISSEMENT = 5 * 60 * 1000; // Le JS vérifie s'il y a du neuf toutes les 5 minutes
+const INTERVALLE_RAFRAICHISSEMENT = 5 * 60 * 1000; // 5 minutes
 
 let carte = null;
 let coucheMarqueurs = null;
 
-// Initialisation de la carte Leaflet
+// Position de référence par défaut (ex: ton QG à Gambsheim / Hœrdt)
+// Note : Si tu utilises la géolocalisation de l'utilisateur, tu mettras à jour ces variables
+let maLatitude = 48.583;
+let maLongitude = 7.747;
+
 function initialiserCarte() {
-    // Centré par défaut sur tes coordonnées (Alsace / Gambsheim)
-    carte = L.map('map').setView([48.583, 7.747], 11); 
+    carte = L.map('map').setView([maLatitude, maLongitude], 11); 
     
-    // Thème sombre premium
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(carte);
 
     coucheMarqueurs = L.layerGroup().addTo(carte);
+
+    // Écouteur pour rafraîchir la carte si l'utilisateur change le rayon dans le HTML
+    const selectRayon = document.getElementById("select-rayon") || document.getElementById("rayon-recherche");
+    if (selectRayon) {
+        selectRayon.addEventListener("change", () => {
+            console.log(`🔄 Rayon modifié : ${selectRayon.value} km. Recalcul de la zone...`);
+            chargerFluxDirect();
+        });
+    }
+}
+
+// ==========================================
+// OUTIL MATHÉMATIQUE : FORMULE DE HAVERSINE
+// ==========================================
+// Calcule la distance exacte en km entre deux points géographiques
+function calculerDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance en kilomètres
 }
 
 // ==========================================
@@ -29,60 +55,66 @@ function calculerCouleurGradient(prix, prixMin, prixMax) {
     const min = parseFloat(prixMin);
     const max = parseFloat(prixMax);
 
-    if (max === min || isNaN(p)) return "hsl(120, 85%, 45%)"; // Vert émeraude par défaut si bug
+    if (max === min || isNaN(p)) return "hsl(120, 85%, 45%)";
 
-    // Normalisation du score entre 0 (le moins cher = Vert) et 1 (le plus cher = Rouge)
     let score = (p - min) / (max - min);
     if (score < 0) score = 0;
     if (score > 1) score = 1;
 
-    // Teinte de la roue chromatique HSL : 120 (Vert) -> 60 (Jaune) -> 0 (Rouge)
-    const teinte = (1 - score) * 120;
+    const teinte = (1 - score) * 120; // Vert (120) -> Jaune -> Rouge (0)
     return `hsl(${teinte}, 95%, 45%)`;
 }
 
 // ==========================================
-// SYNCHRONISATION ET AFFICHAGE DYNAMIQUE
+// SYNCHRONISATION ET FILTRAGE DE ZONE
 // ==========================================
 async function chargerFluxDirect() {
-    console.log("📡 Recherche d'une mise à jour du flux sur GitHub...");
+    console.log("📡 Scan du périmètre et recherche du flux...");
     
     try {
-        // Astuce anti-cache : ajoute un timestamp pour intercepter direct le fichier mis à jour par Python
+        // Récupération dynamique du rayon sélectionné dans ton HTML (15km par défaut si introuvable)
+        const selectRayon = document.getElementById("select-rayon") || document.getElementById("rayon-recherche");
+        const rayonMaximum = selectRayon ? parseFloat(selectRayon.value) : 15;
+
         const antiCache = new Date().getTime();
         const reponse = await fetch(`${URL_FLUX}?v=${antiCache}`);
         
         if (!reponse.ok) throw new Error("Impossible de lire le fichier JSON.");
         
-        const stations = await reponse.json();
+        const toutesLesStations = await reponse.json();
         
-        // 1. Extraction des prix réels pour calibrer dynamiquement le dégradé (basé sur le Gazole "gz")
-        let tousLesPrix = stations
-            .map(s => parseFloat(s.gz)) 
-            .filter(prix => !isNaN(prix) && prix > 0);
+        // 1. FILTRAGE CHIRURGICAL : On ne garde que les stations dans le rayon cible
+        const stationsDansLeRayon = toutesLesStations.filter(station => {
+            if (!station.lt || !station.ln || !station.gz) return false;
+            
+            // Calcul de la distance entre ton point de référence et la station
+            const distance = calculerDistance(maLatitude, maLongitude, station.lt, station.ln);
+            station.distanceCalculee = distance; // On stocke l'info pour la popup
+            
+            return distance <= rayonMaximum;
+        });
 
-        if (tousLesPrix.length === 0) {
-            console.warn("⚠️ Aucun prix valide trouvé dans le flux pour calibrer le dégradé.");
+        if (stationsDansLeRayon.length === 0) {
+            console.warn(`⚠️ Aucune station détectée dans un rayon de ${rayonMaximum} km.`);
+            coucheMarqueurs.clearLayers();
             return;
         }
 
-        const prixMin = Math.min(...tousLesPrix);
-        const prixMax = Math.max(...tousLesPrix);
+        // 2. EXTRACTION DES PRIX DE ZONE (Le gradient se calibre uniquement sur ton secteur !)
+        let prixDuSecteur = stationsDansLeRayon.map(s => parseFloat(s.gz));
+        const prixMin = Math.min(...prixDuSecteur);
+        const prixMax = Math.max(...prixDuSecteur);
 
-        console.log(`📊 Bornes du marché synchronisées - Min: ${prixMin}€ | Max: ${prixMax}€`);
+        console.log(`🎯 [Rayon ${rayonMaximum}km] : ${stationsDansLeRayon.length} stations détectées. Min: ${prixMin}€ | Max: ${prixMax}€`);
 
-        // 2. Nettoyage complet des anciens marqueurs sur la carte
+        // 3. NETTOYAGE COMPLET DES ANCIENS PINS
         coucheMarqueurs.clearLayers();
 
-        // 3. Déploiement des nouveaux pins tactiques avec leur couleur en dégradé
-        stations.forEach(station => {
-            // Lecture des clés ultra-compressées de ton script Python (lt, ln, gz)
-            if (!station.lt || !station.ln || !station.gz) return;
-
+        // 4. DEPLOIEMENT TACTIQUE
+        stationsDansLeRayon.forEach(station => {
             const prixCible = station.gz;
             const couleurPin = calculerCouleurGradient(prixCible, prixMin, prixMax);
 
-            // Création du badge HTML customisé pour afficher le prix en couleur
             const iconeCustom = L.divIcon({
                 className: 'custom-gradient-pin',
                 html: `<div style="
@@ -107,11 +139,11 @@ async function chargerFluxDirect() {
 
             const marqueur = L.marker([station.lt, station.ln], { icon: iconeCustom });
             
-            // Configuration de la popup sombre avec tes clés (n = nom, a = adresse, v = ville)
             marqueur.bindPopup(`
                 <div style="color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; padding: 4px; min-width: 200px;">
-                    <b style="font-size: 14px; color: #f3f4f6; display: block; margin-bottom: 4px;">${station.n}</b>
-                    <span style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 8px;">${station.a} (${station.v})</span>
+                    <b style="font-size: 14px; color: #f3f4f6; display: block; margin-bottom: 2px;">${station.n}</b>
+                    <span style="color: #9ca3af; font-size: 11px; display: block; margin-bottom: 6px;">📍 À ${station.distanceCalculee.toFixed(1)} km de toi</span>
+                    <span style="color: #71717a; font-size: 12px; display: block; margin-bottom: 8px;">${station.a} (${station.v})</span>
                     <div style="font-size: 14px; color: #3b82f6; border-top: 1px solid #1f2937; padding-top: 6px; font-weight: bold;">
                         Gazole : <span style="color: #22c55e; font-size: 16px;">${parseFloat(prixCible).toFixed(3)} €</span>
                     </div>
@@ -121,18 +153,14 @@ async function chargerFluxDirect() {
             coucheMarqueurs.addLayer(marqueur);
         });
 
-        console.log(`✅ Carte mise à jour : ${stations.length} stations déployées.`);
-
     } catch (erreur) {
-        console.error("❌ Erreur lors du chargement du flux direct :", erreur.message);
+        console.error("❌ Erreur lors du filtrage par rayon :", erreur.message);
     }
 }
 
-// Lancement au chargement de la page
 document.addEventListener("DOMContentLoaded", () => {
     initialiserCarte();
     chargerFluxDirect();
 
-    // Lancement de la surveillance en arrière-plan
     setInterval(chargerFluxDirect, INTERVALLE_RAFRAICHISSEMENT);
 });
