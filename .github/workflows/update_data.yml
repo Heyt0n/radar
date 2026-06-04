@@ -2,7 +2,7 @@ name: Actualisation Automatique du Radar
 
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch: 
 
 # ICI : On donne explicitement le droit d'écrire et de pousser des fichiers
