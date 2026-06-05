@@ -31,9 +31,9 @@
             overflow: hidden;
         }
 //
-/* Style Global des Popups Leaflet en Thème Sombre */
+/* Style des Popups Leaflet */
 .dark-popup .leaflet-popup-content-wrapper {
-    background: #111827 !important; /* Gris ultra sombre de fond */
+    background: #111827 !important;
     color: #ffffff !important;
     border: 1px solid #1e293b !important;
     border-radius: 8px !important;
@@ -45,28 +45,20 @@
     border: 1px solid #1e293b !important;
 }
 
-/* Conteneur global du marqueur hybride pour éviter les coupures CSS */
+/* Assure que le double-point ne soit pas masqué par Leaflet */
 .custom-hybrid-pin {
     overflow: visible !important;
 }
 
-/* Animation de pulsation tactique pour la cible la moins chère de la zone */
-@keyframes pulse-radar-blue {
-    0% {
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.8), 0 0 10px #3b82f6;
-    }
-    70% {
-        box-shadow: 0 0 0 8px rgba(59, 130, 246, 0), 0 0 10px #3b82f6;
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0), 0 0 10px #3b82f6;
-    }
+/* Animation de pulsation si la station est la moins chère du rayon */
+@keyframes pulse-radar {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7), 0 0 10px #3b82f6; }
+    70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0), 0 0 10px #3b82f6; }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0), 0 0 10px #3b82f6; }
 }
 
 .pulse-target {
-    animation: pulse-radar-blue 2s infinite !important;
-    background-color: #22c55e !important; /* Le point central passe au vert émeraude pour la meilleure cible */
-    border-color: #ffffff !important;
+    animation: pulse-radar 2s infinite !important;
 }
 ///
         /* HEADER */
