@@ -123,48 +123,7 @@ function creerIconeMarqueur(couleur, estFavori) {
             popupAnchor: [1, -34]
         });
     }
-///////////////////////////////////////////////////
-// ÉTAPE 1 : Tu ajoutes la fonction de calcul de couleur si tu ne l'as pas déjà
-function calculerCouleurMacaron(prix, prixMin, prixMax) {
-    const p = parseFloat(prix);
-    const min = parseFloat(prixMin);
-    const max = parseFloat(prixMax);
-    if (max === min || isNaN(p)) return "hsl(120, 100%, 50%)";
-    const score = (p - min) / (max - min);
-    const teinte = (1 - Math.max(0, Math.min(1, score))) * 120;
-    return `hsl(${teinte}, 100%, 50%)`;
-}
 
-// ÉTAPE 2 : Dans ta boucle d'affichage des stations, tu remplaces la création de l'icône
-const couleurMacaron = calculerCouleurMacaron(station.gz, prixMin, prixMax);
-
-const iconeCyber = L.divIcon({
-    className: 'custom-hybrid-pin',
-    html: `
-        <div style="position: relative; width: 24px; height: 32px;">
-            <div style="position: absolute; width: 24px; height: 24px; background-color: #3b82f6; border: 2px solid #ffffff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 0 10px #3b82f6; left: 0; top: 0; z-index: 2;">
-                <div style="position: absolute; width: 8px; height: 8px; background-color: #ffffff; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></div>
-            </div>
-            <div style="position: absolute; left: -6px; top: 2px; width: 9px; height: 9px; background-color: ${couleurMacaron}; border: 1.5px solid #ffffff; border-radius: 50%; box-shadow: 0 0 8px ${couleurMacaron}; z-index: 3;"></div>
-        </div>
-    `,
-    iconSize: [24, 32],
-    iconAnchor: [12, 32]
-});
-
-// Tu appliques ensuite cette icône à ton marqueur Leaflet habituel
-const marqueur = L.marker([station.lt, station.ln], { icon: iconeCyber });
-    
-    return new L.Icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    });
-}
-//////////////////////////////////////////////////////
 function extraireVraiNom(station) {
     let nomBrut = (station.n || "").trim();
     let ville = (station.v || "").trim();
