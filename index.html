@@ -31,6 +31,7 @@
             overflow: hidden;
         }
 //
+
 /* Style des Popups Leaflet */
 .dark-popup .leaflet-popup-content-wrapper {
     background: #111827 !important;
@@ -45,21 +46,22 @@
     border: 1px solid #1e293b !important;
 }
 
-/* Assure que le double-point ne soit pas masqué par Leaflet */
+/* Gestion du conteneur de l'épingle */
 .custom-hybrid-pin {
     overflow: visible !important;
 }
 
-/* Animation de pulsation si la station est la moins chère du rayon */
-@keyframes pulse-radar {
-    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7), 0 0 10px #3b82f6; }
-    70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0), 0 0 10px #3b82f6; }
-    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0), 0 0 10px #3b82f6; }
+/* Animation de pulsation pour la meilleure opportunité du secteur */
+@keyframes pulse-radar-target {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7), 0 0 12px #3b82f6; }
+    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0), 0 0 12px #3b82f6; }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0), 0 0 12px #3b82f6; }
 }
 
 .pulse-target {
-    animation: pulse-radar 2s infinite !important;
+    animation: pulse-radar-target 2s infinite !important;
 }
+
 ///
         /* HEADER */
         header {
