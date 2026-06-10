@@ -2,10 +2,10 @@ name: Actualisation Automatique du Radar
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch: 
+    # ⏱️ On demande un réveil toutes les 30 minutes (M30)
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # 🎯 Garde ce bouton actif pour déclencher à la main quand tu veux !
 
-# ICI : On donne explicitement le droit d'écrire et de pousser des fichiers
 permissions:
   contents: write
 
@@ -25,9 +25,11 @@ jobs:
     - name: Installation des dépendances
       run: |
         python -m pip install --upgrade pip
-        pip install requests
+        # 🔥 CRITIQUE : On installe requests ET supabase pour que le script python ne crash pas !
+        pip install requests supabase
 
-    - name: Exécution du script de compression
+    - name: Exécution du script de compression et d'historique
+      # ⚠️ Attention : Remplace "compress_data.py" par le nom exact de ton fichier python actuel s'il a changé
       run: python compress_data.py
 
     - name: Sauvegarde et déploiement du fichier JSON sur GitHub
@@ -35,5 +37,4 @@ jobs:
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
         git add stations_france.json
-        # Le script vérifie s'il y a des changements avant de push pour éviter de faire des commits vides
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour automatique des prix" && git push)
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour automatique des prix et Supabase" && git push)
