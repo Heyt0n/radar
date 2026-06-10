@@ -1,16 +1,3 @@
-/**
- * =========================================================================
- * OUTILS.JS - STATION DE TRADING & PRÉVISIONS CARBURANTS (M30 TRADING VIEW)
- * =========================================================================
- * Version : 2.5
- * Fonctionnalités : 
- * - Synchronisation stricte des prix avec la carte (JSON central)
- * - Granularité M30 (Points toutes les 30 minutes calés sur les trackers Python)
- * - Double courbe : Historique passé (Vert continu) / Prévisions (Bleu pointillés)
- * - Viewport fixe de 24h avec défilement latéral (Pan) et Zoom horizontal (X)
- * - Réticule Crosshair dynamique au survol
- */
-
 // Enregistrement manuel et explicite du plugin de zoom auprès de Chart.js
 if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
     Chart.register(window['chartjs-plugin-zoom']);
