@@ -132,4 +132,15 @@ def compresser_et_historiser():
     print(f"📦 Opération terminée. Local : {len(stations_compressees)} stations synchronisées.")
 
 if __name__ == "__main__":
-    compresser_et_historiser()
+    print("🚀 Tracker enclenché. Analyse du marché national toutes les 30 minutes...")
+    
+    while True:
+        try:
+            # 1. Lance l'analyse et la sauvegarde
+            compresser_et_historiser()
+        except Exception as e:
+            print(f"❌ Erreur critique durant le cycle : {e}")
+        
+        # 2. Ligne magique : Attend 30 minutes (30 min * 60 secondes = 1800s) avant le prochain scan
+        print("⏳ En veille pour 30 minutes avant la prochaine session de tracking...")
+        time.sleep(1800)
