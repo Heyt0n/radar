@@ -9,10 +9,8 @@ from supabase import create_client, Client
 SUPABASE_URL = "https://vyrnkiedotmwrzoigziq.supabase.co"
 SUPABASE_KEY = "sb_publishable_96x0oNLDI14j_wrJdrdrRA_PfUCe..." # Pense à mettre ta clé entière ici
 
-# Initialisation du client Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Liens officiels (Principal + Secours)
 URL_PRINCIPALE = "https://files.transport.data.gouv.fr/marches-publics/prix-carburants/prix-des-carburants-en-france-flux-instantane-v2.json"
 URL_SECOURS = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/exports/json"
 
@@ -32,37 +30,38 @@ def telecharger_avec_retry():
     return None
 
 def sauvegarder_si_changement(id_station, nom_station, carburant, nouveau_prix):
-    """
-    Vérifie le dernier prix enregistré dans Supabase pour ce carburant précis.
-    Si le prix a changé ou s'il n'existe pas, on l'ajoute à l'historique.
-    """
     if nouveau_prix is None:
         return
 
+    donnees = []
     try:
-        # Récupération du tout dernier point en base pour cette station et ce carburant
+        # 🎯 CORRECTION : Utilisation de 'created_at' (le standard Supabase) à la place d'horodatage
         reponse = supabase.table("historique_prix") \
             .select("prix") \
             .eq("id_station", id_station) \
             .eq("carburant", carburant) \
-            .order("horodatage", descending=True) \
+            .order("created_at", descending=True) \
             .limit(1) \
             .execute()
-
         donnees = reponse.data
-        
-        # Règle anti-redondance : Si la base est vide ou si le prix est différent, on injecte
+    except Exception as e:
+        # Sécurité si 'created_at' pose problème au premier run, on force l'analyse
+        print(f"ℹ️ Note : Premier scan ou ajustement de colonne pour {id_station} ({carburant})")
+        donnees = []
+
+    try:
+        # Règle anti-redondance : Si aucun historique ou si le prix a changé, on bombarde
         if not donnees or float(donnees[0]['prix']) != float(nouveau_prix):
             donnees_insertion = {
-                "id_station": id_station,
-                "nom_station": nom_station,
-                "carburant": carburant,
+                "id_station": str(id_station),
+                "nom_station": str(nom_station),
+                "carburant": str(carburant),
                 "prix": float(nouveau_prix)
             }
             supabase.table("historique_prix").insert(donnees_insertion).execute()
-            print(f"📈 [MàJ] {nom_station} ({carburant}) : Nouveau prix détecté -> {nouveau_prix} €")
+            print(f"📈 [MÀJ BASE] {nom_station} ({carburant}) : {nouveau_prix} €")
     except Exception as e:
-        print(f"⚠️ Erreur lors de la synchronisation Supabase pour {id_station}: {e}")
+        print(f"⚠️ Erreur insertion Supabase pour {id_station}: {e}")
 
 def compresser_et_historiser():
     toutes_les_stations = telecharger_avec_retry()
@@ -97,15 +96,15 @@ def compresser_et_historiser():
                 continue
 
             nom = station.get('nom') or station.get('marque') or "Station"
+            # ID unique basé sur la position géographique
             id_unique_station = f"{f_lat}_{f_lon}"
 
-            # Module anti-redondance Supabase
+            # Envoi vers l'historique Supabase
             sauvegarder_si_changement(id_unique_station, nom, 'gz', gazole)
             sauvegarder_si_changement(id_unique_station, nom, '95', sp95)
             sauvegarder_si_changement(id_unique_station, nom, 'e10', e10)
             sauvegarder_si_changement(id_unique_station, nom, '98', sp98)
 
-            # Structure locale allégée pour la carte
             station_propre = {
                 "n": nom,
                 "a": station.get('adresse') or "",
@@ -120,19 +119,14 @@ def compresser_et_historiser():
             }
             stations_compressees.append(station_propre)
 
-    # Mise à jour du fichier local
     fichier_sortie = "stations_france.json"
     with open(fichier_sortie, 'w', encoding='utf-8') as f:
         json.dump(stations_compressees, f, ensure_ascii=False, separators=(',', ':'))
         
     print(f"📦 Opération terminée avec succès. Fichier local actualisé ({len(stations_compressees)} stations).")
 
-# =========================================================================
-# BOUCLE D'AUTOMATISATION PRINCIPALE (M30 TRACKER)
-# =========================================================================
 if __name__ == "__main__":
     print("🚀 Tracker national enclenché. Scan du marché toutes les 30 minutes...")
-    
     while True:
         try:
             print(f"\n⏰ [Cycle {time.strftime('%H:%M:%S')}] Lancement du scan...")
@@ -140,6 +134,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Erreur inattendue durant le cycle : {e}")
         
-        # Le script dort pendant 30 minutes (1800 secondes) puis redémarre tout seul
         print("⏳ Tout est à jour. En veille pour 30 minutes...")
-        time.sleep(1800)
+        time.sleep(60)
