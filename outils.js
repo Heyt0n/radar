@@ -12,24 +12,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     const nomOperateurBadge = document.getElementById("nom-operateur");
     const selectStation = document.getElementById("select-station-outils");
     const graphiqueElem = document.getElementById("graphiquePrevisionnel");
+    const briefingTexte = document.getElementById("briefing-texte");
     
-    if (!graphiqueElem) return;
+    if (!graphiqueElem || !selectStation) return;
     const ctx = graphiqueElem.getContext("2d");
-    if (!selectStation) return;
 
-    // Appliquer dynamiquement les règles CSS pour bloquer le scroll natif sur le graphique
+    // Optimisation mobile tactile
     graphiqueElem.style.touchAction = "none";
     graphiqueElem.style.userSelect = "none";
     graphiqueElem.style.webkitUserSelect = "none";
 
     // ==========================================
-    // 1. GESTION DU MENU BURGER (PC & MOBILE)
+    // 1. GESTION DU MENU BURGER
     // ==========================================
     const burgerBtn = document.querySelector('.burger-btn');
     if (burgerBtn) {
         ['click', 'touchend'].forEach(evt => {
             burgerBtn.addEventListener(evt, (e) => {
-                e.preventDefault(); // Évite les conflits de double clic sur mobile
+                e.preventDefault();
                 toggleBurgerMenu();
             }, { passive: false });
         });
@@ -49,17 +49,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 3. CHARGEMENT & CORRESPONDANCE DES PRIX EN DIRECT
+    // MODULE : ANALYSTE DE MARCHÉ (BRIEFING)
+    // ==========================================
+    function genererBriefingAnalyste(nomStation, prixActuel) {
+        if (!briefingTexte) return;
+        const nomMinuscule = nomStation.toLowerCase();
+        let analyse = "";
+
+        if (nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/)) {
+            analyse = `La station <strong>${nomStation}</strong> opère sur un modèle à fort volume et marges compressées. La volatilité intra-day reste bloquée par les barrières psychologiques des grandes surfaces. <strong>Stratégie conseillée :</strong> Ravitaillement optimal en fin de soirée avant les réalignements algorithmiques matinaux.`;
+        } else if (nomMinuscule.match(/(total|elan|shell|bp|esso)/)) {
+            analyse = `Nous constatons une sensibilité accrue aux fluctuations des marchés Spot (Rotterdam) sur l'actif <strong>${nomStation}</strong>. Les spreads sont plus larges, offrant de fortes opportunités de baisse en milieu de semaine (cycles de déstockage).`;
+        } else {
+            analyse = `Analyse structurelle en cours pour l'actif <strong>${nomStation}</strong>. Le support immédiat est consolidé à ${prixActuel} €. La tendance à court terme reste corrélée aux flux logistiques régionaux.`;
+        }
+
+        briefingTexte.innerHTML = `<strong>Rapport de situation :</strong> ${analyse} <br><span style='color: #4b5563; font-size: 11px; display: block; margin-top: 8px;'>Cours pivot détecté : ${prixActuel} € • Modélisation mise à jour toutes les 30 minutes.</span>`;
+    }
+
+    // ==========================================
+    // 3. ENCLENCHEMENT DE L'HISTORIQUE ET DES FAVORIS
     // ==========================================
     async function initialiserDonnees() {
         try {
-            selectStation.innerHTML = '<option value="" selected disabled>-- Alignement des bases de données... --</option>';
+            selectStation.innerHTML = '<option value="" selected disabled>-- Alignement des bases... --</option>';
 
-            // Récupération du fichier JSON central (identique à script.js)
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
-            // Récupération des favoris Supabase
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -68,16 +85,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (error) throw error;
 
             if (favoris && favoris.length > 0) {
-                selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
+                selectStation.innerHTML = ''; // On purge le loader
                 
                 favoris.forEach(fav => {
-                    // Recherche par coordonnées ou par nom pour coller aux données de la carte
                     const stationLive = stationsGlobales.find(s => 
                         (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.002 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.002) ||
                         (s.n && s.n.trim() === fav.nom_station.trim())
                     );
 
-                    // Extraction du prix réel ou fallback stable
                     let vraiPrix = 1.750;
                     if (stationLive) {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
@@ -88,13 +103,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
                     option.dataset.idUnique = `${fav.latitude}_${fav.longitude}`; 
-                    
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
-                console.log(`[Moteur] ${favoris.length} stations chargées avec succès.`);
+
+                console.log(`[Moteur] ${favoris.length} cibles verrouillées.`);
+
+                // 🔥 ACTION CRITIQUE : FORCE LA SÉLECTION DU PREMIER FAVORI
+                selectStation.selectedIndex = 0;
+                const declencheurAuto = new Event('change');
+                selectStation.dispatchEvent(declencheurAuto);
+
             } else {
-                selectStation.innerHTML = '<option value="" disabled>Aucune station favorite trouvée</option>';
+                selectStation.innerHTML = '<option value="" disabled>Aucun favori enregistré</option>';
+                if (briefingTexte) briefingTexte.textContent = "Aucun actif en mémoire. Veuillez ajouter des favoris via le Radar Tactique pour générer les briefings.";
             }
         } catch (err) {
             console.error("[Erreur] Initialisation impossible :", err.message);
@@ -102,7 +124,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 4. MOTEUR MATHÉMATIQUE (HASH ALGO STABLE)
+    // 4. MOTEUR DE SIMULATION TRANSITOIRE (HASH)
     // ==========================================
     function genererFluctuationUnique(str, graine) {
         let hash = 0;
@@ -113,15 +135,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         return Math.sin(hash); 
     }
 
-    // ==========================================
-    // 5. ALGORITHME DE TRAJECTOIRE TEMPORELLE M30
-    // ==========================================
     function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
         let labelsDates = [];
         let donneesReel = [];
         let donneesPrediction = [];
         
-        // Caler l'heure sur la demi-heure la plus proche (M30)
         let momentActuel = new Date();
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
@@ -141,11 +159,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
 
         let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
-
         const pasMinutes = 30;
-        const totalHeuresEtude = 48; // Fenêtre totale de 4 jours (2 Passé / 2 Futur)
+        const totalHeuresEtude = 48;
 
-        // A. Génération du Passé (Historique M30 simulé de -48h à -30min)
+        // A. Tracé du passé
         for (let offset = -(totalHeuresEtude * 60); offset < 0; offset += pasMinutes) {
             let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
             let h = heureBoucle.getHours();
@@ -164,12 +181,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             donneesPrediction.push(null);
         }
 
-        // B. Point d'ancrage (Aujourd'hui / Maintenant)
+        // B. Pivot central
         labelsDates.push("Maintenant");
         donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3)); // Liaison des courbes
+        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
 
-        // C. Génération du Futur (Prévisions M30 de +30min à +48h)
+        // C. Tracé du futur
         for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
             let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
             let h = heureBoucle.getHours();
@@ -200,13 +217,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 6. PLUGIN RETICULE EN CROIX (CROSSHAIR)
+    // 5. RETICULE EN CROIX (CROSSHAIR PLUGIN)
     // ==========================================
     const pluginCrosshair = {
         id: 'crosshair',
         afterDraw: (chart) => {
             if (!chart.tooltip?._active?.length) return;
-            
             const activePoint = chart.tooltip._active[0];
             const { ctx, chartArea: { top, bottom, left, right } } = chart;
             const x = activePoint.element.x;
@@ -216,15 +232,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             ctx.beginPath();
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = '#9ca3af'; // Gris technique discret
+            ctx.strokeStyle = '#4b5563';
 
-            // Ligne Nord-Sud
-            ctx.moveTo(x, top);
-            ctx.lineTo(x, bottom);
-            
-            // Ligne Ouest-Est
-            ctx.moveTo(left, y);
-            ctx.lineTo(right, y);
+            ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+            ctx.moveTo(left, y); ctx.lineTo(right, y);
             
             ctx.stroke();
             ctx.restore();
@@ -232,20 +243,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     // ==========================================
-    // 7. CONSTRUCTEUR DU GRAPHIQUE (VIEWPORT TRADING)
+    // 6. CONSTRUCTEUR DU GRAPH TRADINGVIEW-STYLE
     // ==========================================
     function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
         if (instanceGraphique) {
             instanceGraphique.destroy();
         }
 
-        // --- GESTION DE LA FENÊTRE VISUELLE FIXE (24 HEURES) ---
         const indexMaintenant = labels.indexOf("Maintenant");
         let indexMinInitial = 0;
         let indexMaxInitial = labels.length - 1;
 
-        // Un intervalle M30 équivaut à 2 points par heure. 
-        // Pour afficher 24h fixes glissantes (12h passées / 12h futures), on isole 24 points de part et d'autre.
         if (indexMaintenant !== -1) {
             indexMinInitial = Math.max(0, indexMaintenant - 24);
             indexMaxInitial = Math.min(labels.length - 1, indexMaintenant + 24);
@@ -259,7 +267,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     {
                         label: `Historique Réel (M30)`,
                         data: donneesReel,
-                        borderColor: '#22c55e', // Vert continu
+                        borderColor: '#22c55e',
                         backgroundColor: 'transparent',
                         borderWidth: 2.5,
                         pointRadius: 0,
@@ -270,7 +278,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     {
                         label: `Projection Algorithmique`,
                         data: donneesPrediction,
-                        borderColor: '#3b82f6', // Bleu pointillés
+                        borderColor: '#3b82f6',
                         backgroundColor: 'transparent',
                         borderWidth: 2.5,
                         borderDash: [6, 4],
@@ -285,40 +293,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend'],
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
                         display: true,
                         labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
                     },
-                    // Activation des fonctionnalités avancées de déplacement et zoom
                     zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: 'x', // Glisser horizontal uniquement
-                            threshold: 5
-                        },
-                        zoom: {
-                            wheel: { enabled: true, speed: 0.05 }, // Zoom molette PC
-                            pinch: { enabled: true },             // Zoom pincement mobile
-                            mode: 'x'
-                        }
+                        pan: { enabled: true, mode: 'x', threshold: 5 },
+                        zoom: { wheel: { enabled: true, speed: 0.05 }, pinch: { enabled: true }, mode: 'x' }
                     }
                 },
                 scales: {
                     x: {
-                        min: indexMinInitial, // Verrouillage de la taille de fenêtre par défaut
+                        min: indexMinInitial,
                         max: indexMaxInitial,
                         grid: { color: '#1f2937' },
-                        ticks: { 
-                            color: '#9ca3af', 
-                            font: { family: 'Plus Jakarta Sans', size: 9 },
-                            maxTicksLimit: 8,
-                            maxRotation: 0
-                        }
+                        ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 9 }, maxTicksLimit: 8, maxRotation: 0 }
                     },
                     y: {
                         grid: { color: '#1f2937' },
@@ -334,7 +325,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Écouteur d'action de sélection d'une station
+    // Gestionnaire d'événements lié au sélecteur
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
@@ -343,20 +334,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.dataset.idUnique;
 
-        console.log(`[Radar-M30] Analyse active : ${nomStation} (${prixBrut} €)`);
-        const trajectoire = genererTrajectoireM30(prixBrut, nomStation, idStation);
+        // Mise à jour de l'analyse textuelle
+        genererBriefingAnalyste(nomStation, prixBrut);
 
-        try {
-            mettreAJourGraphique(trajectoire.labels, trajectoire.reel, trajectoire.prev, nomStation);
-        } catch (chartError) {
-            console.error("[Graphique] Échec de rendu :", chartError.message);
-        }
+        // Tracé
+        const trajectoire = genererTrajectoireM30(prixBrut, nomStation, idStation);
+        mettreAJourGraphique(trajectoire.labels, trajectoire.reel, trajectoire.prev, nomStation);
     });
 
     await initialiserDonnees();
 });
 
-// Fonction globale d'ouverture/fermeture du menu Burger
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
     const overlay = document.getElementById('menuOverlay');
