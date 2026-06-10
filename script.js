@@ -103,22 +103,31 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Système de "Demi-Ping" (Badge favori sans écraser la couleur du prix)
-function creerIconeMarqueur(couleur, estFavori) {
-    if (estFavori) {
-        return L.divIcon({
-            html: `
-                <div style="position: relative; width: 25px; height: 41px;">
-                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block;">
-                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">⭐</div>
-                </div>
-            `,
-            className: '',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34]
-        });
-    }
+// Nouveau système : Conserve le ping de base + étoile à droite + bulle thermique à GAUCHE
+function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
+    // Si aucune couleur de bulle n'est calculée (ex: rupture), on met du gris ou on ne l'affiche pas
+    const afficherBulle = couleurBulle ? 'block' : 'none';
+
+    return L.divIcon({
+        html: `
+            <div style="position: relative; width: 25px; height: 41px;">
+                
+                <div style="display: ${afficherBulle}; position: absolute; top: 6px; left: -8px; background: ${couleurBulle}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 0 6px ${couleurBulle}; z-index: 3;"></div>
+
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; z-index: 1;">
+                
+                ${estFavori ? `
+                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); z-index: 2;">⭐</div>
+                ` : ''}
+
+            </div>
+        `,
+        className: 'custom-hybrid-pin', // Ajout d'une classe propre pour éviter les coupures Leaflet
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34]
+    });
+}
 
     return new L.Icon({
         iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
@@ -353,8 +362,18 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
-                    // Injection de l'icône avec le statut favori
-                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori) }).addTo(map);
+                   // NOUVEAU CODE : Calcul de la couleur de la bulle thermique de gauche
+                    let couleurBulle = "hsl(120, 100%, 50%)"; // Vert par défaut (le moins cher)
+                    if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+                        let score = (prixCourant - prixMin) / (prixMax - prixMin);
+                        let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; // Dégradé dynamique Vert -> Jaune -> Rouge
+                        couleurBulle = `hsl(${teinte}, 100%, 50%)`;
+                    } else if (!prixCourant) {
+                        couleurBulle = null; // Pas de bulle en cas de rupture de stock
+                    }
+
+                    // Injection de l'icône avec la couleur de la bulle en 3ème argument
+                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map););
 
                     const afficherLignePrix = (label, prix, code) => {
                         const styleHighlight = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
