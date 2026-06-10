@@ -6,8 +6,8 @@ from supabase import create_client, Client
 # =========================================================================
 # CONFIGURATION SUPABASE (Remplace par tes vrais identifiants de projet)
 # =========================================================================
-SUPABASE_URL = "https://ton-id-projet.supabase.co"
-SUPABASE_KEY = "TA_CLE_ANON_OU_SERVICE_ROLE"
+SUPABASE_URL = "ca peut etre ca https://vyrnkiedotmwrzoigziq.supabase.co"
+SUPABASE_KEY = "sb_publishable_96xOoNLDIl4j_wrJdrdrRA_PfUCetYb"
 
 # Initialisation du client Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
