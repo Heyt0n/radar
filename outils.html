@@ -10,6 +10,7 @@
             --bg-principal: #0b0f19;
             --bg-panneau: #111827;
             --accent-bleu: #3b82f6;
+            --accent-vert: #22c55e;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
         }
@@ -17,22 +18,23 @@
         * { box-sizing: border-box; }
         header { background-color: var(--bg-panneau); padding: 0 20px; border-bottom: 1px solid #1f2937; display: flex; justify-content: space-between; align-items: center; height: 50px; }
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-        .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 24px; cursor: pointer; padding: 5px; }
+        .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 24px; cursor: pointer; padding: 5px; z-index: 1100; }
         
-        /* BURGER MENU */
         .burger-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau); border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .burger-menu.open { right: 0; }
         .menu-user-header { padding-top: 50px; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 10px; }
+        .menu-user-status { font-size: 10px; text-transform: uppercase; color: var(--accent-vert); font-weight: 700; }
         .menu-link { background: #1f2937; color: var(--texte-principal); border: 1px solid #374151; padding: 14px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
         .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
         .menu-overlay.active { display: block; }
 
-        /* CONTENU */
         .content { padding: 20px; max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
         .widget { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 20px; }
-        .widget-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 12px; font-weight: 700; }
-        #outils-briefing { font-size: 14px; line-height: 1.6; color: #d1d5db; font-style: italic; }
+        .widget-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 12px; font-weight: 700; }
+        
+        #select-station-outils { background: #1f2937; color: white; border: 1px solid #374151; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 10px; }
+        .chart-container { height: 300px; position: relative; width: 100%; }
     </style>
 </head>
 <body>
@@ -41,7 +43,8 @@
     
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span style="font-size: 10px; text-transform: uppercase; color: #22c55e; font-weight: 700;">📡 Système Connecté</span>
+            <span class="menu-user-status">📡 Système Connecté</span>
+            <div class="menu-user-greeting" style="font-size:15px; color:var(--texte-secondaire);">Bonjour, <span id="nom-operateur" style="color:white; font-weight:800;">Opérateur</span></div>
         </div>
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link active">📊 Outils & Stats</a>
@@ -55,31 +58,24 @@
 
     <div class="content">
         <div class="widget">
-            <div class="widget-title">📈 Briefing Stratégique Analytique</div>
-            <div id="outils-briefing">Chargement des données d'analyse tactique...</div>
+            <div class="widget-title">🎯 Sélection de la station cible</div>
+            <select id="select-station-outils">
+                <option value="" selected disabled>-- Chargement des favoris... --</option>
+            </select>
         </div>
 
         <div class="widget">
-            <div class="widget-title">⚙️ Paramètres du Radar</div>
-            <p style="color: var(--texte-secondaire); font-size: 13px;">Ajustez ici vos configurations de recherche.</p>
+            <div class="widget-title">📊 Évolution & Prévisions Algorithmiques (Horizon J+5)</div>
+            <div class="chart-container">
+                <canvas id="graphiquePrevisionnel"></canvas>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script>
-        function toggleBurgerMenu() {
-            document.getElementById('burgerMenu').classList.toggle('open');
-            document.getElementById('menuOverlay').classList.toggle('active');
-        }
-
-        // Exemple simple de récupération ou génération de texte pour ton briefing
-        document.addEventListener("DOMContentLoaded", () => {
-            const briefingBox = document.getElementById("outils-briefing");
-            if (briefingBox) {
-                briefingBox.innerHTML = "L'analyse automatique du secteur montre une stabilité globale des prix du Gazole sur l'axe Haguenau-Strasbourg. Les stations de supermarchés maintiennent un écart moyen de -0.045€ par rapport aux enseignes de marque sur la session des dernières 48h.";
-            }
-        });
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="outils.js"></script>
 </body>
 </html>
