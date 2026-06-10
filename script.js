@@ -103,39 +103,28 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Nouveau système : Conserve le ping de base + étoile à droite + bulle thermique à GAUCHE
+// Système Hybride : Conserve le ping couleur de base + Étoile favori + Petite bulle à gauche
 function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
-    // Si aucune couleur de bulle n'est calculée (ex: rupture), on met du gris ou on ne l'affiche pas
     const afficherBulle = couleurBulle ? 'block' : 'none';
 
     return L.divIcon({
         html: `
             <div style="position: relative; width: 25px; height: 41px;">
                 
-                <div style="display: ${afficherBulle}; position: absolute; top: 6px; left: -8px; background: ${couleurBulle}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 0 6px ${couleurBulle}; z-index: 3;"></div>
+                <div style="display: ${afficherBulle}; position: absolute; top: 12px; left: -10px; background: ${couleurBulle}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 0 6px ${couleurBulle}; z-index: 999;"></div>
 
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; z-index: 1;">
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; position: absolute; top: 0; left: 0; z-index: 10;">
                 
                 ${estFavori ? `
-                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); z-index: 2;">⭐</div>
+                    <div style="position: absolute; top: -6px; right: -10px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); z-index: 20;">⭐</div>
                 ` : ''}
 
             </div>
         `,
-        className: 'custom-hybrid-pin', // Ajout d'une classe propre pour éviter les coupures Leaflet
+        className: 'custom-hybrid-pin',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34]
-    });
-}
-
-    return new L.Icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
     });
 }
 
@@ -351,29 +340,29 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pSp98   = formatPrix(station["98"]);
                     let prixCourant = formatPrix(station[carburantActif]);
 
-                    // Choix dynamique de la couleur selon le positionnement de prix
+                    // Choix dynamique de la couleur de l'épingle principale
                     let couleurMarker = 'blue'; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
                         if (prixCourant === prixMin) couleurMarker = 'green'; 
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Correction de la génération de l'URL Google Maps (Syntaxe de template propre)
+                    // Calcul dynamique de la couleur de la petite bulle thermique à gauche
+                    let couleurBulle = "hsl(120, 100%, 50%)"; // Vert pur par défaut
+                    if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+                        let score = (prixCourant - prixMin) / (prixMax - prixMin);
+                        let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; // Gradient Vert (120) -> Jaune -> Rouge (0)
+                        couleurBulle = `hsl(${teinte}, 100%, 50%)`;
+                    } else if (!prixCourant) {
+                        couleurBulle = null; // Pas de bulle affichée si rupture
+                    }
+
+                    // Correction de la génération de l'URL Google Maps
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
-                   // NOUVEAU CODE : Calcul de la couleur de la bulle thermique de gauche
-                    let couleurBulle = "hsl(120, 100%, 50%)"; // Vert par défaut (le moins cher)
-                    if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
-                        let score = (prixCourant - prixMin) / (prixMax - prixMin);
-                        let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; // Dégradé dynamique Vert -> Jaune -> Rouge
-                        couleurBulle = `hsl(${teinte}, 100%, 50%)`;
-                    } else if (!prixCourant) {
-                        couleurBulle = null; // Pas de bulle en cas de rupture de stock
-                    }
-
-                    // Injection de l'icône avec la couleur de la bulle en 3ème argument
-                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map););
+                    // Injection de l'icône avec la couleur de l'épingle, le statut favori et la couleur thermique de la bulle
+                    const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map);
 
                     const afficherLignePrix = (label, prix, code) => {
                         const styleHighlight = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
