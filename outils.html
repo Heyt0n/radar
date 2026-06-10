@@ -31,18 +31,40 @@
         .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
         .menu-overlay.active { display: block; }
 
-        .content { padding: 20px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        .content { padding: 15px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         
         /* Widget de Briefing */
-        .briefing-widget { background: var(--bg-panneau); border: 1px solid #1f2937; border-radius: 12px; padding: 20px; }
+        .briefing-widget { background: var(--bg-panneau); border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
         .briefing-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-bleu); margin-bottom: 8px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
         
         /* Panneau de Trading Unifié */
         .trading-panel { background: var(--bg-panneau); border: 1px solid #1f2937; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-        .panel-header { background: #1a2234; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; }
-        .panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); font-weight: 700; }
+        .panel-header { background: #1a2234; padding: 10px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; gap: 10px; }
+        .panel-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--texte-secondaire); font-weight: 700; white-space: nowrap; }
         
-        #select-station-outils { background: var(--bg-principal); color: white; border: 1px solid #374151; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; outline: none; min-width: 240px; font-family: 'Plus Jakarta Sans', sans-serif; }
+        /* Sélecteur optimisé sans coupures */
+        #select-station-outils { 
+            background: var(--bg-principal); 
+            color: white; 
+            border: 1px solid #374151; 
+            padding: 5px 24px 5px 8px; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            font-size: 11.5px; 
+            outline: none; 
+            max-width: 60%; 
+            width: auto;
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            overflow: hidden;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            appearance: none; 
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><path d='M0 3l5 5 5-5z'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
         #select-station-outils:focus { border-color: var(--accent-bleu); }
         
         .chart-container { height: 380px; position: relative; width: 100%; padding: 15px; }
@@ -69,18 +91,20 @@
     </header>
 
     <div class="content">
+        <!-- Bulle de Briefing synchronisée via ton script GitHub -->
         <div class="briefing-widget">
-            <div class="briefing-title">🔍 Briefing de l'Analyste Macro</div>
-            <p id="briefing-texte" style="color: var(--texte-secondaire); font-size: 14px; line-height: 1.6; margin: 0;">
-                En attente d'alignement des bases de données...
+            <div class="briefing-title">📝 Briefing de l'Opérateur</div>
+            <p id="sniper-comment" style="color: var(--texte-secondaire); font-size: 13.5px; line-height: 1.6; margin: 0; font-family: 'JetBrains Mono', monospace;">
+                Synchronisation avec le flux Sheets en cours...
             </p>
         </div>
 
+        <!-- Panneau de Trading -->
         <div class="trading-panel">
             <div class="panel-header">
-                <div class="panel-title">📊 ÉVOLUTION & PREVISIONS ALGORITHMIQUES (M30)</div>
+                <div class="panel-title">📊 PROJECTION (M30)</div>
                 <select id="select-station-outils">
-                    <option value="" selected disabled>-- Chargement des favoris... --</option>
+                    <option value="" selected disabled>Chargement...</option>
                 </select>
             </div>
             <div class="chart-container">
@@ -89,10 +113,19 @@
         </div>
     </div>
 
+    <!-- Librairies et dépendances -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
+    
+    <!-- 🔥 Obligatoire pour faire tourner ton script d'origine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- Scripts de l'application -->
     <script src="outils.js"></script>
+    
+    <!-- 🔥 Ton script dédié aux commentaires (laisse outils.js propre) -->
+    <script src="commentaire.js"></script>
 </body>
 </html>
