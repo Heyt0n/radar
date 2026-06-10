@@ -177,6 +177,20 @@
             #sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; }
             #map-container { flex: 1; }
         }
+
+        /////////////////////////////////////* Empêche Leaflet de masquer la bulle de gauche et l'étoile de droite */
+.custom-hybrid-pin {
+    background: none !important;
+    border: none !important;
+    overflow: visible !important;
+}
+
+/* Force l'image du ping à ne pas être écrasée par d'autres règles */
+.custom-hybrid-pin img {
+    max-width: none !important;
+    box-shadow: none !important;
+}
+        //////////////////////////////
     </style>
 </head>
 <body>
