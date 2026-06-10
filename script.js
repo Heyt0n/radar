@@ -4,7 +4,7 @@
 let currentUser = null;
 let stationsGlobales = [];
 let favoris = []; 
-let marqueursActifs = {}; // Index indispensable pour interagir avec la carte instantanément
+let marqueursActifs = {}; 
 
 const API_URL = "stations_france.json"; 
 const DEF_LAT = 48.71;
@@ -20,15 +20,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!session) {
             if (localStorage.getItem("radar_session_active") !== "true") {
-                window.location.href = "connexion.html";
-                return;
+                // Ne redirige pas si on est déjà sur la page outils ou compte
+                if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html")) {
+                    window.location.href = "connexion.html";
+                    return;
+                }
             }
-            console.log("Mode Invité Local activé.");
             favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         } else {
             currentUser = session.user;
             const pseudo = currentUser.user_metadata.display_name || "Opérateur";
-            console.log(`Opérateur connecté : ${pseudo}`);
             
             const nomOperateurBadge = document.getElementById("nom-operateur");
             if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
@@ -40,8 +41,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 
-    initialiserEcouteursInterface();
-    declencherGeolocalisation();
+    // N'initialise la carte que si l'élément HTML "#map" existe sur la page en cours
+    if (document.getElementById('map')) {
+        initialiserCarteEtMoteur();
+    } else {
+        // Mode hors-carte (page outils par exemple)
+        initialiserEcouteursInterfaceOutils();
+    }
 });
 
 async function chargerFavorisSupabase() {
@@ -64,11 +70,18 @@ async function chargerFavorisSupabase() {
 // ==========================================
 // 2. CONFIGURATION DE LA CARTE LEAFLET
 // ==========================================
-var map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
+var map = null;
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© CARTO © OpenStreetMap'
-}).addTo(map);
+function initialiserCarteEtMoteur() {
+    map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© CARTO © OpenStreetMap'
+    }).addTo(map);
+
+    initialiserEcouteursInterface();
+    declencherGeolocalisation();
+}
 
 function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; 
@@ -154,7 +167,7 @@ async function basculerFavori(nom, lat, lon) {
         else favoris.splice(index, 1);
         localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     }
-    fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+    if (map) fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
 }
 
 function afficherFavoris() {
@@ -181,27 +194,29 @@ function afficherFavoris() {
         
         const item = document.createElement('div');
         item.className = 'favori-item';
-        item.style.cursor = 'pointer';
         item.style.marginBottom = '8px';
         
-        // Sécurisation des chaînes de caractères pour l'injection HTML
         const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
+        // Intégration de la fonctionnalité de routage direct (Bouton 🗺️)
         item.innerHTML = `
-            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" 
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
                  id="fav-${cleMarqueur}">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomSecuriseHTML}">${nomSecuriseHTML}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
-            <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px; flex-shrink: 0;">✕</button>
+            <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+                <a href="https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
+                <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
+            </div>
         `;
         
         conteneur.appendChild(item);
 
-        // Ecouteur d'événement robuste pour rediriger sur la carte
         document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
+            if (!map) return;
             map.setView([f.lat], f.lon, 14); 
             if (marqueursActifs[cleMarqueur]) {
                 marqueursActifs[cleMarqueur].openPopup();
@@ -212,7 +227,6 @@ function afficherFavoris() {
             }
         });
 
-        // Ecouteur d'événement robuste pour la suppression du favori
         document.getElementById(`del-${cleMarqueur}`).addEventListener('click', (e) => {
             e.stopPropagation();
             basculerFavori(nomSecuriseJS, f.lat, f.lon);
@@ -233,8 +247,10 @@ async function rechercherVille() {
         if (data && data.length > 0) {
             const newLat = parseFloat(data[0].lat);
             const newLon = parseFloat(data[0].lon);
-            map.setView([newLat, newLon], 12);
-            fetchLiveStations(newLat, newLon);
+            if (map) {
+                map.setView([newLat, newLon], 12);
+                fetchLiveStations(newLat, newLon);
+            }
         } else {
             alert("Ville introuvable.");
         }
@@ -242,6 +258,7 @@ async function rechercherVille() {
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
+    if (!map) return;
     try {
         dernierePosition = { lat: centerLat, lon: centerLon };
         
@@ -252,7 +269,6 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-        // Nettoyage de la carte et reset de l'index des pins actifs
         map.eachLayer((layer) => { if (layer instanceof L.Marker) map.removeLayer(layer); });
         marqueursActifs = {}; 
 
@@ -291,7 +307,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     }
 
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map);
-                    marqueursActifs[`${lat}_${lon}`] = marker; // Stockage immédiat de la référence
+                    marqueursActifs[`${lat}_${lon}`] = marker;
 
                     const linePrix = (label, prix, code) => {
                         const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
@@ -300,6 +316,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
                     const nomSecuriseJS = vraiNomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
+                    // FONCTIONNALITÉ MAPS RÉINTÉGRÉE ICI : Ajout du bouton Itinéraire Google Maps dans la bulle
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
                             <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold;">${vraiNomStation}</h4>
@@ -310,7 +327,10 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 ${linePrix('SP95', formatPrix(station["95"]), '95')}
                                 ${linePrix('SP98', formatPrix(station["98"]), '98')}
                             </div>
-                            <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
+                                <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                            </div>
                         </div>
                     `);
                 }
@@ -330,9 +350,16 @@ function initialiserEcouteursInterface() {
     document.getElementById('search-ville')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') rechercherVille(); });
     document.getElementById('btn-reset')?.addEventListener('click', () => {
         const input = document.getElementById('search-ville'); if (input) input.value = '';
-        map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
-        fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
+        if (map) {
+            map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
+            fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
+        }
     });
+}
+
+function initialiserEcouteursInterfaceOutils() {
+    // Écouteurs légers pour les pages de statistiques (sans carte)
+    console.log("Interface outils synchronisée.");
 }
 
 function declencherGeolocalisation() {
@@ -340,12 +367,14 @@ function declencherGeolocalisation() {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 maPositionReelle = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                map.setView([pos.coords.latitude, pos.coords.longitude], 11);
-                fetchLiveStations(pos.coords.latitude, pos.coords.longitude);
+                if (map) {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 11);
+                    fetchLiveStations(pos.coords.latitude, pos.coords.longitude);
+                }
             },
-            () => { fetchLiveStations(DEF_LAT, DEF_LON); }
+            () => { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
         );
-    } else { fetchLiveStations(DEF_LAT, DEF_LON); }
+    } else { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
 }
 
 function toggleBurgerMenu() {
