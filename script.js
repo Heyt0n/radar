@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!session) {
             if (localStorage.getItem("radar_session_active") !== "true") {
-                // Ne redirige pas si on est déjà sur la page outils ou compte
                 if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html")) {
                     window.location.href = "connexion.html";
                     return;
@@ -41,11 +40,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 
-    // N'initialise la carte que si l'élément HTML "#map" existe sur la page en cours
     if (document.getElementById('map')) {
         initialiserCarteEtMoteur();
     } else {
-        // Mode hors-carte (page outils par exemple)
         initialiserEcouteursInterfaceOutils();
     }
 });
@@ -200,7 +197,7 @@ function afficherFavoris() {
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
-        // Intégration de la fonctionnalité de routage direct (Bouton 🗺️)
+        // CORRECTION LIEN MAPS : Intégration propre de l'URL Google Maps avec template string stable
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
                  id="fav-${cleMarqueur}">
@@ -217,7 +214,7 @@ function afficherFavoris() {
 
         document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
             if (!map) return;
-            map.setView([f.lat], f.lon, 14); 
+            map.setView([f.lat, f.lon], 14); 
             if (marqueursActifs[cleMarqueur]) {
                 marqueursActifs[cleMarqueur].openPopup();
             } else {
@@ -316,7 +313,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
                     const nomSecuriseJS = vraiNomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
-                    // FONCTIONNALITÉ MAPS RÉINTÉGRÉE ICI : Ajout du bouton Itinéraire Google Maps dans la bulle
+                    // CORRECTION LIEN MAPS : Reconstruction propre de l'URL de routage dans la bulle d'informations
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
                             <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold;">${vraiNomStation}</h4>
@@ -358,7 +355,6 @@ function initialiserEcouteursInterface() {
 }
 
 function initialiserEcouteursInterfaceOutils() {
-    // Écouteurs légers pour les pages de statistiques (sans carte)
     console.log("Interface outils synchronisée.");
 }
 
