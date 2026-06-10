@@ -30,8 +30,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
 
+            // Utilisation de la table 'favoris' ou 'stations_favorites' selon ta structure
             const { data: favoris, error } = await _supabase
-                .from("stations_favorites")
+                .from("favoris")
                 .select("*")
                 .eq("user_id", session.user.id);
 
@@ -40,11 +41,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (favoris && favoris.length > 0) {
                 favoris.forEach(fav => {
                     const option = document.createElement("option");
-                    option.value = fav.id_station || fav.nom_station; 
-                    option.dataset.prixActuel = fav.dernier_prix || 1.850; 
+                    // Mapping flexible pour s'adapter à ton schéma de base de données
+                    option.value = fav.id_station || fav.id || `${fav.latitude}_${fav.longitude}`; 
+                    option.dataset.prixActuel = fav.dernier_prix || 1.720; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
                     
-                    option.textContent = `${fav.nom_station || "Station"} (${fav.ville || "Inconnue"})`;
+                    option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
                 console.log(`${favoris.length} stations injectées dans le sélecteur.`);
@@ -103,33 +105,22 @@ document.addEventListener("DOMContentLoaded", async () => {
             profilActif = profilGrandesSurfaces;
         }
 
-        // Configuration de l'horizon : 5 jours = 120 heures.
-        // Pour éviter d'avoir 120 points serrés sur le graphique, on prend une mesure toutes les 4 heures.
         const totalHeures = 120;
         const intervalleHeures = 4;
 
         for (let i = 0; i <= totalHeures; i += intervalleHeures) {
             let heureFuture = new Date(heureActuelle.getTime() + (i * 60 * 60 * 1000));
             let h = heureFuture.getHours();
-            let jourIndex = Math.floor(i / 24); // Idéal pour calculer une dérive par jour
+            let jourIndex = Math.floor(i / 24);
 
-            // 1. Cycle de base selon l'heure
             let coefficientBase = profilActif[h] || 0;
-            
-            // 2. Micro-signature horaire unique de la station
             let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
-
-            // 3. Tendance macro sur 5 jours (simule une dérive de marché propre à la station)
-            // Utilise l'ID et l'index du jour pour que la trajectoire globale reste cohérente à chaque clic
             let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
 
-            // Calcul final du prix projeté
             let prixPredit = parseFloat(prixActuel) + coefficientBase + signatureUnique + tendanceMacro;
 
-            // Formatage propre du label : "Lun. 08h"
             let optionsJours = { weekday: 'short' };
             let nomJour = heureFuture.toLocaleDateString('fr-FR', optionsJours);
-            // On nettoie le point éventuel ajouté par le format français (ex: "lun.")
             nomJour = nomJour.replace('.', '');
             nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
             
@@ -158,12 +149,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     label: `Projection 5 jours (${nomStation})`,
                     data: data,
                     borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.03)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
                     borderWidth: 2.5,
                     pointBackgroundColor: '#22c55e',
                     pointRadius: 3,
                     pointHoverRadius: 6,
-                    tension: 0.35, // Courbe adoucie sur 5 jours
+                    tension: 0.35,
                     fill: true
                 }]
             },
@@ -178,7 +169,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         grid: { color: '#1f2937' },
                         ticks: { 
                             color: '#9ca3af', 
-                            font: { family: 'Plus Jakarta Sans', size: 11 },
+                            font: { family: 'Plus Jakarta Sans', size: 10 },
                             maxRotation: 45,
                             minRotation: 45
                         }
@@ -196,24 +187,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Écouteur de changement sur le sélecteur de stations
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
-        
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
 
-        const prixBrut = optionSelectionnee.dataset.prixActuel || 1.850;
+        const prixBrut = optionSelectionnee.dataset.prixActuel || 1.720;
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.value;
 
         console.log(`🎯 Analyse longue portée activée : ${nomStation}`);
-
-        // Déclenchement de l'algorithme 5 jours
         const previsions = genererCourbePredictive5Jours(prixBrut, nomStation, idStation);
 
         try {
             mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
-            console.log("📊 Graphique horizon J+5 généré avec succès.");
+            console.log("📊 Graphique horizon J+5 généré.");
         } catch (chartError) {
             console.error("Erreur Chart.js :", chartError.message);
         }
@@ -221,3 +208,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await chargerStationsFavorites();
 });
+
+// Gestion isolée et robuste du menu burger pour outils.html
+function toggleBurgerMenu() {
+    document.getElementById('burgerMenu')?.classList.toggle('open');
+    document.getElementById('menuOverlay')?.classList.toggle('active');
+}
+window.toggleBurgerMenu = toggleBurgerMenu;
