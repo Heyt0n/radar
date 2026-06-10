@@ -217,7 +217,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-    function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
+   function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
         if (instanceGraphique) {
             instanceGraphique.destroy();
         }
@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         borderColor: '#22c55e',
                         backgroundColor: 'transparent',
                         borderWidth: 2.5,
-                        pointRadius: 0, // Supprime les points ronds pour un rendu courbe fluide
+                        pointRadius: 0,
                         pointHoverRadius: 5,
                         tension: 0.2,
                         spanGaps: false
@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         borderColor: '#3b82f6',
                         backgroundColor: 'transparent',
                         borderWidth: 2.5,
-                        borderDash: [6, 4], // Pointillés pour la prévision
+                        borderDash: [6, 4],
                         pointRadius: 0,
                         pointHoverRadius: 5,
                         tension: 0.2,
@@ -264,17 +264,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                         display: true,
                         labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
                     },
-                    // CONFIGURATION DU MODULE DE ZOOM ET DÉPLACEMENT
+                    // CONFIGURATION DU ZOOM AVANCÉE POUR TRADING / GRAPHIQUE COMPACT
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: 'x', // Déplacement latéral uniquement sur l'axe horizontal
-                            threshold: 10
+                            mode: 'x', // Déplacement uniquement gauche/droite
+                            threshold: 5 // Sensibilité du déclenchement du glissé (pixels)
                         },
                         zoom: {
-                            wheel: { enabled: true }, // Zoom molette PC
-                            pinch: { enabled: true }, // Zoom pincement doigts Mobile
-                            mode: 'x'
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1 // Vitesse du zoom à la molette sur PC
+                            },
+                            pinch: {
+                                enabled: true // Force le pincement de doigts sur smartphone
+                            },
+                            mode: 'x' // Zoom uniquement horizontal pour garder la visibilité des prix
                         }
                     }
                 },
@@ -284,7 +289,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ticks: { 
                             color: '#9ca3af', 
                             font: { family: 'Plus Jakarta Sans', size: 9 },
-                            maxTicksLimit: 12, // Évite la superposition des écritures en limitant les labels visibles
+                            maxTicksLimit: 10,
                             maxRotation: 0
                         }
                     },
@@ -298,7 +303,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                 }
             },
-            plugins: [pluginCrosshair] // Injection du réticule en croix
+            plugins: [pluginCrosshair]
         });
     }
 
