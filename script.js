@@ -104,13 +104,10 @@ function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
         html: `
             <div style="position: relative; width: 25px; height: 41px;">
                 
-                <!-- 1. LA PETITE BULLE THERMIQUE (Design mat, sans effet néon) -->
                 <div style="display: ${afficherBulle}; position: absolute; top: -6px; left: -8px; background: ${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;"></div>
 
-                <!-- 2. LE PING COULEUR DE BASE (Image officielle Leaflet) -->
                 <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; position: absolute; top: 0; left: 0; z-index: 10;">
                 
-                <!-- 3. LE MACARON DES FAVORIS -->
                 ${estFavori ? `
                     <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;">⭐</div>
                 ` : ''}
@@ -227,17 +224,20 @@ function afficherFavoris() {
         item.style.cursor = 'pointer';
         item.style.marginBottom = '8px';
         
-        // CORRECTION INTERFACE : Déplacement sur la carte + Lancement synchrone du Popup ciblé
+        // INTERFACE ROBUSTE ET FLUIDE POUR MOBILE & DESKTOP
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" 
                  onclick="
+                     const cle = '${f.lat}_${f.lon}';
                      map.setView([${f.lat}], ${f.lon}, 14); 
-                     fetchLiveStations(${f.lat}, ${f.lon}).then(() => {
-                         const cle = '${f.lat}_${f.lon}';
-                         if (marqueursActifs[cle]) {
-                             marqueursActifs[cle].openPopup();
-                         }
-                     });
+                     
+                     if (marqueursActifs[cle]) {
+                         marqueursActifs[cle].openPopup();
+                     } else {
+                         fetchLiveStations(${f.lat}, ${f.lon}).then(() => {
+                             if (marqueursActifs[cle]) marqueursActifs[cle].openPopup();
+                         });
+                     }
                  ">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${f.nom}">${f.nom}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
@@ -293,7 +293,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         // Nettoyage des anciens marqueurs sur la carte et réinitialisation de l'index tactique
         map.eachLayer((layer) => {
-            if (layer instanceof L.Marker || layer instanceof L.DivIcon) map.removeLayer(layer);
+            if (layer instanceof L.Marker) map.removeLayer(layer);
         });
         marqueursActifs = {}; 
 
@@ -345,7 +345,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                         let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; 
                         couleurBulle = `hsl(${teinte}, 100%, 50%)`;
                     } else if (!prixCourant) {
-                        couleurBulle = null; // Heureux accident : Masquage automatique si rupture
+                        couleurBulle = null; // Masquage automatique si rupture
                     }
 
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
@@ -353,7 +353,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map);
 
-                    // MEMORISATION : On stocke la référence du marqueur pour pouvoir l'ouvrir à distance via le volet Favoris
+                    // MEMORISATION : On stocke la référence du marqueur
                     const cleMarker = `${lat}_${lon}`;
                     marqueursActifs[cleMarker] = marker;
 
@@ -369,7 +369,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; font-family:sans-serif; min-width:240px;">
                             <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold; line-height:1.4;">${vraiNomStation}</h4>
                             <p style="margin:0 0 4px 0; font-size:11px; color:#9ca3af;">${station.a || ''} (${station.v || ''})</p>
-                            <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km de ta recherche</p>
+                            <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km</p>
                             
                             <div style="border-top:1px solid #374151; padding-top:8px; font-size:13px; font-family:monospace; margin-bottom:12px;">
                                 ${afficherLignePrix('Gazole', pGazole, 'gz')}
