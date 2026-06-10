@@ -217,95 +217,101 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-   function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
-        if (instanceGraphique) {
-            instanceGraphique.destroy();
-        }
+// AJOUT INDISPENSABLE : On force Chart.js à enregistrer le plugin de zoom
+if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
+    Chart.register(window['chartjs-plugin-zoom']);
+}
 
-        instanceGraphique = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: `Historique M30 (Réel)`,
-                        data: donneesReel,
-                        borderColor: '#22c55e',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2.5,
-                        pointRadius: 0,
-                        pointHoverRadius: 5,
-                        tension: 0.2,
-                        spanGaps: false
-                    },
-                    {
-                        label: `Prévision Algorithmique`,
-                        data: donneesPrediction,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2.5,
-                        borderDash: [6, 4],
-                        pointRadius: 0,
-                        pointHoverRadius: 5,
-                        tension: 0.2,
-                        spanGaps: false
-                    }
-                ]
+function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
+    if (instanceGraphique) {
+        instanceGraphique.destroy();
+    }
+
+    instanceGraphique = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: `Historique M30 (Réel)`,
+                    data: donneesReel,
+                    borderColor: '#22c55e',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    tension: 0.2,
+                    spanGaps: false
+                },
+                {
+                    label: `Prévision Algorithmique`,
+                    data: donneesPrediction,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2.5,
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    tension: 0.2,
+                    spanGaps: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            // Permet de capturer tous les événements tactiles et souris sans latence
+            events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend'],
+            interaction: {
+                mode: 'index',
+                intersect: false
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
                 },
-                plugins: {
-                    legend: {
-                        display: true,
-                        labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
+                zoom: {
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                        threshold: 5
                     },
-                    // CONFIGURATION DU ZOOM AVANCÉE POUR TRADING / GRAPHIQUE COMPACT
                     zoom: {
-                        pan: {
+                        wheel: {
                             enabled: true,
-                            mode: 'x', // Déplacement uniquement gauche/droite
-                            threshold: 5 // Sensibilité du déclenchement du glissé (pixels)
+                            speed: 0.08 // Légèrement réduit pour plus de précision à la molette
                         },
-                        zoom: {
-                            wheel: {
-                                enabled: true,
-                                speed: 0.1 // Vitesse du zoom à la molette sur PC
-                            },
-                            pinch: {
-                                enabled: true // Force le pincement de doigts sur smartphone
-                            },
-                            mode: 'x' // Zoom uniquement horizontal pour garder la visibilité des prix
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: '#1f2937' },
-                        ticks: { 
-                            color: '#9ca3af', 
-                            font: { family: 'Plus Jakarta Sans', size: 9 },
-                            maxTicksLimit: 10,
-                            maxRotation: 0
-                        }
-                    },
-                    y: {
-                        grid: { color: '#1f2937' },
-                        ticks: { 
-                            color: '#9ca3af', 
-                            font: { family: 'Plus Jakarta Sans' },
-                            callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
-                        }
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'x'
                     }
                 }
             },
-            plugins: [pluginCrosshair]
-        });
-    }
+            scales: {
+                x: {
+                    grid: { color: '#1f2937' },
+                    ticks: { 
+                        color: '#9ca3af', 
+                        font: { family: 'Plus Jakarta Sans', size: 9 },
+                        maxTicksLimit: 10,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    grid: { color: '#1f2937' },
+                    ticks: { 
+                        color: '#9ca3af', 
+                        font: { family: 'Plus Jakarta Sans' },
+                        callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
+                    }
+                }
+            }
+        },
+        plugins: [pluginCrosshair]
+    });
+}
 
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
