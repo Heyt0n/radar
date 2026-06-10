@@ -69,7 +69,7 @@
             box-shadow: -5px 0 25px rgba(0,0,0,0.5);
             z-index: 2000;
             transition: right 0.3s ease;
-            padding: 20px; /* Réduit pour gérer l'organisation interne proprement */
+            padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -79,7 +79,7 @@
 
         /* HEADER INTERNE DU MENU */
         .menu-user-header {
-            padding-top: 50px; /* Espace pour le bouton de fermeture mobile */
+            padding-top: 50px;
             padding-bottom: 15px;
             border-bottom: 1px solid #1f2937;
             margin-bottom: 10px;
@@ -170,27 +170,26 @@
         #map-container { flex: 1; height: 100%; position: relative; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
-        /* MULTI-ECRANS SMARTPHONE */
+        /* MULTI-ECRANS SMARTPHONE (CORRIGÉ POUR LE SCROLL ET LA HAUTEUR) */
         @media (max-width: 768px) {
-            body { position: fixed; width: 100%; }
-            .app-container { flex-direction: column-reverse; }
-            #sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; }
-            #map-container { flex: 1; }
+            body { overflow: hidden; position: relative; }
+            .app-container { flex-direction: column; } /* Changement de l'ordre pour laisser la carte en haut et le panneau en bas */
+            #map-container { height: 55vh; flex: none; }
+            #sidebar { width: 100%; height: 45vh; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         }
 
-        /////////////////////////////////////* Empêche Leaflet de masquer la bulle de gauche et l'étoile de droite */
-.custom-hybrid-pin {
-    background: none !important;
-    border: none !important;
-    overflow: visible !important;
-}
+        /* Empêche Leaflet de masquer la bulle de gauche et l'étoile de droite */
+        .custom-hybrid-pin {
+            background: none !important;
+            border: none !important;
+            overflow: visible !important;
+        }
 
-/* Force l'image du ping à ne pas être écrasée par d'autres règles */
-.custom-hybrid-pin img {
-    max-width: none !important;
-    box-shadow: none !important;
-}
-        //////////////////////////////
+        /* Force l'image du ping à ne pas être écrasée par d'autres règles */
+        .custom-hybrid-pin img {
+            max-width: none !important;
+            box-shadow: none !important;
+        }
     </style>
 </head>
 <body>
@@ -214,8 +213,11 @@
     </header>
 
     <div class="app-container">
+        <main id="map-container">
+            <div id="map"></div>
+        </main>
+
         <aside id="sidebar">
-            
             <select id="select-carburant">
                 <option value="gz">⛽ Gazole</option>
                 <option value="e10">⛽ SP95-E10</option>
@@ -237,25 +239,18 @@
                 <div id="sniper-comment">En attente de synchronisation...</div>
             </div>
             
-            <div class="widget" style="flex: 1;">
+            <div class="widget" style="flex: 1; min-height: 150px;">
                 <div class="widget-title">Stations Favorites</div>
                 <div id="liste-favoris">
                     <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
                 </div>
             </div>
         </aside>
-
-        <main id="map-container">
-            <div id="map"></div>
-        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <script src="supabase-config.js"></script>
-    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script src="script.js"></script>
 
 </body>
