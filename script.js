@@ -44,28 +44,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     declencherGeolocalisation();
 });
 
-// Fonction dédiée pour récupérer les favoris du Cloud depuis la nouvelle table
+// Fonction dédiée pour récupérer les favoris du Cloud
 async function chargerFavorisSupabase() {
     if (!currentUser) return;
     try {
         const { data, error } = await _supabase
-            .from('stations_favorites') // <-- Nouvelle table ciblée
+            .from('favoris')
             .select('*');
 
         if (error) throw error;
 
         // On remappe les données pour conserver la structure exacte du script d'origine
-        // tout en intégrant les données indispensables pour outils.js
         favoris = data.map(f => ({
             id_cloud: f.id, // Gardé en mémoire pour de futures suppressions ciblées
-            id_station: f.id_station, // Nécessaire pour l'analyse outils.js
             nom: f.nom_station,
-            ville: f.ville || '',
-            prix: f.dernier_prix || 0,
-            lat: f.latitude || 0,
-            lon: f.longitude || 0
+            lat: f.latitude,
+            lon: f.longitude
         }));
-        console.log(`${favoris.length} cibles tactiques synchronisées depuis le Cloud.`);
+        console.log(`${favoris.length} cibles synchronisées depuis le Cloud.`);
     } catch (err) {
         console.error("Erreur de récupération des favoris Cloud :", err.message);
         // Secours local en cas de perte de réseau
@@ -124,6 +120,16 @@ function creerIconeMarqueur(couleur, estFavori) {
         });
     }
 
+    return new L.Icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png`,
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+}
+
 function extraireVraiNom(station) {
     let nomBrut = (station.n || "").trim();
     let ville = (station.v || "").trim();
@@ -168,33 +174,25 @@ function formatPrix(valeur) {
 // ==========================================
 // 3. MOTEUR HYBRIDE CLOUD/LOCAL : GESTION DES FAVORIS
 // ==========================================
-async function basculerFavori(nom, lat, lon, idStation = '', ville = '', prix = 0) {
+async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
 
     if (currentUser) {
         // --- LOGIQUE CLOUD SUPABASE ---
         if (index === -1) {
-            // Insertion complète dans la table stations_favorites
+            // Insertion dans la table Supabase
             const { error } = await _supabase
-                .from('stations_favorites')
-                .insert([{ 
-                    user_id: currentUser.id, 
-                    id_station: String(idStation), 
-                    nom_station: nom, 
-                    ville: ville,
-                    dernier_prix: parseFloat(prix) || 0,
-                    latitude: lat, 
-                    longitude: lon 
-                }]);
+                .from('favoris')
+                .insert([{ user_id: currentUser.id, nom_station: nom, latitude: lat, longitude: lon }]);
             
             if (error) {
                 alert(`Erreur de synchronisation Cloud : ${error.message}`);
                 return;
             }
         } else {
-            // Suppression dans la table stations_favorites
+            // Suppression dans la table Supabase
             const { error } = await _supabase
-                .from('stations_favorites')
+                .from('favoris')
                 .delete()
                 .eq('user_id', currentUser.id)
                 .eq('nom_station', nom);
@@ -210,7 +208,7 @@ async function basculerFavori(nom, lat, lon, idStation = '', ville = '', prix = 
     } else {
         // --- LOGIQUE INVITÉ LOCAL ---
         if (index === -1) {
-            favoris.push({ nom, lat, lon, id_station: idStation, ville: ville, prix: prix });
+            favoris.push({ nom, lat, lon });
         } else {
             favoris.splice(index, 1);
         }
@@ -351,7 +349,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Correction de la génération de l'URL Google Maps
+                    // Correction de la génération de l'URL Google Maps (Syntaxe de template propre)
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
@@ -379,7 +377,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 ${afficherLignePrix('SP98', pSp98, '98')}
                             </div>
 
-                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${station.id || ''}', '${(station.v || '').replace(/'/g, "\\'")}', ${prixCourant || 0});" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
+                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon});" style="width:100%; background:${couleurBoutonFavori}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; text-transform:uppercase; cursor:pointer; margin-bottom:6px;">${texteBoutonFavori}</button>
                             <a href="${googleMapsUrl}" target="_blank" style="display:block; text-align:center; background:#3b82f6; color:white; padding:8px; border-radius:6px; text-decoration:none; font-size:11px; font-weight:bold; text-transform:uppercase;">🗺️ Itinéraire Maps</a>
                         </div>
                     `);
