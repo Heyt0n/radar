@@ -4,10 +4,10 @@ import time
 from supabase import create_client, Client
 
 # =========================================================================
-# CONFIGURATION SUPABASE (Remplace par tes vrais identifiants de projet)
+# CONFIGURATION SUPABASE
 # =========================================================================
-SUPABASE_URL = "ca peut etre ca https://vyrnkiedotmwrzoigziq.supabase.co"
-SUPABASE_KEY = "sb_publishable_96xOoNLDIl4j_wrJdrdrRA_PfUCetYb"
+SUPABASE_URL = "https://vyrnkiedotmwrzoigziq.supabase.co"
+SUPABASE_KEY = "sb_publishable_96x0oNLDI14j_wrJdrdrRA_PfUCe..." # Pense à mettre ta clé entière ici
 
 # Initialisation du client Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -73,7 +73,6 @@ def compresser_et_historiser():
 
     print(f"✅ Données reçues ({len(toutes_les_stations)} lignes). Traitement des prix...")
     stations_compressees = []
-    compteur_maj = 0
 
     for station in toutes_les_stations:
         geom = station.get('geom', {})
@@ -98,18 +97,15 @@ def compresser_et_historiser():
                 continue
 
             nom = station.get('nom') or station.get('marque') or "Station"
-            
-            # Génération de la clé unique identique à celle générée par outils.js
             id_unique_station = f"{f_lat}_{f_lon}"
 
-            # --- MODULE DE VÉRIFICATION SUPABASE EN DIRECT ---
-            # On envoie chaque carburant au vérificateur intelligent
+            # Module anti-redondance Supabase
             sauvegarder_si_changement(id_unique_station, nom, 'gz', gazole)
             sauvegarder_si_changement(id_unique_station, nom, '95', sp95)
             sauvegarder_si_changement(id_unique_station, nom, 'e10', e10)
             sauvegarder_si_changement(id_unique_station, nom, '98', sp98)
 
-            # Structure allégée pour ton fichier local de la carte
+            # Structure locale allégée pour la carte
             station_propre = {
                 "n": nom,
                 "a": station.get('adresse') or "",
@@ -124,23 +120,26 @@ def compresser_et_historiser():
             }
             stations_compressees.append(station_propre)
 
-    # Sauvegarde locale du fichier JSON pour la carte en direct
+    # Mise à jour du fichier local
     fichier_sortie = "stations_france.json"
     with open(fichier_sortie, 'w', encoding='utf-8') as f:
         json.dump(stations_compressees, f, ensure_ascii=False, separators=(',', ':'))
         
-    print(f"📦 Opération terminée. Local : {len(stations_compressees)} stations synchronisées.")
+    print(f"📦 Opération terminée avec succès. Fichier local actualisé ({len(stations_compressees)} stations).")
 
+# =========================================================================
+# BOUCLE D'AUTOMATISATION PRINCIPALE (M30 TRACKER)
+# =========================================================================
 if __name__ == "__main__":
-    print("🚀 Tracker enclenché. Analyse du marché national toutes les 30 minutes...")
+    print("🚀 Tracker national enclenché. Scan du marché toutes les 30 minutes...")
     
     while True:
         try:
-            # 1. Lance l'analyse et la sauvegarde
+            print(f"\n⏰ [Cycle {time.strftime('%H:%M:%S')}] Lancement du scan...")
             compresser_et_historiser()
         except Exception as e:
-            print(f"❌ Erreur critique durant le cycle : {e}")
+            print(f"❌ Erreur inattendue durant le cycle : {e}")
         
-        # 2. Ligne magique : Attend 30 minutes (30 min * 60 secondes = 1800s) avant le prochain scan
-        print("⏳ En veille pour 30 minutes avant la prochaine session de tracking...")
+        # Le script dort pendant 30 minutes (1800 secondes) puis redémarre tout seul
+        print("⏳ Tout est à jour. En veille pour 30 minutes...")
         time.sleep(1800)
