@@ -22,145 +22,68 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--bg-principal);
-            color: var(--texte-principal);
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            position: fixed; /* Bloque le rebond du navigateur sur mobile */
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: var(--bg-principal);
+            color: var(--texte-principal); font-family: 'Plus Jakarta Sans', sans-serif;
+            position: fixed;
         }
 
-        body {
-            display: flex;
-            flex-direction: column;
-        }
+        body { display: flex; flex-direction: column; }
 
-        /* HEADER */
         header {
-            background-color: var(--bg-panneau);
-            padding: 0 20px;
-            border-bottom: 1px solid #1f2937;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-            height: 50px;
-            flex-shrink: 0;
+            background-color: var(--bg-panneau); padding: 0 20px;
+            border-bottom: 1px solid #1f2937; display: flex;
+            justify-content: space-between; align-items: center;
+            z-index: 100; height: 50px; flex-shrink: 0;
         }
 
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* BOUTON BURGER ☰ */
         .burger-btn {
-            background: none;
-            border: none;
-            color: var(--texte-principal);
-            font-size: 24px;
-            cursor: pointer;
-            z-index: 1100;
-            padding: 5px;
+            background: none; border: none; color: var(--texte-principal);
+            font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px;
         }
 
-        /* MENU BURGER COULISSANT */
         .burger-menu {
-            position: fixed;
-            top: 0;
-            right: -280px;
-            width: 280px;
-            height: 100%;
-            background-color: var(--bg-panneau);
-            border-left: 1px solid #1f2937;
-            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
-            z-index: 2000;
-            transition: right 0.3s ease;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            position: fixed; top: 0; right: -280px; width: 280px; height: 100%;
+            background-color: var(--bg-panneau); border-left: 1px solid #1f2937;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000;
+            transition: right 0.3s ease; padding: 20px; display: flex;
+            flex-direction: column; gap: 10px;
         }
 
         .burger-menu.open { right: 0; }
 
-        /* HEADER INTERNE DU MENU */
         .menu-user-header {
-            padding-top: 50px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #1f2937;
-            margin-bottom: 10px;
+            padding-top: 50px; padding-bottom: 15px;
+            border-bottom: 1px solid #1f2937; margin-bottom: 10px;
         }
         .menu-user-status {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--accent-vert);
-            font-weight: 700;
-            display: block;
-            margin-bottom: 4px;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--accent-vert); font-weight: 700; display: block; margin-bottom: 4px;
         }
-        .menu-user-greeting {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--texte-secondaire);
-        }
-        #nom-operateur {
-            color: var(--texte-principal);
-            font-weight: 800;
-        }
+        .menu-user-greeting { font-size: 15px; font-weight: 600; color: var(--texte-secondaire); }
+        #nom-operateur { color: var(--texte-principal); font-weight: 800; }
 
-        /* VOILE SOMBRE DE FOND */
         .menu-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 999;
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6); z-index: 999;
         }
         .menu-overlay.active { display: block; }
 
-        /* LIENS DU MENU */
         .menu-link {
-            background: #1f2937;
-            color: var(--texte-principal);
-            border: 1px solid #374151;
-            padding: 14px;
-            border-radius: 8px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
+            background: #1f2937; color: var(--texte-principal); border: 1px solid #374151;
+            padding: 14px; border-radius: 8px; text-align: left; font-weight: 600;
+            font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px;
         }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
 
-        /* CONTENEUR GLOBAL APP */
-        .app-container {
-            display: flex;
-            flex: 1;
-            width: 100%;
-            height: calc(100vh - 50px);
-            flex-direction: row;
-            overflow: hidden;
-        }
+        .app-container { display: flex; flex: 1; width: 100%; height: calc(100vh - 50px); flex-direction: row; overflow: hidden; }
 
-        /* PANNEAU LATÉRAL GAUCHE */
         #sidebar {
-            width: 320px;
-            background-color: var(--bg-panneau);
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Défilement tactile fluide sur iOS */
-            border-right: 1px solid #1f2937;
-            z-index: 5;
-            flex-shrink: 0;
+            width: 320px; background-color: var(--bg-panneau); padding: 15px;
+            display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+            -webkit-overflow-scrolling: touch; border-right: 1px solid #1f2937; z-index: 5; flex-shrink: 0;
         }
 
         .widget { background: rgba(31, 41, 55, 0.5); border: 1px solid #374151; border-radius: 12px; padding: 14px; }
@@ -174,39 +97,18 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* ZONE CARTE */
         #map-container { flex: 1; height: 100%; position: relative; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
-        /* MULTI-ECRANS SMARTPHONE - STYLE EN COULISSAGE INVERSE */
         @media (max-width: 768px) {
             body { position: fixed; width: 100%; }
             .app-container { flex-direction: column-reverse; }
-            #sidebar { 
-                width: 100%; 
-                height: auto; 
-                max-height: 45vh; 
-                border-right: none; 
-                border-top: 1px solid #1f2937; 
-                padding: 12px; 
-                gap: 10px; 
-                overflow-y: scroll; /* Force le scroll interne indépendant */
-            }
+            #sidebar { width: 100%; height: auto; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; overflow-y: scroll; }
             #map-container { flex: 1; height: 55vh; }
         }
 
-        /* Empêche Leaflet de masquer la bulle de gauche et l'étoile de droite */
-        .custom-hybrid-pin {
-            background: none !important;
-            border: none !important;
-            overflow: visible !important;
-        }
-
-        /* Force l'image du ping à ne pas être écrasée */
-        .custom-hybrid-pin img {
-            max-width: none !important;
-            box-shadow: none !important;
-        }
+        .custom-hybrid-pin { background: none !important; border: none !important; overflow: visible !important; }
+        .custom-hybrid-pin img { max-width: none !important; box-shadow: none !important; }
     </style>
 </head>
 <body>
@@ -218,7 +120,6 @@
             <span class="menu-user-status">📡 Système Connecté</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
-
         <a href="index.html" class="menu-link active">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
         <a href="compte.html" class="menu-link">👤 Mon Compte</a>
@@ -231,7 +132,6 @@
 
     <div class="app-container">
         <aside id="sidebar">
-            
             <select id="select-carburant">
                 <option value="gz">⛽ Gazole</option>
                 <option value="e10">⛽ SP95-E10</option>
