@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Radar Carburant - Système Tactique</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,19 +19,26 @@
             --texte-secondaire: #9ca3af;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+        /* VERROUILLAGE DU CORPS CONTRE LE REBOND MOBILE */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             background-color: var(--bg-principal);
             color: var(--texte-principal);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            position: fixed;
         }
 
-        /* HEADER */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
         header {
             background-color: var(--bg-panneau);
             padding: 0 20px;
@@ -46,7 +53,6 @@
 
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* BOUTON BURGER ☰ */
         .burger-btn {
             background: none;
             border: none;
@@ -57,7 +63,6 @@
             padding: 5px;
         }
 
-        /* MENU BURGER COULISSANT */
         .burger-menu {
             position: fixed;
             top: 0;
@@ -77,7 +82,6 @@
 
         .burger-menu.open { right: 0; }
 
-        /* HEADER INTERNE DU MENU */
         .menu-user-header {
             padding-top: 50px;
             padding-bottom: 15px;
@@ -98,12 +102,8 @@
             font-weight: 600;
             color: var(--texte-secondaire);
         }
-        #nom-operateur {
-            color: var(--texte-principal);
-            font-weight: 800;
-        }
+        #nom-operateur { color: var(--texte-principal); font-weight: 800; }
 
-        /* VOILE SOMBRE DE FOND */
         .menu-overlay {
             display: none;
             position: fixed;
@@ -113,7 +113,6 @@
         }
         .menu-overlay.active { display: block; }
 
-        /* LIENS DU MENU */
         .menu-link {
             background: #1f2937;
             color: var(--texte-principal);
@@ -131,16 +130,15 @@
         }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
 
-        /* CONTENEUR GLOBAL APP */
         .app-container {
             display: flex;
             flex: 1;
             width: 100%;
-            height: calc(100vh - 50px);
+            height: calc(100% - 50px);
             flex-direction: row;
+            overflow: hidden;
         }
 
-        /* PANNEAU LATÉRAL GAUCHE */
         #sidebar {
             width: 320px;
             background-color: var(--bg-panneau);
@@ -158,7 +156,6 @@
         .widget-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 8px; font-weight: 600; }
         
         #select-carburant { background: #1f2937; color: white; border: 1px solid #374151; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
-        #sniper-comment { font-size: 13px; line-height: 1.5; color: #d1d5db; font-style: italic; }
         #liste-favoris { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
 
         .favori-item {
@@ -166,30 +163,29 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* ZONE CARTE */
         #map-container { flex: 1; height: 100%; position: relative; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
-        /* MULTI-ECRANS SMARTPHONE (CORRIGÉ POUR LE SCROLL ET LA HAUTEUR) */
         @media (max-width: 768px) {
-            body { overflow: hidden; position: relative; }
-            .app-container { flex-direction: column; } /* Changement de l'ordre pour laisser la carte en haut et le panneau en bas */
-            #map-container { height: 55vh; flex: none; }
-            #sidebar { width: 100%; height: 45vh; max-height: 45vh; border-right: none; border-top: 1px solid #1f2937; padding: 12px; gap: 10px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+            html, body { position: fixed; overflow: hidden; }
+            .app-container { flex-direction: column; height: calc(100% - 50px); overflow: hidden; }
+            #map-container { height: 50vh; flex-shrink: 0; position: relative; }
+            #sidebar { 
+                width: 100%; 
+                height: calc(100% - 50vh); 
+                border-right: none; 
+                border-top: 2px solid #1f2937; 
+                padding: 15px; 
+                gap: 12px; 
+                overflow-y: scroll; 
+                -webkit-overflow-scrolling: touch; 
+                background-color: var(--bg-panneau);
+                z-index: 10;
+            }
         }
 
-        /* Empêche Leaflet de masquer la bulle de gauche et l'étoile de droite */
-        .custom-hybrid-pin {
-            background: none !important;
-            border: none !important;
-            overflow: visible !important;
-        }
-
-        /* Force l'image du ping à ne pas être écrasée par d'autres règles */
-        .custom-hybrid-pin img {
-            max-width: none !important;
-            box-shadow: none !important;
-        }
+        .custom-hybrid-pin { background: none !important; border: none !important; overflow: visible !important; }
+        .custom-hybrid-pin img { max-width: none !important; box-shadow: none !important; }
     </style>
 </head>
 <body>
@@ -198,10 +194,9 @@
     
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connecté</span>
+            <span class="menu-user-status">📡 Système Connected</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
-
         <a href="index.html" class="menu-link active">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
         <a href="compte.html" class="menu-link">👤 Mon Compte</a>
@@ -233,13 +228,8 @@
                 </div>
                 <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
             </div>
-
-            <div class="widget">
-                <div class="widget-title">Briefing Analyste</div>
-                <div id="sniper-comment">En attente de synchronisation...</div>
-            </div>
             
-            <div class="widget" style="flex: 1; min-height: 150px;">
+            <div class="widget" style="margin-bottom: 20px;">
                 <div class="widget-title">Stations Favorites</div>
                 <div id="liste-favoris">
                     <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>
