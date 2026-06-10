@@ -10,6 +10,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ctx = graphiqueElem.getContext("2d");
     if (!selectStation) return;
 
+    // Synchronisation des écouteurs du menu Burger (Spécial Mobile & PC)
+    const burgerBtn = document.querySelector('.burger-btn');
+    if (burgerBtn) {
+        // Gère le clic classique ET le tap tactile sans conflit
+        ['click', 'touchend'].forEach(evt => {
+            burgerBtn.addEventListener(evt, (e) => {
+                e.preventDefault(); // Évite le double déclenchement sur smartphone
+                toggleBurgerMenu();
+            }, { passive: false });
+        });
+    }
+
     // ==========================================
     // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO
     // ==========================================
@@ -24,13 +36,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 2. RÉCUPÉRATION DES STATIONS FAVORITES
+    // 2. RÉCUPÉRATION DES STATIONS FAVORITES (PRIX HARMONISÉS)
     // ==========================================
     async function chargerStationsFavorites() {
         try {
             selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
 
-            // Utilisation de la table 'favoris' ou 'stations_favorites' selon ta structure
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -41,15 +52,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (favoris && favoris.length > 0) {
                 favoris.forEach(fav => {
                     const option = document.createElement("option");
-                    // Mapping flexible pour s'adapter à ton schéma de base de données
                     option.value = fav.id_station || fav.id || `${fav.latitude}_${fav.longitude}`; 
-                    option.dataset.prixActuel = fav.dernier_prix || 1.720; 
+                    
+                    // Force une base de prix identique stricte entre appareils si absent de la DB
+                    const prixBaseStable = fav.dernier_prix ? parseFloat(fav.dernier_prix) : 1.755;
+                    option.dataset.prixActuel = prixBaseStable; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
                     
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
-                console.log(`${favoris.length} stations injectées dans le sélecteur.`);
+                console.log(`${favoris.length} stations injectées.`);
             } else {
                 const option = document.createElement("option");
                 option.textContent = "Aucune station favorite trouvée";
@@ -62,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 3. MOTEUR MATHÉMATIQUE : GENERATEUR DE SIGNATURE UNIQUE (HASH)
+    // 3. MOTEUR MATHÉMATIQUE : HASH STABLE
     // ==========================================
     function genererFluctuationUnique(str, graine) {
         let hash = 0;
@@ -79,10 +92,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     function genererCourbePredictive5Jours(prixActuel, nomStation, idStation) {
         let pointsGraphique = [];
         let labelsDates = [];
+        
+        // Fixer l'heure de départ à la minute 0 pour éviter des micro-écarts de calcul entre deux rafraîchissements Ordi/Mobile
         let heureActuelle = new Date();
+        heureActuelle.setMinutes(0, 0, 0);
+
         const nomMinuscule = nomStation.toLowerCase();
 
-        // Profil A : Grandes Surfaces
         const profilGrandesSurfaces = {
             0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
             6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
@@ -90,7 +106,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
         };
 
-        // Profil B : Pétroliers (Plus volatiles)
         const profilPetroliers = {
             0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
             6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
@@ -191,7 +206,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
 
-        const prixBrut = optionSelectionnee.dataset.prixActuel || 1.720;
+        const prixBrut = optionSelectionnee.dataset.prixActuel;
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.value;
 
@@ -200,7 +215,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         try {
             mettreAJourGraphique(previsions.labels, previsions.data, nomStation);
-            console.log("📊 Graphique horizon J+5 généré.");
         } catch (chartError) {
             console.error("Erreur Chart.js :", chartError.message);
         }
@@ -209,9 +223,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chargerStationsFavorites();
 });
 
-// Gestion isolée et robuste du menu burger pour outils.html
+// Fonction globale d'ouverture/fermeture du menu
 function toggleBurgerMenu() {
-    document.getElementById('burgerMenu')?.classList.toggle('open');
-    document.getElementById('menuOverlay')?.classList.toggle('active');
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
 }
 window.toggleBurgerMenu = toggleBurgerMenu;
