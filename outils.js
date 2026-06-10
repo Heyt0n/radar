@@ -126,87 +126,71 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ==========================================
     // 4. MOTEUR DE SIMULATION TRANSITOIRE (HASH)
     // ==========================================
-    function genererFluctuationUnique(str, graine) {
-        let hash = 0;
-        const chaineComplete = str + graine;
-        for (let i = 0; i < chaineComplete.length; i++) {
-            hash = chaineComplete.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return Math.sin(hash); 
-    }
+ 
+  function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
+    let labelsDates = [];
+    let donneesReel = [];
+    let donneesPrediction = [];
+    
+    let momentActuel = new Date();
+    let minutes = momentActuel.getMinutes();
+    momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-    function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
-        let labelsDates = [];
-        let donneesReel = [];
-        let donneesPrediction = [];
+    const nomMinuscule = nomStation.toLowerCase();
+    const profilGrandesSurfaces = {
+        0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
+        6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
+        12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
+        18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
+    };
+    const profilPetroliers = {
+        0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
+        6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
+        12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
+        18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
+    };
+
+    let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
+    const pasMinutes = 30;
+    const totalHeuresEtude = 48;
+
+    // 1. HISTORIQUE PASSE
+    for (let offset = -(totalHeuresEtude * 60); offset < 0; offset += pasMinutes) {
+        let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
+        let h = heureBoucle.getHours();
+
+        let coefHeure = profilActif[h] || 0;
         
-        let momentActuel = new Date();
-        let minutes = momentActuel.getMinutes();
-        momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
+        // Calcul direct et propre, basé uniquement sur le prix de la carte et le comportement horaire de l'actif
+        let prixHistorique = parseFloat(vraiPrixActuel) + coefHeure;
 
-        const nomMinuscule = nomStation.toLowerCase();
-        const profilGrandesSurfaces = {
-            0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
-            6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
-            12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
-            18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
-        };
-        const profilPetroliers = {
-            0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
-            6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
-            12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
-            18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
-        };
-
-        let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
-        const pasMinutes = 30;
-        const totalHeuresEtude = 48;
-
-        // A. Tracé du passé
-        for (let offset = -(totalHeuresEtude * 60); offset < 0; offset += pasMinutes) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-            let h = heureBoucle.getHours();
-            let m = heureBoucle.getMinutes();
-            let jourIndex = Math.floor(offset / (24 * 60));
-
-            let coefHeure = profilActif[h] || 0;
-            let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
-            let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
-            let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
-
-            let prixHistorique = parseFloat(vraiPrixActuel) + coefHeure + microFluct30m + signatureUnique + tendanceMacro;
-
-            labelsDates.push(formaterLabelM30(heureBoucle));
-            donneesReel.push(prixHistorique.toFixed(3));
-            donneesPrediction.push(null);
-        }
-
-        // B. Pivot central
-        labelsDates.push("Maintenant");
-        donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
-
-        // C. Tracé du futur
-        for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-            let h = heureBoucle.getHours();
-            let m = heureBoucle.getMinutes();
-            let jourIndex = Math.floor(offset / (24 * 60));
-
-            let coefHeure = profilActif[h] || 0;
-            let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
-            let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
-            let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
-
-            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure + microFluct30m + signatureUnique + tendanceMacro;
-
-            labelsDates.push(formaterLabelM30(heureBoucle));
-            donneesReel.push(null);
-            donneesPrediction.push(prixPredit.toFixed(3));
-        }
-
-        return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
+        labelsDates.push(formaterLabelM30(heureBoucle));
+        donneesReel.push(prixHistorique.toFixed(3));
+        donneesPrediction.push(null);
     }
+
+    // POINT PIVOT (Maintenant)
+    labelsDates.push("Maintenant");
+    donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
+    donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
+
+    // 2. PROJECTION FUTURE
+    for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
+        let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
+        let h = heureBoucle.getHours();
+
+        let coefHeure = profilActif[h] || 0;
+
+        // Projection mathématique épurée (sans bruit ni fausses vagues)
+        let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
+
+        labelsDates.push(formaterLabelM30(heureBoucle));
+        donneesReel.push(null);
+        donneesPrediction.push(prixPredit.toFixed(3));
+    }
+
+    return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
+}
 
     function formaterLabelM30(date) {
         let options = { weekday: 'short' };
