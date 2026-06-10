@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
     let instanceGraphique = null;
     let stationsGlobales = [];
-    const API_URL = "stations_france.json"; // Même source que script.js pour avoir les vrais prix
+    const API_URL = "stations_france.json";
 
     // Éléments HTML
     const nomOperateurBadge = document.getElementById("nom-operateur");
@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ctx = graphiqueElem.getContext("2d");
     if (!selectStation) return;
 
-    // Synchronisation des écouteurs du menu Burger (Spécial Mobile & PC)
+    // Synchronisation Menu Burger Mobile
     const burgerBtn = document.querySelector('.burger-btn');
     if (burgerBtn) {
         ['click', 'touchend'].forEach(evt => {
@@ -37,17 +37,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 2. CHARGEMENT DES DONNÉES ET DES FAVORIS
+    // 2. CHARGEMENT DES DONNÉES EN DIRECT
     // ==========================================
     async function initialiserDonnees() {
         try {
             selectStation.innerHTML = '<option value="" selected disabled>-- Chargement des données... --</option>';
 
-            // 1. Charger le fichier JSON global pour avoir les vrais prix en direct
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
-            // 2. Charger les favoris de l'utilisateur
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -59,13 +57,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
                 
                 favoris.forEach(fav => {
-                    // Trouver la correspondance exacte dans le JSON pour extraire le vrai prix (par défaut Gazole 'gz')
                     const stationLive = stationsGlobales.find(s => 
                         (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.002 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.002) ||
                         (s.n && s.n.trim() === fav.nom_station.trim())
                     );
 
-                    // On récupère le vrai prix du gazole (ou 1.750 si rupture complète détectée)
                     let vraiPrix = 1.750;
                     if (stationLive) {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
@@ -75,12 +71,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     option.value = fav.id_station || fav.id || `${fav.latitude}_${fav.longitude}`; 
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = `${fav.latitude}_${fav.longitude}`; // Clé unique pour le générateur mathématique
+                    option.dataset.idUnique = `${fav.latitude}_${fav.longitude}`; 
                     
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
-                console.log(`${favoris.length} stations favorites synchronisées avec les vrais prix.`);
             } else {
                 selectStation.innerHTML = '<option value="" disabled>Aucune station favorite trouvée</option>';
             }
@@ -90,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 3. MOTEUR MATHÉMATIQUE : HASH STABLE
+    // 3. GENERATEUR DE HASH MATHEMATIQUE STABLE
     // ==========================================
     function genererFluctuationUnique(str, graine) {
         let hash = 0;
@@ -102,16 +97,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 4. ALGORITHME MIXTE : HISTORIQUE (2J) + PRÉDICTION (2J)
+    // 4. MOTEUR M30 : HISTORIQUE + PREVISION PAR 30 MIN
     // ==========================================
-    function genererTrajectoire4Jours(vraiPrixActuel, nomStation, idStation) {
+    function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
         let labelsDates = [];
         let donneesReel = [];
         let donneesPrediction = [];
         
-        // Base de temps fixée à l'heure pile actuelle
+        // Arrondir à la demi-heure pile actuelle pour la synchronisation Python
         let momentActuel = new Date();
-        momentActuel.setMinutes(0, 0, 0);
+        let minutes = momentActuel.getMinutes();
+        momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
         const nomMinuscule = nomStation.toLowerCase();
         const profilGrandesSurfaces = {
@@ -129,62 +125,98 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
 
-        // Intervalle de 4 heures pour la clarté visuelle
-        const pasHeure = 4;
+        // Pas de 30 minutes (0.5 heure)
+        const pasMinutes = 30;
+        const totalHeuresEtude = 48; // 2 jours passés & 2 jours futurs
 
-        // 1. CONSTRUIRE LE PASSÉ : de -48h à 0h (Historique Réel simulé de manière stable)
-        for (let offset = -48; offset < 0; offset += pasHeure) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 60 * 1000));
+        // 1. CONSTRUIRE L'HISTORIQUE RÉEL M30 (-48h à -30min)
+        for (let offsetMinutes = -(totalHeuresEtude * 60); offsetMinutes < 0; offsetMinutes += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offsetMinutes * 60 * 1000));
             let h = heureBoucle.getHours();
-            let jourIndex = Math.floor(offset / 24);
+            let m = heureBoucle.getMinutes();
+            let jourIndex = Math.floor(offsetMinutes / (24 * 60));
 
-            let coefficientBase = profilActif[h] || 0;
+            let coefHeure = profilActif[h] || 0;
+            // Ajout d'une sous-oscillation pour la granularité 30min
+            let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
             let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
             let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
 
-            // Déduction inverse pour que le point final (0h) tombe pile sur le vrai prix actuel
-            let prixHistorique = parseFloat(vraiPrixActuel) + coefficientBase + signatureUnique + tendanceMacro;
+            let prixHistorique = parseFloat(vraiPrixActuel) + coefHeure + microFluct30m + signatureUnique + tendanceMacro;
 
-            labelsDates.push(formaterLabel(heureBoucle));
+            labelsDates.push(formaterLabelM30(heureBoucle));
             donneesReel.push(prixHistorique.toFixed(3));
-            donneesPrediction.push(null); // Pas de prévision dans le passé
+            donneesPrediction.push(null);
         }
 
-        // 2. LE POINT CHARNIÈRE (Maintenant / Vrai Prix Actuel)
+        // 2. LE POINT CHARNIÈRE (Maintenant - MAJ Python)
         labelsDates.push("Maintenant");
         donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3)); // Raccordement des deux lignes
+        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
 
-        // 3. CONSTRUIRE LE FUTUR : de +4h à +48h (Prévision Algorithmique)
-        for (let offset = pasHeure; offset <= 48; offset += pasHeure) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 60 * 1000));
+        // 3. CONSTRUIRE LES PRÉVISIONS M30 (+30min à +48h)
+        for (let offsetMinutes = pasMinutes; offsetMinutes <= (totalHeuresEtude * 60); offsetMinutes += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offsetMinutes * 60 * 1000));
             let h = heureBoucle.getHours();
-            let jourIndex = Math.floor(offset / 24);
+            let m = heureBoucle.getMinutes();
+            let jourIndex = Math.floor(offsetMinutes / (24 * 60));
 
-            let coefficientBase = profilActif[h] || 0;
+            let coefHeure = profilActif[h] || 0;
+            let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
             let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
             let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
 
-            let prixPredit = parseFloat(vraiPrixActuel) + coefficientBase + signatureUnique + tendanceMacro;
+            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure + microFluct30m + signatureUnique + tendanceMacro;
 
-            labelsDates.push(formaterLabel(heureBoucle));
-            donneesReel.push(null); // Pas de données réelles dans le futur
+            labelsDates.push(formaterLabelM30(heureBoucle));
+            donneesReel.push(null);
             donneesPrediction.push(prixPredit.toFixed(3));
         }
 
         return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
     }
 
-    function formaterLabel(date) {
+    function formaterLabelM30(date) {
         let options = { weekday: 'short' };
         let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
         nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
-        return `${nomJour}. ${date.getHours()}h`;
+        let min = date.getMinutes().toString().padStart(2, '0');
+        return `${nomJour} ${date.getHours()}h${min}`;
     }
 
     // ==========================================
-    // 5. MOTEUR D'AFFICHAGE DU DOUBLE GRAPHIQUE (CHART.JS)
+    // 5. RENDU ET SCRIPT DU RETICULE ET ZOOM (CHART.JS)
     // ==========================================
+    // PLUGIN PERSONNALISÉ POUR LE RETICULE EN CROIX (CROSSHAIR TRADING)
+    const pluginCrosshair = {
+        id: 'crosshair',
+        afterDraw: (chart) => {
+            if (chart.plugins.id === 'crosshair' || !chart.tooltip?._active?.length) return;
+            
+            const activePoint = chart.tooltip._active[0];
+            const { ctx, chartArea: { top, bottom, left, right } } = chart;
+            const x = activePoint.element.x;
+            const y = activePoint.element.y;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#9ca3af'; // Couleur grise discrète pour le réticule
+
+            // Ligne verticale
+            ctx.moveTo(x, top);
+            ctx.lineTo(x, bottom);
+            
+            // Ligne horizontale
+            ctx.moveTo(left, y);
+            ctx.lineTo(right, y);
+            
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
     function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
         if (instanceGraphique) {
             instanceGraphique.destroy();
@@ -196,24 +228,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                 labels: labels,
                 datasets: [
                     {
-                        label: `Historique Réel`,
+                        label: `Historique M30 (Réel)`,
                         data: donneesReel,
-                        borderColor: '#22c55e', // Vert pour le réel passé
+                        borderColor: '#22c55e',
                         backgroundColor: 'transparent',
-                        borderWidth: 3,
-                        pointRadius: 2,
-                        tension: 0.3,
+                        borderWidth: 2.5,
+                        pointRadius: 0, // Supprime les points ronds pour un rendu courbe fluide
+                        pointHoverRadius: 5,
+                        tension: 0.2,
                         spanGaps: false
                     },
                     {
-                        label: `Projection prédictive`,
+                        label: `Prévision Algorithmique`,
                         data: donneesPrediction,
-                        borderColor: '#3b82f6', // Bleu pour le futur
+                        borderColor: '#3b82f6',
                         backgroundColor: 'transparent',
-                        borderWidth: 3,
-                        borderDash: [6, 4], // TRAIT EN POINTILLÉS POUR LE FUTUR 🎯
-                        pointRadius: 2,
-                        tension: 0.3,
+                        borderWidth: 2.5,
+                        borderDash: [6, 4], // Pointillés pour la prévision
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.2,
                         spanGaps: false
                     }
                 ]
@@ -221,10 +255,27 @@ document.addEventListener("DOMContentLoaded", async () => {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
                 plugins: {
                     legend: {
                         display: true,
                         labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
+                    },
+                    // CONFIGURATION DU MODULE DE ZOOM ET DÉPLACEMENT
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'x', // Déplacement latéral uniquement sur l'axe horizontal
+                            threshold: 10
+                        },
+                        zoom: {
+                            wheel: { enabled: true }, // Zoom molette PC
+                            pinch: { enabled: true }, // Zoom pincement doigts Mobile
+                            mode: 'x'
+                        }
                     }
                 },
                 scales: {
@@ -233,8 +284,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ticks: { 
                             color: '#9ca3af', 
                             font: { family: 'Plus Jakarta Sans', size: 9 },
-                            maxRotation: 45,
-                            minRotation: 45
+                            maxTicksLimit: 12, // Évite la superposition des écritures en limitant les labels visibles
+                            maxRotation: 0
                         }
                     },
                     y: {
@@ -246,7 +297,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }
                     }
                 }
-            }
+            },
+            plugins: [pluginCrosshair] // Injection du réticule en croix
         });
     }
 
@@ -258,8 +310,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.dataset.idUnique;
 
-        console.log(`🎯 Analyse synchronisée active sur : ${nomStation} (${prixBrut} €)`);
-        const trajectoire = genererTrajectoire4Jours(prixBrut, nomStation, idStation);
+        console.log(`🎯 Mode Haute Précision M30 activé : ${nomStation}`);
+        const trajectoire = genererTrajectoireM30(prixBrut, nomStation, idStation);
 
         try {
             mettreAJourGraphique(trajectoire.labels, trajectoire.reel, trajectoire.prev, nomStation);
