@@ -125,14 +125,13 @@ def compresser_et_historiser():
         
     print(f"📦 Opération terminée avec succès. Fichier local actualisé ({len(stations_compressees)} stations).")
 
+# =========================================================================
+# EXÉCUTION UNIQUE DIRECTE (ADAPTÉE POUR GITHUB ACTIONS)
+# =========================================================================
 if __name__ == "__main__":
-    print("🚀 Tracker national enclenché. Scan du marché toutes les 30 minutes...")
-    while True:
-        try:
-            print(f"\n⏰ [Cycle {time.strftime('%H:%M:%S')}] Lancement du scan...")
-            compresser_et_historiser()
-        except Exception as e:
-            print(f"❌ Erreur inattendue durant le cycle : {e}")
-        
-        print("⏳ Tout est à jour. En veille pour 30 minutes...")
-        time.sleep(60)
+    print(f"🚀 [GitHub Action - {time.strftime('%H:%M:%S')}] Lancement du scan du marché...")
+    try:
+        compresser_et_historiser()
+        print("🎯 Scan terminé avec succès. Fermeture du script pour ce cycle.")
+    except Exception as e:
+        print(f"❌ Échec critique durant le scan : {e}")
