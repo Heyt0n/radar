@@ -1,9 +1,27 @@
+/**
+ * =========================================================================
+ * OUTILS.JS - STATION DE TRADING & PRÉVISIONS CARBURANTS (M30 TRADING VIEW)
+ * =========================================================================
+ * Version : 2.5
+ * Fonctionnalités : 
+ * - Synchronisation stricte des prix avec la carte (JSON central)
+ * - Granularité M30 (Points toutes les 30 minutes calés sur les trackers Python)
+ * - Double courbe : Historique passé (Vert continu) / Prévisions (Bleu pointillés)
+ * - Viewport fixe de 24h avec défilement latéral (Pan) et Zoom horizontal (X)
+ * - Réticule Crosshair dynamique au survol
+ */
+
+// Enregistrement manuel et explicite du plugin de zoom auprès de Chart.js
+if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
+    Chart.register(window['chartjs-plugin-zoom']);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     let instanceGraphique = null;
     let stationsGlobales = [];
     const API_URL = "stations_france.json";
 
-    // Éléments HTML
+    // Éléments du DOM
     const nomOperateurBadge = document.getElementById("nom-operateur");
     const selectStation = document.getElementById("select-station-outils");
     const graphiqueElem = document.getElementById("graphiquePrevisionnel");
@@ -12,19 +30,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ctx = graphiqueElem.getContext("2d");
     if (!selectStation) return;
 
-    // Synchronisation Menu Burger Mobile
+    // Appliquer dynamiquement les règles CSS pour bloquer le scroll natif sur le graphique
+    graphiqueElem.style.touchAction = "none";
+    graphiqueElem.style.userSelect = "none";
+    graphiqueElem.style.webkitUserSelect = "none";
+
+    // ==========================================
+    // 1. GESTION DU MENU BURGER (PC & MOBILE)
+    // ==========================================
     const burgerBtn = document.querySelector('.burger-btn');
     if (burgerBtn) {
         ['click', 'touchend'].forEach(evt => {
             burgerBtn.addEventListener(evt, (e) => {
-                e.preventDefault();
+                e.preventDefault(); // Évite les conflits de double clic sur mobile
                 toggleBurgerMenu();
             }, { passive: false });
         });
     }
 
     // ==========================================
-    // 1. SÉCURITÉ & RÉCUPÉRATION DU PSEUDO
+    // 2. SÉCURITÉ ACCÈS & INITIALISATION OPERATEUR
     // ==========================================
     const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
     if (sessionError || !session) {
@@ -37,15 +62,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 2. CHARGEMENT DES DONNÉES EN DIRECT
+    // 3. CHARGEMENT & CORRESPONDANCE DES PRIX EN DIRECT
     // ==========================================
     async function initialiserDonnees() {
         try {
-            selectStation.innerHTML = '<option value="" selected disabled>-- Chargement des données... --</option>';
+            selectStation.innerHTML = '<option value="" selected disabled>-- Alignement des bases de données... --</option>';
 
+            // Récupération du fichier JSON central (identique à script.js)
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
+            // Récupération des favoris Supabase
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -57,11 +84,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 selectStation.innerHTML = '<option value="" selected disabled>-- Sélectionne une station cible --</option>';
                 
                 favoris.forEach(fav => {
+                    // Recherche par coordonnées ou par nom pour coller aux données de la carte
                     const stationLive = stationsGlobales.find(s => 
                         (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.002 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.002) ||
                         (s.n && s.n.trim() === fav.nom_station.trim())
                     );
 
+                    // Extraction du prix réel ou fallback stable
                     let vraiPrix = 1.750;
                     if (stationLive) {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
@@ -76,16 +105,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
+                console.log(`[Moteur] ${favoris.length} stations chargées avec succès.`);
             } else {
                 selectStation.innerHTML = '<option value="" disabled>Aucune station favorite trouvée</option>';
             }
         } catch (err) {
-            console.error("Erreur initialisation outils:", err.message);
+            console.error("[Erreur] Initialisation impossible :", err.message);
         }
     }
 
     // ==========================================
-    // 3. GENERATEUR DE HASH MATHEMATIQUE STABLE
+    // 4. MOTEUR MATHÉMATIQUE (HASH ALGO STABLE)
     // ==========================================
     function genererFluctuationUnique(str, graine) {
         let hash = 0;
@@ -97,14 +127,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 4. MOTEUR M30 : HISTORIQUE + PREVISION PAR 30 MIN
+    // 5. ALGORITHME DE TRAJECTOIRE TEMPORELLE M30
     // ==========================================
     function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
         let labelsDates = [];
         let donneesReel = [];
         let donneesPrediction = [];
         
-        // Arrondir à la demi-heure pile actuelle pour la synchronisation Python
+        // Caler l'heure sur la demi-heure la plus proche (M30)
         let momentActuel = new Date();
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
@@ -125,19 +155,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
 
-        // Pas de 30 minutes (0.5 heure)
         const pasMinutes = 30;
-        const totalHeuresEtude = 48; // 2 jours passés & 2 jours futurs
+        const totalHeuresEtude = 48; // Fenêtre totale de 4 jours (2 Passé / 2 Futur)
 
-        // 1. CONSTRUIRE L'HISTORIQUE RÉEL M30 (-48h à -30min)
-        for (let offsetMinutes = -(totalHeuresEtude * 60); offsetMinutes < 0; offsetMinutes += pasMinutes) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offsetMinutes * 60 * 1000));
+        // A. Génération du Passé (Historique M30 simulé de -48h à -30min)
+        for (let offset = -(totalHeuresEtude * 60); offset < 0; offset += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
             let h = heureBoucle.getHours();
             let m = heureBoucle.getMinutes();
-            let jourIndex = Math.floor(offsetMinutes / (24 * 60));
+            let jourIndex = Math.floor(offset / (24 * 60));
 
             let coefHeure = profilActif[h] || 0;
-            // Ajout d'une sous-oscillation pour la granularité 30min
             let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
             let signatureUnique = genererFluctuationUnique(idStation, `h_${h}`) * 0.004;
             let tendanceMacro = genererFluctuationUnique(idStation, `jour_${jourIndex}`) * 0.015;
@@ -149,17 +177,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             donneesPrediction.push(null);
         }
 
-        // 2. LE POINT CHARNIÈRE (Maintenant - MAJ Python)
+        // B. Point d'ancrage (Aujourd'hui / Maintenant)
         labelsDates.push("Maintenant");
         donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
+        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3)); // Liaison des courbes
 
-        // 3. CONSTRUIRE LES PRÉVISIONS M30 (+30min à +48h)
-        for (let offsetMinutes = pasMinutes; offsetMinutes <= (totalHeuresEtude * 60); offsetMinutes += pasMinutes) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offsetMinutes * 60 * 1000));
+        // C. Génération du Futur (Prévisions M30 de +30min à +48h)
+        for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
             let h = heureBoucle.getHours();
             let m = heureBoucle.getMinutes();
-            let jourIndex = Math.floor(offsetMinutes / (24 * 60));
+            let jourIndex = Math.floor(offset / (24 * 60));
 
             let coefHeure = profilActif[h] || 0;
             let microFluct30m = genererFluctuationUnique(idStation, `m_${h}_${m}`) * 0.0015;
@@ -185,13 +213,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 5. RENDU ET SCRIPT DU RETICULE ET ZOOM (CHART.JS)
+    // 6. PLUGIN RETICULE EN CROIX (CROSSHAIR)
     // ==========================================
-    // PLUGIN PERSONNALISÉ POUR LE RETICULE EN CROIX (CROSSHAIR TRADING)
     const pluginCrosshair = {
         id: 'crosshair',
         afterDraw: (chart) => {
-            if (chart.plugins.id === 'crosshair' || !chart.tooltip?._active?.length) return;
+            if (!chart.tooltip?._active?.length) return;
             
             const activePoint = chart.tooltip._active[0];
             const { ctx, chartArea: { top, bottom, left, right } } = chart;
@@ -202,13 +229,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             ctx.beginPath();
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = '#9ca3af'; // Couleur grise discrète pour le réticule
+            ctx.strokeStyle = '#9ca3af'; // Gris technique discret
 
-            // Ligne verticale
+            // Ligne Nord-Sud
             ctx.moveTo(x, top);
             ctx.lineTo(x, bottom);
             
-            // Ligne horizontale
+            // Ligne Ouest-Est
             ctx.moveTo(left, y);
             ctx.lineTo(right, y);
             
@@ -217,102 +244,110 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-// AJOUT INDISPENSABLE : On force Chart.js à enregistrer le plugin de zoom
-if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
-    Chart.register(window['chartjs-plugin-zoom']);
-}
+    // ==========================================
+    // 7. CONSTRUCTEUR DU GRAPHIQUE (VIEWPORT TRADING)
+    // ==========================================
+    function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
+        if (instanceGraphique) {
+            instanceGraphique.destroy();
+        }
 
-function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation) {
-    if (instanceGraphique) {
-        instanceGraphique.destroy();
+        // --- GESTION DE LA FENÊTRE VISUELLE FIXE (24 HEURES) ---
+        const indexMaintenant = labels.indexOf("Maintenant");
+        let indexMinInitial = 0;
+        let indexMaxInitial = labels.length - 1;
+
+        // Un intervalle M30 équivaut à 2 points par heure. 
+        // Pour afficher 24h fixes glissantes (12h passées / 12h futures), on isole 24 points de part et d'autre.
+        if (indexMaintenant !== -1) {
+            indexMinInitial = Math.max(0, indexMaintenant - 24);
+            indexMaxInitial = Math.min(labels.length - 1, indexMaintenant + 24);
+        }
+
+        instanceGraphique = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: `Historique Réel (M30)`,
+                        data: donneesReel,
+                        borderColor: '#22c55e', // Vert continu
+                        backgroundColor: 'transparent',
+                        borderWidth: 2.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.15,
+                        spanGaps: false
+                    },
+                    {
+                        label: `Projection Algorithmique`,
+                        data: donneesPrediction,
+                        borderColor: '#3b82f6', // Bleu pointillés
+                        backgroundColor: 'transparent',
+                        borderWidth: 2.5,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.15,
+                        spanGaps: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend'],
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
+                    },
+                    // Activation des fonctionnalités avancées de déplacement et zoom
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'x', // Glisser horizontal uniquement
+                            threshold: 5
+                        },
+                        zoom: {
+                            wheel: { enabled: true, speed: 0.05 }, // Zoom molette PC
+                            pinch: { enabled: true },             // Zoom pincement mobile
+                            mode: 'x'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        min: indexMinInitial, // Verrouillage de la taille de fenêtre par défaut
+                        max: indexMaxInitial,
+                        grid: { color: '#1f2937' },
+                        ticks: { 
+                            color: '#9ca3af', 
+                            font: { family: 'Plus Jakarta Sans', size: 9 },
+                            maxTicksLimit: 8,
+                            maxRotation: 0
+                        }
+                    },
+                    y: {
+                        grid: { color: '#1f2937' },
+                        ticks: { 
+                            color: '#9ca3af', 
+                            font: { family: 'Plus Jakarta Sans' },
+                            callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
+                        }
+                    }
+                }
+            },
+            plugins: [pluginCrosshair]
+        });
     }
 
-    instanceGraphique = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: `Historique M30 (Réel)`,
-                    data: donneesReel,
-                    borderColor: '#22c55e',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2.5,
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    tension: 0.2,
-                    spanGaps: false
-                },
-                {
-                    label: `Prévision Algorithmique`,
-                    data: donneesPrediction,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2.5,
-                    borderDash: [6, 4],
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    tension: 0.2,
-                    spanGaps: false
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            // Permet de capturer tous les événements tactiles et souris sans latence
-            events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend'],
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } }
-                },
-                zoom: {
-                    pan: {
-                        enabled: true,
-                        mode: 'x',
-                        threshold: 5
-                    },
-                    zoom: {
-                        wheel: {
-                            enabled: true,
-                            speed: 0.08 // Légèrement réduit pour plus de précision à la molette
-                        },
-                        pinch: {
-                            enabled: true
-                        },
-                        mode: 'x'
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: { color: '#1f2937' },
-                    ticks: { 
-                        color: '#9ca3af', 
-                        font: { family: 'Plus Jakarta Sans', size: 9 },
-                        maxTicksLimit: 10,
-                        maxRotation: 0
-                    }
-                },
-                y: {
-                    grid: { color: '#1f2937' },
-                    ticks: { 
-                        color: '#9ca3af', 
-                        font: { family: 'Plus Jakarta Sans' },
-                        callback: function(val) { return parseFloat(val).toFixed(3) + ' €'; }
-                    }
-                }
-            }
-        },
-        plugins: [pluginCrosshair]
-    });
-}
-
+    // Écouteur d'action de sélection d'une station
     selectStation.addEventListener("change", (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
@@ -321,19 +356,20 @@ function mettreAJourGraphique(labels, donneesReel, donneesPrediction, nomStation
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.dataset.idUnique;
 
-        console.log(`🎯 Mode Haute Précision M30 activé : ${nomStation}`);
+        console.log(`[Radar-M30] Analyse active : ${nomStation} (${prixBrut} €)`);
         const trajectoire = genererTrajectoireM30(prixBrut, nomStation, idStation);
 
         try {
             mettreAJourGraphique(trajectoire.labels, trajectoire.reel, trajectoire.prev, nomStation);
         } catch (chartError) {
-            console.error("Erreur Chart.js :", chartError.message);
+            console.error("[Graphique] Échec de rendu :", chartError.message);
         }
     });
 
     await initialiserDonnees();
 });
 
+// Fonction globale d'ouverture/fermeture du menu Burger
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
     const overlay = document.getElementById('menuOverlay');
