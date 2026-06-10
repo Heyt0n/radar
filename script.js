@@ -4,7 +4,7 @@
 let currentUser = null;
 let stationsGlobales = [];
 let favoris = []; 
-let marqueursActifs = {}; // Index tactique pour l'accès immédiat aux marqueurs carte
+let marqueursActifs = {}; // Index indispensable pour interagir avec la carte instantanément
 
 const API_URL = "stations_france.json"; 
 const DEF_LAT = 48.71;
@@ -129,7 +129,7 @@ function formatPrix(valeur) {
 }
 
 // ==========================================
-// 3. GESTION CLOUD ET RENDU DES FAVORIS
+// 3. GESTION DES FAVORIS
 // ==========================================
 async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
@@ -184,25 +184,39 @@ function afficherFavoris() {
         item.style.cursor = 'pointer';
         item.style.marginBottom = '8px';
         
+        // Sécurisation des chaînes de caractères pour l'injection HTML
+        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const cleMarqueur = `${f.lat}_${f.lon}`;
+
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" 
-                 onclick="
-                     const cle = '${f.lat}_${f.lon}';
-                     map.setView([${f.lat}], ${f.lon}, 14); 
-                     if (marqueursActifs[cle]) {
-                         marqueursActifs[cle].openPopup();
-                     } else {
-                         fetchLiveStations(${f.lat}, ${f.lon}).then(() => {
-                             if (marqueursActifs[cle]) marqueursActifs[cle].openPopup();
-                         });
-                     }
-                 ">
-                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${f.nom}">${f.nom}</span>
+                 id="fav-${cleMarqueur}">
+                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomSecuriseHTML}">${nomSecuriseHTML}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
-            <button onclick="event.stopPropagation(); basculerFavori('${f.nom.replace(/'/g, "\\'")}', ${f.lat}, ${f.lon});" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px; flex-shrink: 0;">✕</button>
+            <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 5px; flex-shrink: 0;">✕</button>
         `;
+        
         conteneur.appendChild(item);
+
+        // Ecouteur d'événement robuste pour rediriger sur la carte
+        document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
+            map.setView([f.lat], f.lon, 14); 
+            if (marqueursActifs[cleMarqueur]) {
+                marqueursActifs[cleMarqueur].openPopup();
+            } else {
+                fetchLiveStations(f.lat, f.lon).then(() => {
+                    if (marqueursActifs[cleMarqueur]) marqueursActifs[cleMarqueur].openPopup();
+                });
+            }
+        });
+
+        // Ecouteur d'événement robuste pour la suppression du favori
+        document.getElementById(`del-${cleMarqueur}`).addEventListener('click', (e) => {
+            e.stopPropagation();
+            basculerFavori(nomSecuriseJS, f.lat, f.lon);
+        });
     });
 }
 
@@ -238,7 +252,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-        // Nettoyage de la carte et reset de l'index
+        // Nettoyage de la carte et reset de l'index des pins actifs
         map.eachLayer((layer) => { if (layer instanceof L.Marker) map.removeLayer(layer); });
         marqueursActifs = {}; 
 
@@ -277,12 +291,14 @@ async function fetchLiveStations(centerLat, centerLon) {
                     }
 
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map);
-                    marqueursActifs[`${lat}_${lon}`] = marker; // Indexation immédiate
+                    marqueursActifs[`${lat}_${lon}`] = marker; // Stockage immédiat de la référence
 
                     const linePrix = (label, prix, code) => {
                         const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
                         return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Rupture'}</b></div>`;
                     };
+
+                    const nomSecuriseJS = vraiNomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
                     marker.bindPopup(`
                         <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
@@ -294,7 +310,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                                 ${linePrix('SP95', formatPrix(station["95"]), '95')}
                                 ${linePrix('SP98', formatPrix(station["98"]), '98')}
                             </div>
-                            <button onclick="basculerFavori('${vraiNomStation.replace(/'/g, "\\'")}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
+                            <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
                         </div>
                     `);
                 }
