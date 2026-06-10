@@ -103,7 +103,7 @@ function getDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Système Hybride : Conserve le ping couleur de base + Étoile favori + Petite bulle à gauche
+// Système Hybride : Conserve le ping couleur de base + Étoile favori + Petite bulle à gauche (sans effet néon)
 function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
     const afficherBulle = couleurBulle ? 'block' : 'none';
 
@@ -111,12 +111,15 @@ function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
         html: `
             <div style="position: relative; width: 25px; height: 41px;">
                 
-                <div style="display: ${afficherBulle}; position: absolute; top: 12px; left: -10px; background: ${couleurBulle}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 0 6px ${couleurBulle}; z-index: 999;"></div>
+                <!-- 1. LA PETITE BULLE THERMIQUE (Design mat, sans effet néon) -->
+                <div style="display: ${afficherBulle}; position: absolute; top: -6px; left: -8px; background: ${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;"></div>
 
+                <!-- 2. LE PING COULEUR DE BASE (Image officielle Leaflet) -->
                 <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; position: absolute; top: 0; left: 0; z-index: 10;">
                 
+                <!-- 3. LE MACARON DES FAVORIS -->
                 ${estFavori ? `
-                    <div style="position: absolute; top: -6px; right: -10px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.5); z-index: 20;">⭐</div>
+                    <div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;">⭐</div>
                 ` : ''}
 
             </div>
