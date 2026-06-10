@@ -45,6 +45,14 @@
         position: relative;
         z-index: 9999 !important; /* Force le bouton à rester au-dessus sur mobile */
         -webkit-tap-highlight-color: transparent;
+
+
+    #graphiquePrevisionnel {
+    /* Empêche le navigateur de faire défiler la page verticalement ou de zoomer sur le site quand on touche le graphique */
+    touch-action: none; 
+    user-select: none;
+    -webkit-user-select: none;
+}
     </style>
 </head>
 <body>
