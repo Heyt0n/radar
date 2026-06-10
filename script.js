@@ -3,7 +3,8 @@
 // ==========================================
 let currentUser = null;
 let stationsGlobales = [];
-let favoris = []; // Sera chargé dynamiquement depuis Supabase ou LocalStorage
+let favoris = []; 
+let marqueursActifs = {}; // INDEX TACTIQUE : Stocke les références des marqueurs affichés pour les ouvrir à distance
 
 document.addEventListener("DOMContentLoaded", async () => {
     // 1. Interrogation du gardien Supabase
@@ -11,25 +12,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         const { data: { session }, error } = await _supabase.auth.getSession();
 
         if (!session) {
-            // Si aucune session cloud mais pas de session invitée locale active
             if (localStorage.getItem("radar_session_active") !== "true") {
                 window.location.href = "connexion.html";
                 return;
             }
             console.log("Terminal opérationnel : Mode Invité Local.");
-            // Chargement des favoris de secours (local)
             favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         } else {
-            // Opérateur Cloud identifié
             currentUser = session.user;
             const pseudo = currentUser.user_metadata.display_name || "Opérateur";
             console.log(`Terminal opérationnel : Opérateur ${pseudo} connecté.`);
             
-            // Affichage du pseudo sur l'interface si l'élément existe
             const nomOperateurBadge = document.getElementById("nom-operateur");
             if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
 
-            // Chargement synchrone des cibles depuis le Cloud Supabase
             await chargerFavorisSupabase();
         }
     } catch (err) {
@@ -44,7 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     declencherGeolocalisation();
 });
 
-// Fonction dédiée pour récupérer les favoris du Cloud
+// Récupération des favoris depuis le Cloud
 async function chargerFavorisSupabase() {
     if (!currentUser) return;
     try {
@@ -54,9 +50,8 @@ async function chargerFavorisSupabase() {
 
         if (error) throw error;
 
-        // On remappe les données pour conserver la structure exacte du script d'origine
         favoris = data.map(f => ({
-            id_cloud: f.id, // Gardé en mémoire pour de futures suppressions ciblées
+            id_cloud: f.id, 
             nom: f.nom_station,
             lat: f.latitude,
             lon: f.longitude
@@ -64,7 +59,6 @@ async function chargerFavorisSupabase() {
         console.log(`${favoris.length} cibles synchronisées depuis le Cloud.`);
     } catch (err) {
         console.error("Erreur de récupération des favoris Cloud :", err.message);
-        // Secours local en cas de perte de réseau
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 }
@@ -77,7 +71,6 @@ const API_URL = "stations_france.json";
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 
-// On récupère le rayon du compte, s'il n'existe pas on met 15 par défaut
 let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15; 
 
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
@@ -179,35 +172,21 @@ async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
 
     if (currentUser) {
-        // --- LOGIQUE CLOUD SUPABASE ---
         if (index === -1) {
-            // Insertion dans la table Supabase
             const { error } = await _supabase
                 .from('favoris')
                 .insert([{ user_id: currentUser.id, nom_station: nom, latitude: lat, longitude: lon }]);
-            
-            if (error) {
-                alert(`Erreur de synchronisation Cloud : ${error.message}`);
-                return;
-            }
+            if (error) { alert(`Erreur de synchronisation Cloud : ${error.message}`); return; }
         } else {
-            // Suppression dans la table Supabase
             const { error } = await _supabase
                 .from('favoris')
                 .delete()
                 .eq('user_id', currentUser.id)
                 .eq('nom_station', nom);
-
-            if (error) {
-                alert(`Erreur de suppression Cloud : ${error.message}`);
-                return;
-            }
+            if (error) { alert(`Erreur de suppression Cloud : ${error.message}`); return; }
         }
-        // Rechargement des favoris rafraîchis depuis la base en ligne avant affichage
         await chargerFavorisSupabase();
-
     } else {
-        // --- LOGIQUE INVITÉ LOCAL ---
         if (index === -1) {
             favoris.push({ nom, lat, lon });
         } else {
@@ -216,7 +195,6 @@ async function basculerFavori(nom, lat, lon) {
         localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     }
     
-    // Synchronisation instantanée de l'affichage de la carte
     fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
 }
 
@@ -249,8 +227,18 @@ function afficherFavoris() {
         item.style.cursor = 'pointer';
         item.style.marginBottom = '8px';
         
+        // CORRECTION INTERFACE : Déplacement sur la carte + Lancement synchrone du Popup ciblé
         item.innerHTML = `
-            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" onclick="map.setView([${f.lat}], ${f.lon}, 14); fetchLiveStations(${f.lat}, ${f.lon});">
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0;" 
+                 onclick="
+                     map.setView([${f.lat}], ${f.lon}, 14); 
+                     fetchLiveStations(${f.lat}, ${f.lon}).then(() => {
+                         const cle = '${f.lat}_${f.lon}';
+                         if (marqueursActifs[cle]) {
+                             marqueursActifs[cle].openPopup();
+                         }
+                     });
+                 ">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${f.nom}">${f.nom}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
@@ -303,10 +291,11 @@ async function fetchLiveStations(centerLat, centerLon) {
         const selectElem = document.getElementById('select-carburant');
         const carburantActif = selectElem ? selectElem.value : 'gz';
 
-        // Nettoyage complet des anciens marqueurs
+        // Nettoyage des anciens marqueurs sur la carte et réinitialisation de l'index tactique
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker || layer instanceof L.DivIcon) map.removeLayer(layer);
         });
+        marqueursActifs = {}; 
 
         let prixMin = Infinity;
         let prixMax = -Infinity;
@@ -343,29 +332,30 @@ async function fetchLiveStations(centerLat, centerLon) {
                     const pSp98   = formatPrix(station["98"]);
                     let prixCourant = formatPrix(station[carburantActif]);
 
-                    // Choix dynamique de la couleur de l'épingle principale
                     let couleurMarker = 'blue'; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
                         if (prixCourant === prixMin) couleurMarker = 'green'; 
                         else if (prixCourant === prixMax) couleurMarker = 'red'; 
                     }
 
-                    // Calcul dynamique de la couleur de la petite bulle thermique à gauche
-                    let couleurBulle = "hsl(120, 100%, 50%)"; // Vert pur par défaut
+                    // Calcul de la couleur de la petite bulle thermique à gauche
+                    let couleurBulle = "hsl(120, 100%, 50%)"; 
                     if (prixCourant && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
                         let score = (prixCourant - prixMin) / (prixMax - prixMin);
-                        let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; // Gradient Vert (120) -> Jaune -> Rouge (0)
+                        let teinte = (1 - Math.max(0, Math.min(1, score))) * 120; 
                         couleurBulle = `hsl(${teinte}, 100%, 50%)`;
                     } else if (!prixCourant) {
-                        couleurBulle = null; // Pas de bulle affichée si rupture
+                        couleurBulle = null; // Heureux accident : Masquage automatique si rupture
                     }
 
-                    // Correction de la génération de l'URL Google Maps
                     const requeteRecherche = encodeURIComponent(vraiNomStation);
                     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${requeteRecherche}&query_place_id=${lat},${lon}`;
                     
-                    // Injection de l'icône avec la couleur de l'épingle, le statut favori et la couleur thermique de la bulle
                     const marker = L.marker([lat, lon], { icon: creerIconeMarqueur(couleurMarker, estFavori, couleurBulle) }).addTo(map);
+
+                    // MEMORISATION : On stocke la référence du marqueur pour pouvoir l'ouvrir à distance via le volet Favoris
+                    const cleMarker = `${lat}_${lon}`;
+                    marqueursActifs[cleMarker] = marker;
 
                     const afficherLignePrix = (label, prix, code) => {
                         const styleHighlight = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
