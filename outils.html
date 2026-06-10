@@ -35,6 +35,16 @@
         
         #select-station-outils { background: #1f2937; color: white; border: 1px solid #374151; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 10px; }
         .chart-container { height: 300px; position: relative; width: 100%; }
+        .burger-btn {
+        background: none;
+        border: none;
+        color: var(--texte-principal);
+        font-size: 28px; /* Plus grand pour le pouce sur mobile */
+        cursor: pointer;
+        padding: 10px;   /* Zone de clic élargie */
+        position: relative;
+        z-index: 9999 !important; /* Force le bouton à rester au-dessus sur mobile */
+        -webkit-tap-highlight-color: transparent;
     </style>
 </head>
 <body>
