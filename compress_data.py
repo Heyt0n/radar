@@ -108,9 +108,7 @@ def compresser_et_historiser():
             e10 = station.get('e10_prix')
             sp98 = station.get('sp98_prix')
             
-            # Si la station ne vend aucun de nos 4 carburants cibles, on passe à la suivante
-            if not any([gazole, sp95, e10, sp98]):
-                continue
+      
 
             nom = station.get('nom') or station.get('marque') or "Station"
             # Identifiant unique basé sur la géolocalisation pour un ciblage précis
