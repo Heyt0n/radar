@@ -7,7 +7,7 @@ from supabase import create_client, Client
 # CONFIGURATION SUPABASE (VÉRIFIE BIEN TES PARAMÈTRES ICI)
 # =========================================================================
 SUPABASE_URL = "https://vyrnkiedotmwrzoigziq.supabase.co"
-SUPABASE_KEY = "sb_publishable_96x0oNLDI14j_wrJdrdrRA_PfUCe..." 
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cm5raWVkb3Rtd3J6b2lnemlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTM3NDIsImV4cCI6MjA5NTY2OTc0Mn0.VBfkO9_NGZ2JnYzvf-EztGxS2CYIF-WX9WPicHhYBUo" 
 
 # Initialisation du client Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
