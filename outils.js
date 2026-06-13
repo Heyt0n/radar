@@ -6,7 +6,7 @@ if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
 document.addEventListener("DOMContentLoaded", async () => {
     let instanceGraphique = null;
     let stationsGlobales = [];
-    const API_URL = "stations_france.json";
+    const API_URL = "stations_france.json"; // ⚠️ Vérifie bien les majuscules sur GitHub !
 
     // Éléments du DOM
     const nomOperateurBadge = document.getElementById("nom-operateur");
@@ -23,16 +23,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     graphiqueElem.style.webkitUserSelect = "none";
 
     // ==========================================
-    // 1. GESTION DU MENU BURGER
+    // 1. GESTION DU MENU BURGER (CORRIGÉ POUR PC & MOBILE)
     // ==========================================
     const burgerBtn = document.querySelector('.burger-btn');
     if (burgerBtn) {
-        ['click', 'touchend'].forEach(evt => {
-            burgerBtn.addEventListener(evt, (e) => {
-                e.preventDefault();
-                toggleBurgerMenu();
-            }, { passive: false });
+        // Au clic souris (PC)
+        burgerBtn.addEventListener('click', () => {
+            toggleBurgerMenu();
         });
+        // Au toucher tactile (Mobile)
+        burgerBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleBurgerMenu();
+        }, { passive: false });
     }
 
     // ==========================================
@@ -67,15 +70,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         briefingTexte.innerHTML = `<strong>Rapport de situation :</strong> ${analyse} <br><span style='color: #4b5563; font-size: 11px; display: block; margin-top: 8px;'>Cours pivot détecté : ${prixActuel} € • Modélisation mise à jour toutes les 30 minutes.</span>`;
     }
 
-// ==========================================
+    // ==========================================
     // 3. ENCLENCHEMENT DE L'HISTORIQUE ET DES FAVORIS
     // ==========================================
     async function initialiserDonnees() {
         try {
             selectStation.innerHTML = '<option value="" selected disabled>-- Alignement des bases... --</option>';
 
-            const response = await fetch(API_URL);
-            stationsGlobales = await response.json();
+            // Sécurisation du fetch local (Si 404, on n'arrête pas le script)
+            try {
+                const response = await fetch(API_URL);
+                if (response.ok) {
+                    stationsGlobales = await response.json();
+                } else {
+                    console.warn(`⚠️ Fichier ${API_URL} introuvable (404). Utilisation des valeurs de secours.`);
+                }
+            } catch (jsonErr) {
+                console.warn("⚠️ Impossible de lire les prix en direct locaux :", jsonErr.message);
+            }
 
             // Lecture de la table "favoris"
             const { data: favoris, error } = await _supabase
@@ -89,19 +101,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                 selectStation.innerHTML = ''; 
                 
                 favoris.forEach(fav => {
-                    // Recherche du prix actuel dans le fichier JSON local
-                    const stationLive = stationsGlobales.find(s => 
-                        (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.005 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.005) ||
-                        (s.n && s.n.trim() === fav.nom_station.trim())
-                    );
-
+                    // Recherche du prix actuel dans le fichier JSON s'il a pu être chargé
                     let vraiPrix = 1.750;
-                    if (stationLive) {
-                        vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
+                    if (stationsGlobales.length > 0) {
+                        const stationLive = stationsGlobales.find(s => 
+                            (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.005 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.005) ||
+                            (s.n && s.n.trim() === fav.nom_station.trim())
+                        );
+                        if (stationLive) {
+                            vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
+                        }
                     }
 
-                    // 🛡️ SÉCURISATION DU FORMAT STRING
-                    // On force le typage en String textuel strict pour éviter les approximations du type float8
+                    // Formatage strict de l'identifiant textuel (latitude_longitude)
                     const latStr = String(fav.latitude).trim();
                     const lonStr = String(fav.longitude).trim();
                     const idSecteurCalcule = `${latStr}_${lonStr}`;
@@ -116,7 +128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     selectStation.appendChild(option);
                 });
 
-                console.log(`[Moteur] ${favoris.length} cibles chargées dans l'alignement.`);
+                console.log(`[Moteur] ${favoris.length} cibles synchronisées.`);
 
                 selectStation.selectedIndex = 0;
                 const declencheurAuto = new Event('change');
@@ -144,9 +156,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        console.log(`📡 Requête historique_prix pour ID :`, idStation);
+        console.log(`📡 Extraction historique pour la cible : ${idStation}`);
         try {
-            // Requête vers la table historique_prix filtrée sur id_station
+            // Extraction directe de la table historique_prix
             const { data: historiqueSupabase, error } = await _supabase
                 .from("historique_prix")
                 .select("prix, horodatage")
@@ -154,7 +166,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 .order("horodatage", { ascending: true });
 
             if (error) {
-                console.error("❌ Erreur retournée par Supabase :", error.message);
+                console.error("❌ Erreur Supabase lors du fetch historique :", error.message);
             }
 
             if (!error && historiqueSupabase && historiqueSupabase.length > 0) {
@@ -164,9 +176,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                     donneesReel.push(parseFloat(point.prix).toFixed(3));
                     donneesPrediction.push(null);
                 });
-                console.log(`📊 Synchronisation réussie : ${historiqueSupabase.length} points réels injectés.`);
+                console.log(`📊 Synchronisation réussie : ${historiqueSupabase.length} points injectés.`);
             } else {
-                console.log(`ℹ️ Supabase a répondu avec 0 ligne pour la clé textuelle : "${idStation}"`);
+                console.log(`ℹ️ Aucune ligne trouvée pour la clé : "${idStation}"`);
             }
         } catch (err) {
             console.error("⚠️ Exception critique lors de la requête :", err.message);
@@ -209,6 +221,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
+    }
+
+    function formaterLabelM30(date) {
+        let options = { weekday: 'short' };
+        let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
+        nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
+        let min = date.getMinutes().toString().padStart(2, '0');
+        return `${nomJour} ${date.getHours()}h${min}`;
     }
 
     // ==========================================
@@ -329,7 +349,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const nomStation = optionSelectionnee.dataset.nom || "Station";
         const idStation = optionSelectionnee.dataset.idUnique;
 
-        // Mise à jour de l'analyse textuelle
+        // Mise à jour du texte d'analyse
         genererBriefingAnalyste(nomStation, prixBrut);
 
         // Tracé avec chargement en temps réel
