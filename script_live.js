@@ -1,6 +1,5 @@
-// ==========================================
-// 0. INITIALISATION ET ETAT GLOBAL
-// ==========================================
+// 0. INITIALISATION ET ETAT GLOBAL //
+
 let currentUser = null;
 let stationsGlobales = [];
 let favoris = []; 
