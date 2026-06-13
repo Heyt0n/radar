@@ -77,6 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
+            // Lecture de la table "favoris" qui contient latitude et longitude
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -85,10 +86,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (error) throw error;
 
             if (favoris && favoris.length > 0) {
-                selectStation.innerHTML = ''; // On vide le loader
+                selectStation.innerHTML = ''; 
                 
                 favoris.forEach(fav => {
-                    // Recherche de la correspondance pour le prix en direct
+                    // Recherche du prix actuel dans le fichier JSON local
                     const stationLive = stationsGlobales.find(s => 
                         (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.005 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.005) ||
                         (s.n && s.n.trim() === fav.nom_station.trim())
@@ -99,24 +100,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
                     }
 
-                    // 🛡️ SÉCURITÉ DOUBLE COUCHE POUR L'ID
-                    // Si fav.id_station n'existe pas dans ta table, on recrée la clé textuelle exacte brute
-                    const idStrict = fav.id_station || `${fav.latitude}_${fav.longitude}`;
+                    // 🛠️ RECONSTRUCTION DE L'ID UNIQUE STRICT (Format: latitude_longitude)
+                    // On utilise les chaînes de caractères d'origine pour éviter toute troncature de décimales
+                    const idSecteurCalculé = `${fav.latitude}_${fav.longitude}`;
 
                     const option = document.createElement("option");
-                    option.value = idStrict; 
+                    option.value = idSecteurCalculé; 
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = idStrict; 
+                    option.dataset.idUnique = idSecteurCalculé; 
                     
-                    // L'affichage reste propre pour l'utilisateur
+                    // L'utilisateur voit le nom de la station et l'adresse proprement
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
 
-                console.log(`[Moteur] ${favoris.length} cibles chargées dans le sélecteur.`);
+                console.log(`[Moteur] ${favoris.length} cibles chargées dans l'alignement.`);
 
-                // Force le déclenchement du premier favori
+                // Déclenchement automatique du premier favori
                 selectStation.selectedIndex = 0;
                 const declencheurAuto = new Event('change');
                 selectStation.dispatchEvent(declencheurAuto);
@@ -127,7 +128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (err) {
             console.error("[Erreur] Initialisation impossible :", err.message);
-            selectStation.innerHTML = '<option value="" disabled>Erreur de chargement</option>';
+            selectStation.innerHTML = '<option value="" disabled>Erreur d\'alignement</option>';
         }
     }
 
@@ -143,8 +144,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        console.log(`📡 Requête historique pour l'ID : ${idStation}`);
+        console.log(`📡 Extraction historique pour la cible : ${idStation}`);
         try {
+            // Requête ciblée sur historique_prix via l'ID calculé
             const { data: historiqueSupabase, error } = await _supabase
                 .from("historique_prix")
                 .select("prix, horodatage")
@@ -158,8 +160,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                     donneesReel.push(parseFloat(point.prix).toFixed(3));
                     donneesPrediction.push(null);
                 });
+                console.log(`📊 ${historiqueSupabase.length} points réels synchronisés.`);
             } else {
-                console.log("ℹ️ Aucun historique trouvé dans la table pour cet ID précis.");
+                console.log("ℹ️ Aucun point historique trouvé en base pour cet identifiant.");
             }
         } catch (err) {
             console.error("⚠️ Erreur d'extraction de l'historique :", err.message);
