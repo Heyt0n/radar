@@ -1,0 +1,7 @@
+- name: Commit and Push changes
+  run: |
+    git config --local user.email "actions@github.com"
+    git config --local user.name "GitHub Action"
+    git add stations_*.json  # 🎯 Il attrape TOUS les fichiers d'un coup !
+    git diff --quiet && git diff --staged --quiet || git commit -m "🚀 Mise à jour automatique des bases européennes"
+    git push
