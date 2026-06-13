@@ -98,11 +98,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
                     }
 
+                    // On crée l'ID technique d'arrière-plan (identique au script de compression Python)
+                    const idTechniqueCoordonnees = `${parseFloat(fav.latitude)}_${parseFloat(fav.longitude)}`;
+
                     const option = document.createElement("option");
-                    option.value = fav.id_station || fav.id || `${fav.latitude}_${fav.longitude}`; 
+                    option.value = idTechniqueCoordonnees; // Le code lira les coordonnées en secret
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = fav.id_station || `${fav.latitude}_${fav.longitude}`; 
+                    option.dataset.idUnique = idTechniqueCoordonnees; 
+                    
+                    // L'utilisateur continue de voir l'adresse lisible comme avant !
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
@@ -135,7 +140,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        // EXTRACTION DE L'HISTORIQUE RÉEL DEPUIS SUPABASE
+        // EXTRACTION DE L'HISTORIQUE RÉEL DEPUIS SUPABASE (Via l'ID coordonné discret)
         console.log(`📡 Extraction de la base pour la cible : ${idStation}`);
         try {
             const { data: historiqueSupabase, error } = await _supabase
@@ -314,14 +319,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Gestionnaire d'événements lié au sélecteur (Asynchrone pour Supabase)
+    // Gestionnaire d'événements lié au sélecteur
     selectStation.addEventListener("change", async (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
 
         const prixBrut = optionSelectionnee.dataset.prixActuel;
         const nomStation = optionSelectionnee.dataset.nom || "Station";
-        const idStation = optionSelectionnee.dataset.idUnique;
+        const idStation = optionSelectionnee.dataset.idUnique; // Contient "latitude_longitude" en secret
 
         // Mise à jour de l'analyse textuelle
         genererBriefingAnalyste(nomStation, prixBrut);
