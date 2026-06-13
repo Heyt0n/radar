@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         briefingTexte.innerHTML = `<strong>Rapport de situation :</strong> ${analyse} <br><span style='color: #4b5563; font-size: 11px; display: block; margin-top: 8px;'>Cours pivot détecté : ${prixActuel} € • Modélisation mise à jour toutes les 30 minutes.</span>`;
     }
 
-    // ==========================================
+// ==========================================
     // 3. ENCLENCHEMENT DE L'HISTORIQUE ET DES FAVORIS
     // ==========================================
     async function initialiserDonnees() {
@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
-            // Lecture de la table "favoris" qui contient latitude et longitude
+            // Lecture de la table "favoris"
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -100,24 +100,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
                     }
 
-                    // 🛠️ RECONSTRUCTION DE L'ID UNIQUE STRICT (Format: latitude_longitude)
-                    // On utilise les chaînes de caractères d'origine pour éviter toute troncature de décimales
-                    const idSecteurCalculé = `${fav.latitude}_${fav.longitude}`;
+                    // 🛡️ SÉCURISATION DU FORMAT STRING
+                    // On force le typage en String textuel strict pour éviter les approximations du type float8
+                    const latStr = String(fav.latitude).trim();
+                    const lonStr = String(fav.longitude).trim();
+                    const idSecteurCalcule = `${latStr}_${lonStr}`;
 
                     const option = document.createElement("option");
-                    option.value = idSecteurCalculé; 
+                    option.value = idSecteurCalcule; 
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = idSecteurCalculé; 
+                    option.dataset.idUnique = idSecteurCalcule; 
                     
-                    // L'utilisateur voit le nom de la station et l'adresse proprement
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
 
                 console.log(`[Moteur] ${favoris.length} cibles chargées dans l'alignement.`);
 
-                // Déclenchement automatique du premier favori
                 selectStation.selectedIndex = 0;
                 const declencheurAuto = new Event('change');
                 selectStation.dispatchEvent(declencheurAuto);
@@ -144,14 +144,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        console.log(`📡 Extraction historique pour la cible : ${idStation}`);
+        console.log(`📡 Requête historique_prix pour ID :`, idStation);
         try {
-            // Requête ciblée sur historique_prix via l'ID calculé
+            // Requête vers la table historique_prix filtrée sur id_station
             const { data: historiqueSupabase, error } = await _supabase
                 .from("historique_prix")
                 .select("prix, horodatage")
                 .eq("id_station", idStation)
                 .order("horodatage", { ascending: true });
+
+            if (error) {
+                console.error("❌ Erreur retournée par Supabase :", error.message);
+            }
 
             if (!error && historiqueSupabase && historiqueSupabase.length > 0) {
                 historiqueSupabase.forEach(point => {
@@ -160,12 +164,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     donneesReel.push(parseFloat(point.prix).toFixed(3));
                     donneesPrediction.push(null);
                 });
-                console.log(`📊 ${historiqueSupabase.length} points réels synchronisés.`);
+                console.log(`📊 Synchronisation réussie : ${historiqueSupabase.length} points réels injectés.`);
             } else {
-                console.log("ℹ️ Aucun point historique trouvé en base pour cet identifiant.");
+                console.log(`ℹ️ Supabase a répondu avec 0 ligne pour la clé textuelle : "${idStation}"`);
             }
         } catch (err) {
-            console.error("⚠️ Erreur d'extraction de l'historique :", err.message);
+            console.error("⚠️ Exception critique lors de la requête :", err.message);
         }
 
         // ALIGNEMENT DU POINT PIVOT ACTUEL
@@ -205,14 +209,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
-    }
-
-    function formaterLabelM30(date) {
-        let options = { weekday: 'short' };
-        let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
-        nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
-        let min = date.getMinutes().toString().padStart(2, '0');
-        return `${nomJour} ${date.getHours()}h${min}`;
     }
 
     // ==========================================
