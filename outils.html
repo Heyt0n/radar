@@ -44,7 +44,7 @@
             <span id="nom-operateur" class="hidden md:inline-block bg-[#1f2937] text-gray-300 text-xs px-3 py-1.5 rounded-md border border-[#374151] font-medium">
                 Alignement...
             </span>
-            <button class="burger-btn text-gray-400 hover:text-white focus:outline-none p-1.5 rounded-lg hover:bg-[#1f2937]" aria-label="Menu">
+            <button class="burger-btn text-gray-400 hover:text-white focus:outline-none p-1.5 rounded-lg hover:bg-[#1f2937]" onclick="toggleBurgerMenu()" aria-label="Menu">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                 </svg>
@@ -70,7 +70,7 @@
                 
                 <div class="flex flex-col space-y-2">
                     <label for="select-station-outils" class="text-xs text-gray-400 font-medium uppercase">Cible active / Station :</label>
-                    <select id="select-station-outils" class="w-full bg-[#1f2937] border border-[#374151] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#3b82f6] cursor-pointer">
+                    <select id="select-station-outils" class="w-full bg-[#1f2937] border border Chennai #374151 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#3b82f6] cursor-pointer">
                         <option value="" selected disabled>-- Alignement des bases... --</option>
                     </select>
                 </div>
@@ -109,7 +109,7 @@
         </section>
     </main>
 
-    <div id="menuOverlay" class="menu-overlay fixed inset-0 bg-black z-40"></div>
+    <div id="menuOverlay" class="menu-overlay fixed inset-0 bg-black z-40" onclick="toggleBurgerMenu()"></div>
     
     <div id="burgerMenu" class="burger-menu fixed top-0 right-0 h-full w-64 bg-[#111827] border-l border-[#1f2937] z-50 p-6 flex flex-col space-y-6">
         <div class="flex justify-between items-center border-b border-[#1f2937] pb-4">
@@ -122,15 +122,14 @@
         </div>
         
         <nav class="flex flex-col space-y-3">
-            <a href="radar.html" class="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-[#1f2937] hover:text-white transition">🛰️ Radar Tactique</a>
+            <a href="index.html" class="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-[#1f2937] hover:text-white transition">🛰️ Radar Tactique / Carte</a>
             <a href="outils.html" class="px-3 py-2.5 rounded-lg text-sm font-medium bg-[#1f2937] text-white transition">📊 Outils & Stats</a>
-            <a href="profil.html" class="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-[#1f2937] hover:text-white transition">⚙️ Paramètres</a>
         </nav>
 
         <div class="pt-6 border-t border-[#1f2937] mt-auto">
-            <a href="connexion.html" class="w-full text-center block bg-red-950/40 text-red-400 border border-red-900/60 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-900/50 transition">
+            <button onclick="deconnexion()" class="w-full text-center block bg-red-950/40 text-red-400 border border-red-900/60 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-900/50 transition">
                 Fermer la session
-            </a>
+            </button>
         </div>
     </div>
 
