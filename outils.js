@@ -251,8 +251,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-    // ==========================================
-    // 7. CONSTRUCTEUR / MISE A JOUR DU GRAPHIQUE
+   // ==========================================
+    // 7. CONSTRUCTEUR / MISE A JOUR DU GRAPHIQUE (AMPLITUDE MACRO 10 CTS)
     // ==========================================
     function mettreAJourGraphique(labels, donneesReel, donneesPrediction) {
         if (instanceGraphique) instanceGraphique.destroy();
@@ -265,6 +265,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             indexMinInitial = Math.max(0, indexMaintenant - 12);
             indexMaxInitial = Math.min(labels.length - 1, indexMaintenant + 24);
         }
+
+        // 🟢 DECENTRHAGE SMART : Calcul du prix médian pour fixer les barrières Y
+        // On cherche le dernier prix valide disponible (réel ou dynamique) pour centrer notre vision
+        const prixValides = [...donneesReel, ...donneesPrediction].filter(p => p !== null && !isNaN(p));
+        const prixPivot = prixValides.length > 0 ? parseFloat(prixValides[prixValides.length - 1]) : 1.750;
+
+        // On crée une amplitude fixe de 10 centimes (0.10 €) centrée sur le cours pivot
+        // Ex: si le prix vaut 1.742 €, l'axe ira de 1.692 € à 1.792 €
+        const yMinAxe = prixPivot - 0.05;
+        const yMaxAxe = prixPivot + 0.05;
 
         instanceGraphique = new Chart(ctx, {
             type: 'line',
@@ -315,15 +325,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 9 }, maxTicksLimit: 10, maxRotation: 0 }
                     },
                     y: {
+                        // 🎯 APPLICATION DES BORNES MACRO
+                        min: yMinAxe,
+                        max: yMaxAxe,
                         grid: { color: '#1f2937' },
-                        ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans' }, callback: (val) => parseFloat(val).toFixed(3) + ' €' }
+                        ticks: { 
+                            color: '#9ca3af', 
+                            font: { family: 'Plus Jakarta Sans' }, 
+                            stepSize: 0.02, // Une ligne de grille tous les 2 centimes pour garder l'axe propre
+                            callback: (val) => parseFloat(val).toFixed(3) + ' €' 
+                        }
                     }
                 }
             },
             plugins: [pluginCrosshair]
         });
     }
-
     // ==========================================
     // 8. INTERSECTEUR DE MISE A JOUR CENTRALISÉ
     // ==========================================
