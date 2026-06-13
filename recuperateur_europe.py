@@ -1,58 +1,48 @@
 import requests
 import json
 
-# 🎯 CONFIGURATION CENTRALISÉE
-PAYS_CONFIG = {
-    "france": {
-        "url_api": "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-temps-reel/exports/json",
-        "fichier_sortie": "stations_france.json",
-        "format": "FR"
-    },
-    "allemagne": {
-        "url_api": "https://creativecommons.tankerkoenig.de/json/list.php?lat=48.91&lng=8.14&rad=25&type=all&apikey=TON_API_KEY",
-        "fichier_sortie": "stations_allemagne.json",
-        "format": "DE"
-    }
-}
+# 🎯 Configuration pour la zone frontalière allemande (Exemple centré sur l'Alsace du Nord)
+# Rayon de 30km autour d'un point central frontalier pour capter toutes les stations utiles
+LAT_CENTRE = "48.95"  
+LNG_CENTRE = "8.05"
+RAYON = "30"
+API_KEY = "TON_API_KEY_TANKERKOENIG" # À remplacer par ta clé gratuite
 
-def collecter_donnees():
-    for pays, config in PAYS_CONFIG.items():
-        print(f"📡 Extraction du vecteur : {pays}...")
-        try:
-            response = requests.get(config["url_api"])
-            if response.status_code == 200:
-                donnees_brutes = response.json()
-                
-                # 🟢 LE SECRET : Normaliser le format ici !
-                donnees_normalisees = normaliser_donnees(donnees_brutes, config["format"])
-                
-                # Sauvegarde du fichier JSON correspondant
-                with open(config["fichier_sortie"], "w", encoding="utf-8") as f:
-                    json.dump(donnees_normalisees, f, ensure_ascii=False, indent=2)
-                print(f"✅ Fichier {config['fichier_sortie']} mis à jour.")
-        except Exception as e:
-            print(f"⚠️ Échec sur le pays {pays} : {e}")
+URL_ALLEMAGNE = f"https://creativecommons.tankerkoenig.de/json/list.php?lat={LAT_CENTRE}&lng={LNG_CENTRE}&rad={RAYON}&type=all&apikey={API_KEY}"
 
-def normaliser_donnees(donnees, format_pays):
-    stations_propres = []
-    
-    if format_pays == "FR":
-        # Ta logique de parsing actuelle pour la France
-        pass
-        
-    elif format_pays == "DE":
-        # Ta logique pour convertir les clés allemandes (id, name, lat, lng)
-        # vers tes clés standards uniques ('n', 'lt', 'ln', 'gz', '95')
-        for st in donnees.get("stations", []):
-            stations_propres.append({
-                "n": st.get("name"),
-                "lt": st.get("lat"),
-                "ln": st.get("lng"),
-                "gz": st.get("diesel"),
-                "95": st.get("e5")
-            })
+def collecter_allemagne():
+    print("📡 Connexion au vecteur Allemagne...")
+    try:
+        response = requests.get(URL_ALLEMAGNE)
+        if response.status_code == 200:
+            data = response.json()
             
-    return stations_propres
+            if not data.get("ok"):
+                print("⚠️ L'API Tankerkönig a renvoyé une erreur.")
+                return
+
+            stations_normalisees = []
+            
+            # On boucle sur les stations allemandes reçues
+            for st in data.get("stations", []):
+                # 🟢 NORMALISATION : On utilise EXACTEMENT tes clés françaises
+                stations_normalisees.append({
+                    "n": st.get("name", "Station Allemande"),
+                    "lt": str(st.get("lat")),
+                    "ln": str(st.get("lng")),
+                    "gz": str(st.get("diesel")) if st.get("diesel") else None,
+                    "95": str(st.get("e5")) if st.get("e5") else None,
+                    "e10": str(st.get("e10")) if st.get("e10") else None
+                })
+
+            # Sauvegarde dans le fichier lu par international.js
+            with open("stations_allemagne.json", "w", encoding="utf-8") as f:
+                json.dump(stations_normalisees, f, ensure_ascii=False, indent=2)
+            
+            print(f"✅ Extraction réussie : {len(stations_normalisees)} stations allemandes synchronisées.")
+            
+    except Exception as e:
+        print(f"❌ Échec de la mission Allemagne : {e}")
 
 if __name__ == "__main__":
-    collecter_donnees()
+    collecter_allemagne()
