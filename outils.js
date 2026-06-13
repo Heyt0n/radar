@@ -1,275 +1,393 @@
-// =========================================================================
-// TERMINAL DE CONTRÔLE - ENGIN STATISTIQUE & DIAGNOSTIC DÉDIÉ
-// =========================================================================
-
-let monGraphique = null;
-let utilisateurConnecte = null;
-
-// Détection automatique du nom de l'instance Supabase configurée dans ton projet
-const db = typeof _supabase !== "undefined" ? _supabase : (typeof supabase !== "undefined" ? supabase : null);
+// Enregistrement manuel et explicite du plugin de zoom auprès de Chart.js
+if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
+    Chart.register(window['chartjs-plugin-zoom']);
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
-    console.log("🛰️ Initialisation du terminal d'analyse...");
-    if (!db) {
-        alert("❌ ERREUR CRITIQUE : L'instance Supabase n'est pas détectée. Vérifie l'ordre de tes scripts dans le HTML.");
+    let instanceGraphique = null;
+    let stationsGlobales = [];
+    const API_URL = "stations_france.json";
+
+    // Éléments du DOM
+    const nomOperateurBadge = document.getElementById("nom-operateur");
+    const selectStation = document.getElementById("select-station-outils");
+    const selectCarburant = document.getElementById("select-carburant-outils"); // 🎯 Nouveau sélecteur
+    const graphiqueElem = document.getElementById("graphiquePrevisionnel");
+    const briefingTexte = document.getElementById("briefing-texte");
+    
+    if (!graphiqueElem || !selectStation || !selectCarburant) return;
+    const ctx = graphiqueElem.getContext("2d");
+
+    // Optimisation mobile tactile
+    graphiqueElem.style.touchAction = "none";
+    graphiqueElem.style.userSelect = "none";
+    graphiqueElem.style.webkitUserSelect = "none";
+
+    // ==========================================
+    // 1. GESTION DU MENU BURGER (PC & Mobile)
+    // ==========================================
+    const burgerBtn = document.querySelector('.burger-btn');
+    if (burgerBtn) {
+        burgerBtn.addEventListener('click', () => toggleBurgerMenu());
+        burgerBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleBurgerMenu();
+        }, { passive: false });
+    }
+
+    // ==========================================
+    // 2. SÉCURITÉ ACCÈS & INITIALISATION OPERATEUR
+    // ==========================================
+    const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
+    if (sessionError || !session) {
+        window.location.href = "connexion.html";
         return;
     }
-    await verifierSessionEtInitialiser();
-    configurerEcouteursEvenements();
-});
-
-/**
- * 1. SÉCURITÉ & INITIALISATION DES DONNÉES
- */
-async function verifierSessionEtInitialiser() {
-    try {
-        const { data: { session }, error: authError } = await db.auth.getSession();
-        
-        if (authError || !session) {
-            console.warn("🔒 Opérateur non identifié. Redirection vers la base de connexion.");
-            window.location.href = "connexion.html";
-            return;
-        }
-
-        utilisateurConnecte = session.user;
-        
-        const badgeOperateur = document.getElementById("nom-operateur");
-        if (badgeOperateur) {
-            badgeOperateur.textContent = utilisateurConnecte.email.split('@')[0].toUpperCase();
-        }
-
-        // Lancement de l'extraction des stations
-        await chargerStationsFavorites();
-
-    } catch (err) {
-        console.error("❌ Échec lors de l'initialisation :", err.message);
+    if (nomOperateurBadge && session.user.user_metadata) {
+        const pseudo = session.user.user_metadata.display_name || session.user.user_metadata.pseudo || "Opérateur";
+        nomOperateurBadge.textContent = pseudo;
     }
-}
 
-/**
- * 2. CHARGEMENT DES STATIONS FAVORITES
- */
-async function chargerStationsFavorites() {
-    const selectStation = document.getElementById("select-station-outils");
-    if (!selectStation) return;
+    // ==========================================
+    // MODULE : ANALYSTE DE MARCHÉ (BRIEFING)
+    // ==========================================
+    function genererBriefingAnalyste(nomStation, prixActuel, typeCarburant) {
+        if (!briefingTexte) return;
+        const nomMinuscule = nomStation.toLowerCase();
+        let analyse = "";
 
-    try {
-        console.log("📡 Envoi de la requête d'extraction vers Supabase...");
-
-        // On extrait toutes les lignes pour s'assurer de ne rater aucune colonne custom
-        const { data: favoris, error } = await db
-            .from("stations_favorites")
-            .select("*"); 
-
-        if (error) {
-            alert(`⚠️ ERREUR DE LA TABLE 'stations_favorites' :\nCode: ${error.code}\nMessage: ${error.message}`);
-            throw error;
+        if (nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/)) {
+            analyse = `La station <strong>${nomStation}</strong> opère sur un modèle à fort volume et marges compressées. La volatilité intra-day reste bloquée par les barrières psychologiques des grandes surfaces. <strong>Stratégie conseillée :</strong> Ravitaillement optimal en fin de soirée avant les réalignements algorithmiques matinaux.`;
+        } else if (nomMinuscule.match(/(total|elan|shell|bp|esso)/)) {
+            analyse = `Nous constatons une sensibilité accrue aux fluctuations des marchés Spot (Rotterdam) sur l'actif <strong>${nomStation}</strong>. Les spreads sont plus larges, offrant de fortes opportunités de baisse en milieu de semaine (cycles de déstockage).`;
+        } else {
+            analyse = `Analyse structurelle en cours pour l'actif <strong>${nomStation}</strong>. Le support immédiat est consolidé à ${prixActuel} €. La tendance à court terme reste corrélée aux flux logistiques régionaux.`;
         }
 
-        selectStation.innerHTML = "";
+        briefingTexte.innerHTML = `<strong>Rapport de situation :</strong> ${analyse} <br><span style='color: #4b5563; font-size: 11px; display: block; margin-top: 8px;'>Cours pivot détecté (${typeCarburant.toUpperCase()}) : ${prixActuel} € • Modélisation mise à jour toutes les 30 minutes.</span>`;
+    }
 
-        // Filtrage de sécurité local sur l'utilisateur connecté
-        const favorisFiltres = favoris ? favoris.filter(f => f.user_id === utilisateurConnecte.id || f.id_user === utilisateurConnecte.id) : [];
+    // ==========================================
+    // 3. CHARGEMENT DES FAVORIS
+    // ==========================================
+    async function initialiserDonnees() {
+        try {
+            selectStation.innerHTML = '<option value="" selected disabled>-- Alignement des bases... --</option>';
 
-        if (favorisFiltres.length === 0) {
-            console.warn("⚠️ Aucun favoris trouvé correspondant à cet identifiant.");
-            selectStation.innerHTML = `<option value="" disabled selected>❌ Aucun favori trouvé</option>`;
-            afficherMessageRupture("AUCUN FAVORI DANS LE TERMINAL");
-            return;
-        }
-
-        // Remplissage dynamique adaptatif
-        favorisFiltres.forEach((fav, index) => {
-            const option = document.createElement("option");
-            option.value = fav.id_station || fav.station_id || fav.id;
-            
-            if (fav.nom_station && fav.nom_station.trim() !== "Station") {
-                option.textContent = fav.nom_station;
-            } else if (fav.ville) {
-                option.textContent = `Station - ${fav.ville}`;
-            } else {
-                option.textContent = `Station [${option.value}]`;
+            try {
+                const response = await fetch(API_URL);
+                if (response.ok) stationsGlobales = await response.json();
+            } catch (jsonErr) {
+                console.warn("⚠️ Fichier stations_france.json non accessible.");
             }
 
-            if (index === 0) option.selected = true;
-            selectStation.appendChild(option);
-        });
+            const { data: favoris, error } = await _supabase
+                .from("favoris")
+                .select("*")
+                .eq("user_id", session.user.id);
 
-        // Déclenchement automatique de la première analyse
-        await executerAnalyseTechnique();
+            if (error) throw error;
 
-    } catch (err) {
-        console.error("❌ Erreur complète d'extraction :", err);
-        selectStation.innerHTML = `<option value="" disabled selected>⚠️ Terminal Bloqué : ${err.message}</option>`;
+            if (favoris && favoris.length > 0) {
+                selectStation.innerHTML = ''; 
+                
+                favoris.forEach(fav => {
+                    // On garde les infos brutes de secours dans l'élément option
+                    const idSecteurCalcule = `${fav.latitude}_${fav.longitude}`;
+
+                    const option = document.createElement("option");
+                    option.value = idSecteurCalcule; 
+                    option.dataset.nom = fav.nom_station || "Station Carburant";
+                    option.dataset.idUnique = idSecteurCalcule; 
+                    // Sauvegarde des coordonnées pour chercher dynamiquement selon le carburant sélectionné
+                    option.dataset.lat = fav.latitude;
+                    option.dataset.lon = fav.longitude;
+                    
+                    option.textContent = `${fav.nom_station || "Station"}`;
+                    selectStation.appendChild(option);
+                });
+
+                selectStation.selectedIndex = 0;
+                declencherMiseAJour();
+
+            } else {
+                selectStation.innerHTML = '<option value="" disabled>Aucun favori enregistré</option>';
+            }
+        } catch (err) {
+            console.error("[Erreur] Initialisation impossible :", err.message);
+        }
     }
-}
 
-/**
- * 3. ÉCOUTEURS D'ÉVÉNEMENTS
- */
-function configurerEcouteursEvenements() {
-    const selectStation = document.getElementById("select-station-outils");
-    const selectCarburant = document.getElementById("select-carburant-outils");
+    // Outil pour choper le prix direct depuis le JSON local selon le carburant choisi
+    function extrairePrixDuLiveJson(lat, lon, nomStation, codeCarburant) {
+        let prixSecours = 1.750;
+        if (stationsGlobales.length === 0) return prixSecours;
 
-    if (selectStation) selectStation.addEventListener("change", executerAnalyseTechnique);
-    if (selectCarburant) selectCarburant.addEventListener("change", executerAnalyseTechnique);
-}
+        const stationLive = stationsGlobales.find(s => 
+            (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(lat)) < 0.005 && Math.abs(parseFloat(s.ln) - parseFloat(lon)) < 0.005) ||
+            (s.n && s.n.trim() === nomStation.trim())
+        );
 
-/**
- * 4. ANALYSE TECHNIQUE ET CHARGEMENT DU GRAPHIQUE
- */
-async function executerAnalyseTechnique() {
-    const idStation = document.getElementById("select-station-outils")?.value;
-    const typeCarburant = document.getElementById("select-carburant-outils")?.value;
+        if (stationLive) {
+            // Mappe le code du sélecteur html avec les clés de ton fichier JSON
+            // Si le sélecteur renvoie "95", on cherche s["95"]. Si "gz", on cherche s.gz, etc.
+            let prixTrouve = stationLive[codeCarburant];
+            if (prixTrouve) return parseFloat(prixTrouve);
+        }
+        return prixSecours;
+    }
 
-    if (!idStation || !typeCarburant) return;
+    // ==========================================
+    // 4. FONCTION PASSÉ : FILTRÉE PAR ID ET CARBURANT 🎯
+    // ==========================================
+    async function extraireHistoriqueReel(idStation, codeCarburant) {
+        let historique = { labels: [], prix: [] };
+        console.log(`📡 [Supabase] Extraction historique_prix pour : ID="${idStation}" | Carburant="${codeCarburant}"`);
+        
+        try {
+            // Étape 1 : Requête ultra ciblée (ID exact + Carburant exact)
+            let { data: points, error } = await _supabase
+                .from("historique_prix")
+                .select("prix, horodatage")
+                .eq("id_station", idStation)
+                .eq("carburant", codeCarburant) // 🎯 LE FILTRE MAGIQUE
+                .order("horodatage", { ascending: true });
 
-    try {
-        const { data: historique, error } = await db
-            .from("historique_prix")
-            .select("prix, horodatage")
-            .eq("id_station", idStation)
-            .eq("carburant", typeCarburant)
-            .order("horodatage", { ascending: true });
+            // Étape 2 : Plan B si l'ID à 12 décimales de la carte a foiré (Scan flou)
+            if (!error && (!points || points.length === 0)) {
+                const segments = idStation.split('_');
+                if (segments.length === 2) {
+                    const latTronquee = parseFloat(segments[0]).toFixed(3);
+                    const lonTronquee = parseFloat(segments[1]).toFixed(3);
+                    console.log(`🔍 Plan B : Scan flou appliqué sur [${latTronquee} / ${lonTronquee}] pour carburant : ${codeCarburant}`);
 
-        if (error) throw error;
+                    let reponseFloue = await _supabase
+                        .from("historique_prix")
+                        .select("prix, horodatage")
+                        .ilike("id_station", `%${latTronquee}%`)
+                        .ilike("id_station", `%${lonTronquee}%`)
+                        .eq("carburant", codeCarburant) // Toujours filtré !
+                        .order("horodatage", { ascending: true });
+                    
+                    if (!reponseFloue.error) points = reponseFloue.data;
+                }
+            }
 
-        if (!historique || historique.length === 0) {
-            afficherMessageRupture(`RUPTURE DE STOCK / INDISPONIBLE`);
-            return;
+            if (points && points.length > 0) {
+                points.forEach(p => {
+                    let datePoint = new Date(p.horodatage);
+                    historique.labels.push(formaterLabelM30(datePoint));
+                    historique.prix.push(parseFloat(p.prix).toFixed(3));
+                });
+                console.log(`✅ [Supabase] ${points.length} points historiques récupérés pour le ${codeCarburant.toUpperCase()}.`);
+            } else {
+                console.log(`ℹ️ [Supabase] Aucun historique disponible pour cette combinaison.`);
+            }
+        } catch (err) {
+            console.error("⚠️ Exception critique historique :", err.message);
+        }
+        return historique;
+    }
+
+    // ==========================================
+    // 5. FONCTION PRÉDICTION (ALGORITHME)
+    // ==========================================
+    function calculerProjectionFuture(vraiPrixActuel, nomStation) {
+        let projection = { labels: [], prix: [] };
+        let momentActuel = new Date();
+        let minutes = momentActuel.getMinutes();
+        momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
+
+        const nomMinuscule = nomStation.toLowerCase();
+        const profilGrandesSurfaces = {
+            0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
+            6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
+            12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
+            18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
+        };
+        const profilPetroliers = {
+            0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
+            6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
+            12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
+            18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
+        };
+
+        let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
+        const pasMinutes = 30;
+        const totalHeuresEtude = 48;
+
+        for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
+            let h = heureBoucle.getHours();
+            let coefHeure = profilActif[h] || 0;
+
+            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
+
+            projection.labels.push(formaterLabelM30(heureBoucle));
+            projection.prix.push(prixPredit.toFixed(3));
+        }
+        return projection;
+    }
+
+    function formaterLabelM30(date) {
+        let options = { weekday: 'short' };
+        let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
+        nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
+        let min = date.getMinutes().toString().padStart(2, '0');
+        return `${nomJour} ${date.getHours()}h${min}`;
+    }
+
+    // ==========================================
+    // 6. RETICULE EN CROIX (CROSSHAIR)
+    // ==========================================
+    const pluginCrosshair = {
+        id: 'crosshair',
+        afterDraw: (chart) => {
+            if (!chart.tooltip?._active?.length) return;
+            const activePoint = chart.tooltip._active[0];
+            const { ctx, chartArea: { top, bottom, left, right } } = chart;
+            const x = activePoint.element.x;
+            const y = activePoint.element.y;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#4b5563';
+            ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+            ctx.moveTo(left, y); ctx.lineTo(right, y);
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
+    // ==========================================
+    // 7. CONSTRUCTEUR / MISE A JOUR DU GRAPHIQUE
+    // ==========================================
+    function mettreAJourGraphique(labels, donneesReel, donneesPrediction) {
+        if (instanceGraphique) instanceGraphique.destroy();
+
+        const indexMaintenant = labels.indexOf("Maintenant");
+        let indexMinInitial = 0;
+        let indexMaxInitial = labels.length - 1;
+
+        if (indexMaintenant !== -1) {
+            indexMinInitial = Math.max(0, indexMaintenant - 12);
+            indexMaxInitial = Math.min(labels.length - 1, indexMaintenant + 24);
         }
 
-        const prixReels = historique.map(h => parseFloat(h.prix));
-        const datesReelles = historique.map(h => {
-            const date = new Date(h.horodatage);
-            return date.toLocaleDateString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-        });
-
-        const { projections, datesProjections } = genererProjectionIntelligente(prixReels, historique[historique.length - 1].horodatage);
-
-        dessinerGraphiqueUnifie(datesReelles, prixReels, datesProjections, projections);
-
-    } catch (err) {
-        console.error("❌ Erreur lors de l'analyse technique :", err.message);
-        afficherMessageRupture("ERREUR FLUX CENTRAL");
-    }
-}
-
-/**
- * 5. LISSAGE DE LA PROJECTION (ANTI-VOLATILITÉ QUAND LE PRIX EST STABLE)
- */
-function genererProjectionIntelligente(historiquePrix, dernierHorodatage) {
-    const pointsPrevisions = [];
-    const datesProjections = [];
-    const dernierPrixConnu = historiquePrix[historiquePrix.length - 1];
-    
-    const prixMin = Math.min(...historiquePrix);
-    const prixMax = Math.max(...historiquePrix);
-    const volatiliteReelle = prixMax - prixMin;
-
-    // Règle intelligente : si l'historique est plat, on écrase les vagues de prévision
-    const facteurAjustement = volatiliteReelle < 0.01 ? 0.0015 : volatiliteReelle * 0.4;
-    let dateCourante = new Date(dernierHorodatage);
-
-    for (let i = 1; i <= 12; i++) {
-        dateCourante.setMinutes(dateCourante.getMinutes() + 30);
-        datesProjections.push(dateCourante.toLocaleDateString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
-
-        const ondeCyclique = Math.sin(i * 0.8) * Math.cos(i * 0.4);
-        const prixAnticipe = dernierPrixConnu + (ondeCyclique * facteurAjustement);
-        pointsPrevisions.push(parseFloat(prixAnticipe.toFixed(3)));
-    }
-    return { projections: pointsPrevisions, datesProjections };
-}
-
-/**
- * 6. CONFIGURATION RENDU CHART.JS
- */
-function dessinerGraphiqueUnifie(labelsReels, donneesReelles, labelsPrevisions, donneesPrevisions) {
-    const canvas = document.getElementById("graphiquePrevisionnel");
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (monGraphique) monGraphique.destroy();
-
-    const tousLesLabels = [...labelsReels, ...labelsPrevisions];
-    const datasetReel = [...donneesReelles];
-    const datasetPrevision = Array(labelsReels.length - 1).fill(null);
-    
-    datasetPrevision.push(donneesReelles[donneesReelles.length - 1]);
-    datasetPrevision.push(...donneesPrevisions);
-
-    monGraphique = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: tousLesLabels,
-            datasets: [
-                {
-                    label: 'Historique Réel ',
-                    data: datasetReel,
-                    borderColor: '#22c55e',
-                    borderWidth: 3,
-                    backgroundColor: 'rgba(34, 197, 94, 0.04)',
-                    fill: true,
-                    tension: 0.1,
-                    pointRadius: 2,
-                    pointHoverRadius: 5
+        instanceGraphique = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: `Historique Réel`,
+                        data: donneesReel,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2.5,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        tension: 0.1,
+                        spanGaps: false
+                    },
+                    {
+                        label: `Projection Algorithmique`,
+                        data: donneesPrediction,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2.5,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.15,
+                        spanGaps: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: true, labels: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 11 } } },
+                    zoom: {
+                        pan: { enabled: true, mode: 'x', threshold: 5 },
+                        zoom: { wheel: { enabled: true, speed: 0.05 }, pinch: { enabled: true }, mode: 'x' }
+                    }
                 },
-                {
-                    label: 'Projection Algorithmique ',
-                    data: datasetPrevision,
-                    borderColor: '#3b82f6',
-                    borderWidth: 2.5,
-                    borderDash: [6, 4],
-                    backgroundColor: 'rgba(59, 130, 246, 0.04)',
-                    fill: true,
-                    tension: 0.2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: '#111827',
-                    titleColor: '#9ca3af',
-                    bodyColor: '#fff',
-                    borderColor: '#1f2937',
-                    borderWidth: 1,
-                    callbacks: {
-                        label: function(context) {
-                            if (context.raw !== null) return ` ${context.dataset.label}: ${context.raw.toFixed(3)} €`;
-                        }
+                scales: {
+                    x: {
+                        min: indexMinInitial,
+                        max: indexMaxInitial,
+                        grid: { color: '#1f2937' },
+                        ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 9 }, maxTicksLimit: 10, maxRotation: 0 }
+                    },
+                    y: {
+                        grid: { color: '#1f2937' },
+                        ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans' }, callback: (val) => parseFloat(val).toFixed(3) + ' €' }
                     }
                 }
-            ],
-            scales: {
-                x: { grid: { color: '#161e2e', drawTicks: false }, ticks: { color: '#9ca3af', font: { size: 10 }, maxTicksLimit: 7 } },
-                y: { grid: { color: '#161e2e', drawTicks: false }, ticks: { color: '#9ca3af', font: { size: 11 }, callback: function(v) { return v.toFixed(3) + ' €'; } } }
-            }
-        }
-    });
-}
+            },
+            plugins: [pluginCrosshair]
+        });
+    }
 
-/**
- * 7. PANNEAU DE RUPTURE SUR CANVAS
- */
-function afficherMessageRupture(message) {
-    if (monGraphique) { monGraphique.destroy(); monGraphique = null; }
-    const canvas = document.getElementById("graphiquePrevisionnel");
-    if (!canvas) return;
+    // ==========================================
+    // 8. INTERSECTEUR DE MISE A JOUR CENTRALISÉ
+    // ==========================================
+    async function declencherMiseAJour() {
+        const option = selectStation.options[selectStation.selectedIndex];
+        if (!option || option.value === "") return;
 
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ef4444"; 
-    ctx.font = "bold 13px 'JetBrains Mono', monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(`⚠️ ALERT : ${message}`, canvas.width / 2, canvas.height / 2);
+        const nomStation = option.dataset.nom || "Station";
+        const idStation = option.dataset.idUnique;
+        const lat = option.dataset.lat;
+        const lon = option.dataset.lon;
+        
+        // On récupère le type de carburant ciblé par l'utilisateur
+        const carburantSelectionne = selectCarburant.value;
+
+        // Extraction dynamique du prix correspondant dans le JSON local
+        const prixDynamique = extrairePrixDuLiveJson(lat, lon, nomStation, carburantSelectionne);
+
+        // Affichage du briefing analytique mis à jour
+        genererBriefingAnalyste(nomStation, prixDynamique, carburantSelectionne);
+
+        // A. Extraction historique filtrée sur l'ID de station ET le carburant choisi
+        const historique = await extraireHistoriqueReel(idStation, carburantSelectionne);
+
+        // B. Anticipation algorithmique future
+        const anticipation = calculerProjectionFuture(prixDynamique, nomStation);
+
+        // C. Assemblage de l'axe temporel
+        let labelsGlobaux = [...historique.labels, "Maintenant", ...anticipation.labels];
+        
+        let datasetReel = [...historique.prix, parseFloat(prixDynamique).toFixed(3)];
+        while(datasetReel.length < labelsGlobaux.length) { datasetReel.push(null); }
+
+        let datasetPrevision = [];
+        while(datasetPrevision.length < historique.labels.length) { datasetPrevision.push(null); }
+        datasetPrevision.push(parseFloat(prixDynamique).toFixed(3));
+        datasetPrevision.push(...anticipation.prix);
+
+        mettreAJourGraphique(labelsGlobaux, datasetReel, datasetPrevision);
+    }
+
+    // On écoute le changement sur la station ET le changement sur le carburant ! ⚡
+    selectStation.addEventListener("change", declencherMiseAJour);
+    selectCarburant.addEventListener("change", declencherMiseAJour);
+
+    await initialiserDonnees();
+});
+
+function toggleBurgerMenu() {
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
 }
+window.toggleBurgerMenu = toggleBurgerMenu;
