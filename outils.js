@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         briefingTexte.innerHTML = `<strong>Rapport de situation :</strong> ${analyse} <br><span style='color: #4b5563; font-size: 11px; display: block; margin-top: 8px;'>Cours pivot détecté : ${prixActuel} € • Modélisation mise à jour toutes les 30 minutes.</span>`;
     }
 
-// ==========================================
+    // ==========================================
     // 3. ENCLENCHEMENT DE L'HISTORIQUE ET DES FAVORIS
     // ==========================================
     async function initialiserDonnees() {
@@ -77,7 +77,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             const response = await fetch(API_URL);
             stationsGlobales = await response.json();
 
-            // On récupère tes favoris enregistrés
             const { data: favoris, error } = await _supabase
                 .from("favoris")
                 .select("*")
@@ -86,10 +85,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (error) throw error;
 
             if (favoris && favoris.length > 0) {
-                selectStation.innerHTML = ''; // Purge du loader
+                selectStation.innerHTML = ''; // On vide le loader
                 
                 favoris.forEach(fav => {
-                    // Recherche de la correspondance locale pour le prix en direct
+                    // Recherche de la correspondance pour le prix en direct
                     const stationLive = stationsGlobales.find(s => 
                         (s.lt && Math.abs(parseFloat(s.lt) - parseFloat(fav.latitude)) < 0.005 && Math.abs(parseFloat(s.ln) - parseFloat(fav.longitude)) < 0.005) ||
                         (s.n && s.n.trim() === fav.nom_station.trim())
@@ -100,24 +99,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                         vraiPrix = parseFloat(stationLive.gz || stationLive.e10 || stationLive["95"] || 1.750);
                     }
 
-                    // 🎯 LA CLÉ : On utilise STRICTEMENT l'id_station stocké dans ta table favoris
-                    // Tel qu'il a été enregistré à la création, sans aucune modification textuelle.
-                    const idStrictBase = fav.id_station;
+                    // 🛡️ SÉCURITÉ DOUBLE COUCHE POUR L'ID
+                    // Si fav.id_station n'existe pas dans ta table, on recrée la clé textuelle exacte brute
+                    const idStrict = fav.id_station || `${fav.latitude}_${fav.longitude}`;
 
                     const option = document.createElement("option");
-                    option.value = idStrictBase; 
+                    option.value = idStrict; 
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = idStrictBase; 
+                    option.dataset.idUnique = idStrict; 
                     
-                    // L'affichage reste propre et lisible pour l'opérateur
+                    // L'affichage reste propre pour l'utilisateur
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
 
-                console.log(`[Moteur] ${favoris.length} cibles verrouillées.`);
+                console.log(`[Moteur] ${favoris.length} cibles chargées dans le sélecteur.`);
 
-                // Force la sélection du premier favori
+                // Force le déclenchement du premier favori
                 selectStation.selectedIndex = 0;
                 const declencheurAuto = new Event('change');
                 selectStation.dispatchEvent(declencheurAuto);
@@ -128,6 +127,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (err) {
             console.error("[Erreur] Initialisation impossible :", err.message);
+            selectStation.innerHTML = '<option value="" disabled>Erreur de chargement</option>';
         }
     }
 
@@ -143,9 +143,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        console.log(`📡 Requête historique pour l'ID strict : ${idStation}`);
+        console.log(`📡 Requête historique pour l'ID : ${idStation}`);
         try {
-            // Requête directe sans risque de décalage de chaîne de caractères
             const { data: historiqueSupabase, error } = await _supabase
                 .from("historique_prix")
                 .select("prix, horodatage")
@@ -160,13 +159,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     donneesPrediction.push(null);
                 });
             } else {
-                console.log("ℹ️ Aucun point trouvé dans l'historique pour cet ID.");
+                console.log("ℹ️ Aucun historique trouvé dans la table pour cet ID précis.");
             }
         } catch (err) {
             console.error("⚠️ Erreur d'extraction de l'historique :", err.message);
         }
 
-        // ALIGNEMENT DU POINT PIVOT ACTUEL ("Maintenant")
+        // ALIGNEMENT DU POINT PIVOT ACTUEL
         labelsDates.push("Maintenant");
         donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
         donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
@@ -204,7 +203,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
     }
-    
+
+    function formaterLabelM30(date) {
+        let options = { weekday: 'short' };
+        let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
+        nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
+        let min = date.getMinutes().toString().padStart(2, '0');
+        return `${nomJour} ${date.getHours()}h${min}`;
+    }
+
     // ==========================================
     // 5. RETICULE EN CROIX (CROSSHAIR PLUGIN)
     // ==========================================
@@ -321,7 +328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const prixBrut = optionSelectionnee.dataset.prixActuel;
         const nomStation = optionSelectionnee.dataset.nom || "Station";
-        const idStation = optionSelectionnee.dataset.idUnique; // Contient "latitude_longitude" en secret
+        const idStation = optionSelectionnee.dataset.idUnique;
 
         // Mise à jour de l'analyse textuelle
         genererBriefingAnalyste(nomStation, prixBrut);
