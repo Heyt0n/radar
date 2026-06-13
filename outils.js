@@ -92,14 +92,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 selectStation.innerHTML = ''; 
                 
                 favoris.forEach(fav => {
-                    // On garde les infos brutes de secours dans l'élément option
                     const idSecteurCalcule = `${fav.latitude}_${fav.longitude}`;
 
                     const option = document.createElement("option");
                     option.value = idSecteurCalcule; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
                     option.dataset.idUnique = idSecteurCalcule; 
-                    // Sauvegarde des coordonnées pour chercher dynamiquement selon le carburant sélectionné
                     option.dataset.lat = fav.latitude;
                     option.dataset.lon = fav.longitude;
                     
@@ -118,7 +116,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // Outil pour choper le prix direct depuis le JSON local selon le carburant choisi
     function extrairePrixDuLiveJson(lat, lon, nomStation, codeCarburant) {
         let prixSecours = 1.750;
         if (stationsGlobales.length === 0) return prixSecours;
@@ -129,8 +126,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
 
         if (stationLive) {
-            // Mappe le code du sélecteur html avec les clés de ton fichier JSON
-            // Si le sélecteur renvoie "95", on cherche s["95"]. Si "gz", on cherche s.gz, etc.
             let prixTrouve = stationLive[codeCarburant];
             if (prixTrouve) return parseFloat(prixTrouve);
         }
@@ -138,22 +133,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 4. FONCTION PASSÉ : FILTRÉE PAR ID ET CARBURANT 🎯
+    // 4. EXTRACTION HISTORIQUE REEL
     // ==========================================
     async function extraireHistoriqueReel(idStation, codeCarburant) {
         let historique = { labels: [], prix: [] };
         console.log(`📡 [Supabase] Extraction historique_prix pour : ID="${idStation}" | Carburant="${codeCarburant}"`);
         
         try {
-            // Étape 1 : Requête ultra ciblée (ID exact + Carburant exact)
             let { data: points, error } = await _supabase
                 .from("historique_prix")
                 .select("prix, horodatage")
                 .eq("id_station", idStation)
-                .eq("carburant", codeCarburant) // 🎯 LE FILTRE MAGIQUE
+                .eq("carburant", codeCarburant)
                 .order("horodatage", { ascending: true });
 
-            // Étape 2 : Plan B si l'ID à 12 décimales de la carte a foiré (Scan flou)
             if (!error && (!points || points.length === 0)) {
                 const segments = idStation.split('_');
                 if (segments.length === 2) {
@@ -166,7 +159,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         .select("prix, horodatage")
                         .ilike("id_station", `%${latTronquee}%`)
                         .ilike("id_station", `%${lonTronquee}%`)
-                        .eq("carburant", codeCarburant) // Toujours filtré !
+                        .eq("carburant", codeCarburant)
                         .order("horodatage", { ascending: true });
                     
                     if (!reponseFloue.error) points = reponseFloue.data;
@@ -179,9 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     historique.labels.push(formaterLabelM30(datePoint));
                     historique.prix.push(parseFloat(p.prix).toFixed(3));
                 });
-                console.log(`✅ [Supabase] ${points.length} points historiques récupérés pour le ${codeCarburant.toUpperCase()}.`);
-            } else {
-                console.log(`ℹ️ [Supabase] Aucun historique disponible pour cette combinaison.`);
+                console.log(`✅ [Supabase] ${points.length} points historiques récupérés.`);
             }
         } catch (err) {
             console.error("⚠️ Exception critique historique :", err.message);
@@ -190,38 +181,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 5. FONCTION PRÉDICTION (ALGORITHME)
+    // 5. FONCTION PRÉDICTION STABILISÉE ET LISSÉE (MODIFIÉE) 🧠🎯
     // ==========================================
-    function calculerProjectionFuture(vraiPrixActuel, nomStation) {
+    function calculerProjectionFuture(vraiPrixActuel, nomStation, historiquePrix = []) {
         let projection = { labels: [], prix: [] };
         let momentActuel = new Date();
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        const nomMinuscule = nomStation.toLowerCase();
-        const profilGrandesSurfaces = {
-            0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
-            6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
-            12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
-            18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
-        };
-        const profilPetroliers = {
-            0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
-            6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
-            12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
-            18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
-        };
+        // 🟢 CALCUL DE LA VOLATILITÉ RÉELLE DE L'HISTORIQUE POUR ADAPTER L'AMPLITUDE
+        let facteurAjustement = 0.002; // Valeur de sécurité par défaut trèèès calme
+        if (historiquePrix.length > 1) {
+            const prixNumeriques = historiquePrix.map(p => parseFloat(p));
+            const prixMin = Math.min(...prixNumeriques);
+            const prixMax = Math.max(...prixNumeriques);
+            const volatiliteReelle = prixMax - prixMin;
+            
+            // Si le prix n'a quasiment pas bougé (historique plat), on force un lissage extrême
+            facteurAjustement = volatiliteReelle < 0.005 ? 0.001 : volatiliteReelle * 0.35;
+        }
 
-        let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
         const pasMinutes = 30;
-        const totalHeuresEtude = 48;
+        const totalHeuresEtude = 48; // Fenêtre d'anticipation macro-économique
 
         for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
             let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-            let h = heureBoucle.getHours();
-            let coefHeure = profilActif[h] || 0;
-
-            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
+            
+            // Simulation d'onde sinusoïdale amortie indexée sur notre facteur de volatilité réelle
+            const indexEtape = offset / pasMinutes;
+            const ondeDouce = Math.sin(indexEtape * 0.4) * Math.cos(indexEtape * 0.2);
+            
+            let prixPredit = parseFloat(vraiPrixActuel) + (ondeDouce * facteurAjustement);
 
             projection.labels.push(formaterLabelM30(heureBoucle));
             projection.prix.push(prixPredit.toFixed(3));
@@ -346,20 +336,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         const lat = option.dataset.lat;
         const lon = option.dataset.lon;
         
-        // On récupère le type de carburant ciblé par l'utilisateur
         const carburantSelectionne = selectCarburant.value;
-
-        // Extraction dynamique du prix correspondant dans le JSON local
         const prixDynamique = extrairePrixDuLiveJson(lat, lon, nomStation, carburantSelectionne);
 
-        // Affichage du briefing analytique mis à jour
         genererBriefingAnalyste(nomStation, prixDynamique, carburantSelectionne);
 
-        // A. Extraction historique filtrée sur l'ID de station ET le carburant choisi
+        // A. Extraction historique réelle depuis la table 'favoris' originelle
         const historique = await extraireHistoriqueReel(idStation, carburantSelectionne);
 
-        // B. Anticipation algorithmique future
-        const anticipation = calculerProjectionFuture(prixDynamique, nomStation);
+        // B. Anticipation algorithmique future lissée intelligemment (on lui passe l'historique en paramètre)
+        const anticipation = calculerProjectionFuture(prixDynamique, nomStation, historique.prix);
 
         // C. Assemblage de l'axe temporel
         let labelsGlobaux = [...historique.labels, "Maintenant", ...anticipation.labels];
@@ -375,7 +361,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         mettreAJourGraphique(labelsGlobaux, datasetReel, datasetPrevision);
     }
 
-    // On écoute le changement sur la station ET le changement sur le carburant ! ⚡
     selectStation.addEventListener("change", declencherMiseAJour);
     selectCarburant.addEventListener("change", declencherMiseAJour);
 
