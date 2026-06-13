@@ -6,7 +6,7 @@ import json
 LAT_CENTRE = "48.95"  
 LNG_CENTRE = "8.05"
 RAYON = "30"
-API_KEY = "TON_API_KEY_TANKERKOENIG" # À remplacer par ta clé gratuite
+API_KEY = "00000000-0000-0000-0000-000000000002" # À remplacer par ta clé gratuite
 
 URL_ALLEMAGNE = f"https://creativecommons.tankerkoenig.de/json/list.php?lat={LAT_CENTRE}&lng={LNG_CENTRE}&rad={RAYON}&type=all&apikey={API_KEY}"
 
