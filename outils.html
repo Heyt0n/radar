@@ -4,74 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Radar Carburant - Outils & Statistiques</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-principal: #0b0f19;
+            --bg-principal: #0b111e;
             --bg-panneau: #111827;
             --accent-bleu: #3b82f6;
             --accent-vert: #22c55e;
             --texte-principal: #f3f4f6;
             --texte-secondaire: #9ca3af;
+            --border-couleur: #1f2937;
+            --input-border: #374151;
         }
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-principal); color: var(--texte-principal); font-family: 'Plus Jakarta Sans', sans-serif; }
+
         * { box-sizing: border-box; }
+        body { 
+            margin: 0; padding: 0; min-height: 100vh; 
+            background-color: var(--bg-principal); color: var(--texte-principal); 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column;
+        }
+
+        /* ==========================================
+            HEADER & NAVIGATION
+        ========================================== --> */
+        header { 
+            background-color: var(--bg-panneau); padding: 0 24px; 
+            border-bottom: 1px solid var(--border-couleur); 
+            display: flex; justify-content: space-between; align-items: center; 
+            height: 64px; sticky: top; z-index: 40;
+        }
+        header h1 { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
         
-        header { background-color: var(--bg-panneau); padding: 0 20px; border-bottom: 1px solid #1f2937; display: flex; justify-content: space-between; align-items: center; height: 50px; }
-        header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
         
-        .burger-btn { background: none; border: none; color: var(--texte-principal); font-size: 28px; cursor: pointer; padding: 10px; position: relative; z-index: 9999 !important; -webkit-tap-highlight-color: transparent; }
-        .burger-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background-color: var(--bg-panneau); border-left: 1px solid #1f2937; box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .burger-btn { 
+            background: none; border: none; color: var(--texte-secondaire); 
+            font-size: 24px; cursor: pointer; padding: 8px; border-radius: 8px;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .burger-btn:hover { color: #fff; background-color: #1f2937; }
+
+        /* Menu Burger Coulissant */
+        .burger-menu { 
+            position: fixed; top: 0; right: -280px; width: 280px; height: 100%; 
+            background-color: var(--bg-panneau); border-left: 1px solid var(--border-couleur); 
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000; 
+            transition: right 0.3s ease-in-out; padding: 24px; display: flex; flex-direction: column; gap: 12px; 
+        }
         .burger-menu.open { right: 0; }
-        .menu-user-header { padding-top: 50px; padding-bottom: 15px; border-bottom: 1px solid #1f2937; margin-bottom: 10px; }
-        .menu-user-status { font-size: 10px; text-transform: uppercase; color: var(--accent-vert); font-weight: 700; }
+        .menu-user-header { padding-top: 40px; padding-bottom: 16px; border-bottom: 1px solid var(--border-couleur); margin-bottom: 12px; }
+        .menu-user-status { font-size: 10px; text-transform: uppercase; color: var(--accent-vert); font-weight: 700; letter-spacing: 0.5px; }
         
-        .menu-link { background: #1f2937; color: var(--texte-principal); border: 1px solid #374151; padding: 14px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
-        .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; }
+        .menu-link { 
+            background: #1f2937; color: var(--texte-secondaire); border: 1px solid var(--input-border); 
+            padding: 12px 16px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; 
+            text-decoration: none; display: flex; align-items: center; gap: 12px; transition: all 0.2s;
+        }
+        .menu-link:hover { color: #fff; background-color: #252f41; }
+        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); color: #fff; }
+        
+        .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; backdrop-filter: blur(2px); }
         .menu-overlay.active { display: block; }
 
-        .content { padding: 15px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+        /* ==========================================
+            DISPOSITION DU CONTENU PRINCIPAL
+        ========================================== --> */
+        .content { 
+            padding: 24px; max-width: 1280px; width: 100%; margin: 0 auto; 
+            display: flex; flex-direction: column; gap: 24px; flex-1: 1;
+        }
         
         /* Widget de Briefing */
-        .briefing-widget { background: var(--bg-panneau); border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
-        .briefing-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-bleu); margin-bottom: 8px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
-        
-        /* Panneau de Trading Unifié */
-        .trading-panel { background: var(--bg-panneau); border: 1px solid #1f2937; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-        .panel-header { background: #1a2234; padding: 10px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2937; gap: 8px; }
-        .panel-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--texte-secondaire); font-weight: 700; white-space: nowrap; }
-        
-        /* Conteneur des sélecteurs pour les aligner proprement sur une seule ligne */
-        .selectors-group { display: flex; gap: 6px; max-width: 70%; justify-content: flex-end; }
-
-        /* Sélecteurs stylisés sans coupures */
-        #select-station-outils, #select-carburant-outils { 
-            background: var(--bg-principal); 
-            color: white; 
-            border: 1px solid #374151; 
-            padding: 5px 22px 5px 8px; 
-            border-radius: 6px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            font-size: 11px; 
-            outline: none; 
-            text-overflow: ellipsis; 
-            white-space: nowrap;
-            overflow: hidden;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            appearance: none; 
-            -webkit-appearance: none;
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white'><path d='M0 3l5 5 5-5z'/></svg>");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
+        .briefing-widget { 
+            background: var(--bg-panneau); border: 1px solid var(--border-couleur); 
+            border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
-        #select-station-outils { max-width: 65%; }
-        #select-carburant-outils { max-width: 35%; }
+        .briefing-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-bleu); margin-bottom: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
         
-        #select-station-outils:focus, #select-carburant-outils:focus { border-color: var(--accent-bleu); }
+        /* Architecture Grille (Terminal à gauche / Graphique à droite) */
+        .dashboard-grid { 
+            display: grid; grid-template-columns: 1fr; gap: 24px; 
+        }
+        @media (min-width: 1024px) {
+            .dashboard-grid { grid-template-columns: 280px 1fr; }
+        }
+
+        /* Panneau de Contrôle Latéral */
+        .control-panel { 
+            background: var(--bg-panneau); border: 1px solid var(--border-couleur); 
+            border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 20px;
+        }
+        .panel-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--texte-secondaire); letter-spacing: 0.5px; border-b: 1px solid var(--border-couleur); padding-bottom: 8px; margin: 0; }
         
-        .chart-container { height: 380px; position: relative; width: 100%; padding: 15px; }
+        .field-group { display: flex; flex-direction: column; gap: 8px; }
+        .field-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--texte-secondaire); letter-spacing: 0.5px; }
+
+        /* Style unique pour les Sélecteurs */
+        .custom-select { 
+            background-color: var(--bg-principal); color: #fff; 
+            border: 1px solid var(--input-border); padding: 10px 32px 10px 12px; 
+            border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px; 
+            outline: none; width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+            font-family: 'Plus Jakarta Sans', sans-serif; transition: border-color 0.2s;
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af'><path d='M0 3l6 6 6-6z'/></svg>");
+            background-repeat: no-repeat; background-position: right 12px center;
+        }
+        .custom-select:focus { border-color: var(--accent-bleu); }
+
+        /* Légende intégrée */
+        .legend-box { background: #172033; border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.5; color: var(--texte-secondaire); display: flex; flex-direction: column; gap: 8px; }
+        .legend-item strong { font-weight: 700; }
+
+        /* Panneau de Trading du Graphique */
+        .trading-panel { 
+            background: var(--bg-panneau); border: 1px solid var(--border-couleur); 
+            border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .panel-header { 
+            background: #161e2e; padding: 14px 20px; display: flex; 
+            align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-couleur); 
+        }
+        .panel-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; font-weight: 700; }
+        .panel-badge { font-size: 10px; font-weight: 700; background: #1e293b; color: var(--accent-bleu); border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+        
+        .chart-container { height: 420px; position: relative; width: 100%; padding: 20px; }
         #graphiquePrevisionnel { touch-action: none; user-select: none; -webkit-user-select: none; }
     </style>
 </head>
@@ -81,8 +139,10 @@
     
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connected</span>
-            <div class="menu-user-greeting" style="font-size:15px; color:var(--texte-secondaire);">Bonjour, <span id="nom-operateur" style="color:white; font-weight:800;">Opérateur</span></div>
+            <span class="menu-user-status">📡 Système Connecté</span>
+            <div class="menu-user-greeting" style="font-size:15px; color:var(--texte-secondaire); margin-top: 4px;">
+                Bonjour, <span id="nom-operateur" style="color:white; font-weight:800;">Opérateur</span>
+            </div>
         </div>
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
         <a href="outils.html" class="menu-link active">📊 Outils & Stats</a>
@@ -91,7 +151,9 @@
 
     <header>
         <h1>Outils & Statistiques</h1>
-        <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
+        <div class="header-right">
+            <button class="burger-btn" onclick="toggleBurgerMenu()" aria-label="Ouvrir le menu">☰</button>
+        </div>
     </header>
 
     <div class="content">
@@ -102,26 +164,44 @@
             </p>
         </div>
 
-        <div class="trading-panel">
-            <div class="panel-header">
-                <div class="panel-title">📊 PROJECTION (M30)</div>
+        <div class="dashboard-grid">
+            
+            <aside class="control-panel">
+                <h2 class="panel-section-title">Terminal de contrôle</h2>
                 
-                <div class="selectors-group">
-                    <select id="select-station-outils">
+                <div class="field-group">
+                    <label class="field-label" for="select-station-outils">Cible active / Station :</label>
+                    <select id="select-station-outils" class="custom-select">
                         <option value="" selected disabled>Chargement...</option>
                     </select>
+                </div>
 
-                    <select id="select-carburant-outils">
-                        <option value="e10" selected>E10</option>
-                        <option value="98">SP98</option>
-                        <option value="95">SP95</option>
-                        <option value="gz">GZ</option>
+                <div class="field-group">
+                    <label class="field-label" for="select-carburant-outils">Vecteur d'analyse / Carburant :</label>
+                    <select id="select-carburant-outils" class="custom-select">
+                        <option value="e10" selected>Sans Plomb 95-E10 (E10)</option>
+                        <option value="98">Sans Plomb 98 (SP98)</option>
+                        <option value="95">Sans Plomb 95 (SP95)</option>
+                        <option value="gz">Gazole (GZ)</option>
                     </select>
                 </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="graphiquePrevisionnel"></canvas>
-            </div>
+
+                <div class="legend-box">
+                    <span class="legend-item"><strong style="color: var(--accent-vert);">● Historique Réel :</strong> Données extraites de la base centrale.</span>
+                    <span class="legend-item"><strong style="color: var(--accent-bleu);">◌ Projection M30 :</strong> Modélisation prévisionnelle basée sur les cycles.</span>
+                </div>
+            </aside>
+
+            <main class="trading-panel">
+                <div class="panel-header">
+                    <div class="panel-title">📊 PROJECTION (M30) / MODÈLE PRÉVISIONNEL</div>
+                    <div class="panel-badge">Flux Établi</div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="graphiquePrevisionnel"></canvas>
+                </div>
+            </main>
+
         </div>
     </div>
 
@@ -140,7 +220,6 @@
                 overlay.classList.toggle('active');
             }
         }
-        // Rendre la fonction accessible globalement
         window.toggleBurgerMenu = toggleBurgerMenu;
     </script>
 
