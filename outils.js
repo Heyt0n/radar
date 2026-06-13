@@ -102,14 +102,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                     option.value = fav.id_station || fav.id || `${fav.latitude}_${fav.longitude}`; 
                     option.dataset.prixActuel = vraiPrix; 
                     option.dataset.nom = fav.nom_station || "Station Carburant";
-                    option.dataset.idUnique = `${fav.latitude}_${fav.longitude}`; 
+                    option.dataset.idUnique = fav.id_station || `${fav.latitude}_${fav.longitude}`; 
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
 
                 console.log(`[Moteur] ${favoris.length} cibles verrouillées.`);
 
-                // 🔥 ACTION CRITIQUE : FORCE LA SÉLECTION DU PREMIER FAVORI
+                // FORCE LA SÉLECTION DU PREMIER FAVORI
                 selectStation.selectedIndex = 0;
                 const declencheurAuto = new Event('change');
                 selectStation.dispatchEvent(declencheurAuto);
@@ -124,73 +124,78 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 4. MOTEUR DE SIMULATION TRANSITOIRE (HASH)
+    // 4. MOTEUR DE TRAJECTOIRE RÉELLE & PROJECTION (CONNECTÉ SUPABASE)
     // ==========================================
- 
-  function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
-    let labelsDates = [];
-    let donneesReel = [];
-    let donneesPrediction = [];
-    
-    let momentActuel = new Date();
-    let minutes = momentActuel.getMinutes();
-    momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
-
-    const nomMinuscule = nomStation.toLowerCase();
-    const profilGrandesSurfaces = {
-        0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
-        6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
-        12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
-        18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
-    };
-    const profilPetroliers = {
-        0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
-        6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
-        12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
-        18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
-    };
-
-    let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
-    const pasMinutes = 30;
-    const totalHeuresEtude = 48;
-
-    // 1. HISTORIQUE PASSE
-    for (let offset = -(totalHeuresEtude * 60); offset < 0; offset += pasMinutes) {
-        let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-        let h = heureBoucle.getHours();
-
-        let coefHeure = profilActif[h] || 0;
+    async function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
+        let labelsDates = [];
+        let donneesReel = [];
+        let donneesPrediction = [];
         
-        // Calcul direct et propre, basé uniquement sur le prix de la carte et le comportement horaire de l'actif
-        let prixHistorique = parseFloat(vraiPrixActuel) + coefHeure;
+        let momentActuel = new Date();
+        let minutes = momentActuel.getMinutes();
+        momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        labelsDates.push(formaterLabelM30(heureBoucle));
-        donneesReel.push(prixHistorique.toFixed(3));
-        donneesPrediction.push(null);
+        // EXTRACTION DE L'HISTORIQUE RÉEL DEPUIS SUPABASE
+        console.log(`📡 Extraction de la base pour la cible : ${idStation}`);
+        try {
+            const { data: historiqueSupabase, error } = await _supabase
+                .from("historique_prix")
+                .select("prix, horodatage")
+                .eq("id_station", idStation)
+                .order("horodatage", { ascending: true });
+
+            if (!error && historiqueSupabase && historiqueSupabase.length > 0) {
+                historiqueSupabase.forEach(point => {
+                    let datePoint = new Date(point.horodatage);
+                    labelsDates.push(formaterLabelM30(datePoint));
+                    donneesReel.push(parseFloat(point.prix).toFixed(3));
+                    donneesPrediction.push(null);
+                });
+            } else {
+                console.log("ℹ️ Aucun historique en base pour le moment, bascule sur point pivot.");
+            }
+        } catch (err) {
+            console.error("⚠️ Erreur d'extraction de l'historique :", err.message);
+        }
+
+        // ALIGNEMENT DU POINT PIVOT ACTUEL
+        labelsDates.push("Maintenant");
+        donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
+        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
+
+        // PROJECTION FUTURE (FORECAST ALGORITHMIQUE)
+        const nomMinuscule = nomStation.toLowerCase();
+        const profilGrandesSurfaces = {
+            0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
+            6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
+            12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
+            18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
+        };
+        const profilPetroliers = {
+            0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
+            6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
+            12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
+            18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
+        };
+
+        let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
+        const pasMinutes = 30;
+        const totalHeuresEtude = 48;
+
+        for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
+            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
+            let h = heureBoucle.getHours();
+            let coefHeure = profilActif[h] || 0;
+
+            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
+
+            labelsDates.push(formaterLabelM30(heureBoucle));
+            donneesReel.push(null);
+            donneesPrediction.push(prixPredit.toFixed(3));
+        }
+
+        return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
     }
-
-    // POINT PIVOT (Maintenant)
-    labelsDates.push("Maintenant");
-    donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-    donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
-
-    // 2. PROJECTION FUTURE
-    for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
-        let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-        let h = heureBoucle.getHours();
-
-        let coefHeure = profilActif[h] || 0;
-
-        // Projection mathématique épurée (sans bruit ni fausses vagues)
-        let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
-
-        labelsDates.push(formaterLabelM30(heureBoucle));
-        donneesReel.push(null);
-        donneesPrediction.push(prixPredit.toFixed(3));
-    }
-
-    return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
-}
 
     function formaterLabelM30(date) {
         let options = { weekday: 'short' };
@@ -249,7 +254,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 labels: labels,
                 datasets: [
                     {
-                        label: `Historique Réel (M30)`,
+                        label: `Historique Réel`,
                         data: donneesReel,
                         borderColor: '#22c55e',
                         backgroundColor: 'transparent',
@@ -309,8 +314,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // Gestionnaire d'événements lié au sélecteur
-    selectStation.addEventListener("change", (e) => {
+    // Gestionnaire d'événements lié au sélecteur (Asynchrone pour Supabase)
+    selectStation.addEventListener("change", async (e) => {
         const optionSelectionnee = e.target.options[e.target.selectedIndex];
         if (!optionSelectionnee || optionSelectionnee.value === "") return;
 
@@ -321,9 +326,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Mise à jour de l'analyse textuelle
         genererBriefingAnalyste(nomStation, prixBrut);
 
-        // Tracé
-        const trajectoire = genererTrajectoireM30(prixBrut, nomStation, idStation);
-        mettreAJourGraphique(trajectoire.labels, trajectoire.reel, trajectoire.prev, nomStation);
+        // Tracé avec chargement en temps réel
+        const tragictoire = await genererTrajectoireM30(prixBrut, nomStation, idStation);
+        mettreAJourGraphique(tragictoire.labels, tragictoire.reel, tragictoire.prev, nomStation);
     });
 
     await initialiserDonnees();
