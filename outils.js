@@ -51,10 +51,10 @@ async function chargerStationsFavorites() {
     if (!selectStation) return;
 
     try {
-        // Requête sur la table 'favoris' pour l'utilisateur connecté
+        // 🎯 TARGETING ALIGNÉ : Requête sur la bonne table 'stations_favorites'
         const { data: favoris, error } = await _supabase
-            .from("favoris")
-            .select("id_station, nom_station")
+            .from("stations_favorites")
+            .select("id_station, nom_station, ville")
             .eq("user_id", utilisateurConnecte.id);
 
         if (error) throw error;
@@ -72,9 +72,17 @@ async function chargerStationsFavorites() {
         favoris.forEach((fav, index) => {
             const option = document.createElement("option");
             option.value = fav.id_station;
-            // Nettoyage générique du nom de la station si besoin
-            option.textContent = fav.nom_station || `Station - ${fav.id_station}`;
-            if (index === 0) option.selected = true; // Sélectionne la première par défaut
+            
+            // 🧠 SÉCURITÉ AFFICHAGE : Évite d'afficher "Station" en boucle si le nom est générique
+            if (fav.nom_station && fav.nom_station.trim() !== "Station") {
+                option.textContent = fav.nom_station;
+            } else if (fav.ville) {
+                option.textContent = `Station - ${fav.ville}`;
+            } else {
+                option.textContent = `Station - ${fav.id_station}`;
+            }
+
+            if (index === 0) option.selected = true; // Sélectionne la première cible par défaut
             selectStation.appendChild(option);
         });
 
@@ -82,7 +90,7 @@ async function chargerStationsFavorites() {
         await executerAnalyseTechnique();
 
     } catch (err) {
-        console.error("❌ Erreur de liaison avec la table 'favoris' :", err.message);
+        console.error("❌ Erreur de liaison avec la table 'stations_favorites' :", err.message);
         selectStation.innerHTML = `<option value="" disabled selected>⚠️ Erreur de chargement</option>`;
     }
 }
@@ -124,7 +132,7 @@ async function executerAnalyseTechnique() {
 
         if (error) throw error;
 
-        // 🛡️ SÉCURITÉ RUPTURE DE STOCK : Si la table est vide pour ce carburant
+        // 🛡️ SÉCURITÉ RUPTURE DE STOCK : Si le tableau est vide (carburant non vendu ou en rupture)
         if (!historique || historique.length === 0) {
             console.warn(`⚠️ Aucune donnée pour le carburant ${typeCarburant} dans cette station.`);
             afficherMessageRupture(`RUPTURE DE STOCK / INDISPONIBLE`);
@@ -165,22 +173,22 @@ function genererProjectionIntelligente(historiquePrix, dernierHorodatage) {
     const volatiliteReelle = prixMax - prixMin;
 
     // 🧠 RÈGLE INTELLIGENTE : Si le prix n'a pas bougé (inférieur à 0.01€ de variation), 
-    // on impose un facteur d'atténuation drastique pour écraser les vagues erratiques.
+    // on impose un facteur d'atténuation drastique pour aplatir les vagues de projection erratiques.
     const facteurAjustement = volatiliteReelle < 0.01 ? 0.0015 : volatiliteReelle * 0.4;
 
     let dateCourante = new Date(dernierHorodatage);
 
-    // Génération de 12 points de projection (représentant par exemple des pas de 30 minutes sur 6 heures)
+    // Génération de 12 points de prévision (intervalles de 30 minutes sur un horizon de 6h)
     for (let i = 1; i <= 12; i++) {
         // Avancement du temps de 30 minutes à chaque itération
         dateCourante.setMinutes(dateCourante.getMinutes() + 30);
         const labelDate = dateCourante.toLocaleDateString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
         datesProjections.push(labelDate);
 
-        // Modélisation cyclique stabilisée : calcul d'une onde amortie ou contrôlée par le marché
+        // Modélisation cyclique stabilisée : calcul d'une onde amortie et bridée
         const ondeCyclique = Math.sin(i * 0.8) * Math.cos(i * 0.4);
         
-        // Calcul du prix anticipé indexé sur la volatilité réelle constatée
+        // Calcul du prix anticipé indexé directement sur la volatilité réelle constatée
         const prixAnticipe = dernierPrixConnu + (ondeCyclique * facteurAjustement);
         pointsPrevisions.push(parseFloat(prixAnticipe.toFixed(3)));
     }
@@ -202,10 +210,10 @@ function dessinerGraphiqueUnifie(labelsReels, donneesReelles, labelsPrevisions, 
         monGraphique.destroy();
     }
 
-    // Fusion des repères temporels pour une frise chronologique unifiée et fluide
+    // Fusion des repères temporels pour une frise chronologique continue
     const tousLesLabels = [...labelsReels, ...labelsPrevisions];
 
-    // Alignement parfait des tableaux de données pour que la projection démarre précisément à la fin de l'historique
+    // Alignement parfait des tableaux de données pour lier proprement l'historique et la projection
     const datasetReel = [...donneesReelles];
     const datasetPrevision = Array(labelsReels.length - 1).fill(null);
     
@@ -213,7 +221,7 @@ function dessinerGraphiqueUnifie(labelsReels, donneesReelles, labelsPrevisions, 
     datasetPrevision.push(donneesReelles[donneesReelles.length - 1]);
     datasetPrevision.push(...donneesPrevisions);
 
-    // Initialisation de l'instance Chart.js avec configuration stylisée TradingView
+    // Configuration et instanciation de Chart.js
     monGraphique = new Chart(ctx, {
         type: 'line',
         data: {
@@ -235,7 +243,7 @@ function dessinerGraphiqueUnifie(labelsReels, donneesReelles, labelsPrevisions, 
                     data: datasetPrevision,
                     borderColor: '#3b82f6', // Bleu prévisionnel
                     borderWidth: 2.5,
-                    borderDash: [6, 4], // Ligne pointillée distinctive
+                    borderDash: [6, 4], // Pointillés distinctifs
                     backgroundColor: 'rgba(59, 130, 246, 0.04)',
                     fill: true,
                     tension: 0.2,
@@ -285,7 +293,7 @@ function dessinerGraphiqueUnifie(labelsReels, donneesReelles, labelsPrevisions, 
 }
 
 /**
- * 7. INTERCEPTATION - PANNEAU ALERTE SÉCURITÉ DE RUPTURE
+ * 7. INTERCEPTATION - PANNEAU DE RUPTURE DE STOCK (TEXTE ROUGE ALERTE)
  */
 function afficherMessageRupture(message) {
     if (monGraphique) {
@@ -297,11 +305,12 @@ function afficherMessageRupture(message) {
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
-    // Nettoyage complet de la zone de dessin
+    
+    // Effacement total de la grille graphique
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Dessin du calque de texte d'alerte centré
-    ctx.fillStyle = "#ef4444"; // Rouge alerte
+    // Dessin du calque textuel d'alerte centré au milieu du tableau
+    ctx.fillStyle = "#ef4444"; 
     ctx.font = "bold 13px 'JetBrains Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
