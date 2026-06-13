@@ -11,7 +11,7 @@ const db = typeof _supabase !== "undefined" ? _supabase : (typeof supabase !== "
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🛰️ Initialisation du terminal d'analyse...");
     if (!db) {
-        alert("❌ ERREUR CRITIQUE : L'instance Supabase n'est pas détectée. Vérifie l'ordre de tes scripts dans le HTML (supabase-config.js doit être avant outils.js).");
+        alert("❌ ERREUR CRITIQUE : L'instance Supabase n'est pas détectée. Vérifie l'ordre de tes scripts dans le HTML.");
         return;
     }
     await verifierSessionEtInitialiser();
@@ -38,7 +38,7 @@ async function verifierSessionEtInitialiser() {
             badgeOperateur.textContent = utilisateurConnecte.email.split('@')[0].toUpperCase();
         }
 
-        // Lancement de l'extraction des stations avec diagnostic intégré
+        // Lancement de l'extraction des stations
         await chargerStationsFavorites();
 
     } catch (err) {
@@ -47,34 +47,33 @@ async function verifierSessionEtInitialiser() {
 }
 
 /**
- * 2. CHARGEMENT DES STATIONS FAVORITES (AVEC INJECTION DU DIAGNOSTIC)
+ * 2. CHARGEMENT DES STATIONS FAVORITES
  */
 async function chargerStationsFavorites() {
     const selectStation = document.getElementById("select-station-outils");
     if (!selectStation) return;
 
     try {
-        console.log("📡 Envoi de la requête d'extraction vers Supabase pour l'UUID :", utilisateurConnecte.id);
+        console.log("📡 Envoi de la requête d'extraction vers Supabase...");
 
-        // 🎯 INJECTION DIAGNOSTIC : On demande '*' pour bypasser les erreurs de frappe de colonnes
+        // On extrait toutes les lignes pour s'assurer de ne rater aucune colonne custom
         const { data: favoris, error } = await db
             .from("stations_favorites")
             .select("*"); 
 
         if (error) {
-            // Fenêtre pop-up d'alerte pour lire l'erreur en direct sur le navigateur
             alert(`⚠️ ERREUR DE LA TABLE 'stations_favorites' :\nCode: ${error.code}\nMessage: ${error.message}`);
             throw error;
         }
 
         selectStation.innerHTML = "";
 
-        // Filtrage de sécurité local si la base contient des lignes vides
+        // Filtrage de sécurité local sur l'utilisateur connecté
         const favorisFiltres = favoris ? favoris.filter(f => f.user_id === utilisateurConnecte.id || f.id_user === utilisateurConnecte.id) : [];
 
         if (favorisFiltres.length === 0) {
             console.warn("⚠️ Aucun favoris trouvé correspondant à cet identifiant.");
-            selectStation.innerHTML = `<option value="" disabled selected>❌ Aucun favori trouvé (Base vide)</option>`;
+            selectStation.innerHTML = `<option value="" disabled selected>❌ Aucun favori trouvé</option>`;
             afficherMessageRupture("AUCUN FAVORI DANS LE TERMINAL");
             return;
         }
@@ -82,10 +81,8 @@ async function chargerStationsFavorites() {
         // Remplissage dynamique adaptatif
         favorisFiltres.forEach((fav, index) => {
             const option = document.createElement("option");
-            // Capture adaptative selon les variantes de clés primaires d'une BDD
             option.value = fav.id_station || fav.station_id || fav.id;
             
-            // Nettoyage de l'affichage
             if (fav.nom_station && fav.nom_station.trim() !== "Station") {
                 option.textContent = fav.nom_station;
             } else if (fav.ville) {
@@ -98,7 +95,7 @@ async function chargerStationsFavorites() {
             selectStation.appendChild(option);
         });
 
-        // Déclenchement automatique de l'analyse technique
+        // Déclenchement automatique de la première analyse
         await executerAnalyseTechnique();
 
     } catch (err) {
@@ -159,7 +156,7 @@ async function executerAnalyseTechnique() {
 }
 
 /**
- * 5. LISSAGE DE LA PROJECTION (M30 ANTI-VOLATILITÉ ERREUR)
+ * 5. LISSAGE DE LA PROJECTION (ANTI-VOLATILITÉ QUAND LE PRIX EST STABLE)
  */
 function genererProjectionIntelligente(historiquePrix, dernierHorodatage) {
     const pointsPrevisions = [];
@@ -170,6 +167,7 @@ function genererProjectionIntelligente(historiquePrix, dernierHorodatage) {
     const prixMax = Math.max(...historiquePrix);
     const volatiliteReelle = prixMax - prixMin;
 
+    // Règle intelligente : si l'historique est plat, on écrase les vagues de prévision
     const facteurAjustement = volatiliteReelle < 0.01 ? 0.0015 : volatiliteReelle * 0.4;
     let dateCourante = new Date(dernierHorodatage);
 
