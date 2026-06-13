@@ -144,93 +144,53 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+// ==========================================
+    // 4. FONCTION ISOLÉE : HISTORIQUE PASSÉ (SUPABASE CORRIGÉ FLOUTAGE)
     // ==========================================
-    // 4. MOTEUR DE TRAJECTOIRE RÉELLE & PROJECTION (CONNECTÉ SUPABASE)
-    // ==========================================
-    async function genererTrajectoireM30(vraiPrixActuel, nomStation, idStation) {
-        let labelsDates = [];
-        let donneesReel = [];
-        let donneesPrediction = [];
+    async function extraireHistoriqueReel(idStation) {
+        let historique = { labels: [], prix: [] };
+        console.log(`📡 [Supabase] Extraction historique_prix pour ID : "${idStation}"`);
         
-        let momentActuel = new Date();
-        let minutes = momentActuel.getMinutes();
-        momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
-
-        console.log(`📡 Extraction historique pour la cible : ${idStation}`);
         try {
-            // Extraction directe de la table historique_prix
-            const { data: historiqueSupabase, error } = await _supabase
-                .from("historique_prix")
-                .select("prix, horodatage")
-                .eq("id_station", idStation)
-                .order("horodatage", { ascending: true });
+            // Découpage de l'ID pour extraire le début de la latitude et de la longitude
+            const segments = idStation.split('_');
+            let requete = _supabase.from("historique_prix").select("prix, horodatage");
 
-            if (error) {
-                console.error("❌ Erreur Supabase lors du fetch historique :", error.message);
+            if (segments.length === 2) {
+                // On ne prend que les 4 premières décimales pour esquiver les écarts d'arrondis
+                const latTronquee = parseFloat(segments[0]).toFixed(4);
+                const lonTronquee = parseFloat(segments[1]).toFixed(4);
+                
+                console.log(`🔍 Scan flou appliqué : Lat et Lon contenant ~ [${latTronquee} / ${lonTronquee}]`);
+                
+                // Recherche par correspondance partielle (ilike) sur les deux coordonnées
+                requete = requete
+                    .ilike("id_station", `%${latTronquee}%`)
+                    .ilike("id_station", `%${lonTronquee}%`);
+            } else {
+                // Secours classique si le format est imprévu
+                requete = requete.eq("id_station", idStation);
             }
 
-            if (!error && historiqueSupabase && historiqueSupabase.length > 0) {
-                historiqueSupabase.forEach(point => {
-                    let datePoint = new Date(point.horodatage);
-                    labelsDates.push(formaterLabelM30(datePoint));
-                    donneesReel.push(parseFloat(point.prix).toFixed(3));
-                    donneesPrediction.push(null);
+            const { data: points, error } = await requete.order("horodatage", { ascending: true });
+
+            if (error) console.error("❌ Erreur Supabase historique :", error.message);
+
+            if (!error && points && points.length > 0) {
+                points.forEach(p => {
+                    let datePoint = new Date(p.horodatage);
+                    historique.labels.push(formaterLabelM30(datePoint));
+                    historique.prix.push(parseFloat(p.prix).toFixed(3));
                 });
-                console.log(`📊 Synchronisation réussie : ${historiqueSupabase.length} points injectés.`);
+                console.log(`✅ [Supabase] ${points.length} points récupérés grâce au scan flou.`);
             } else {
-                console.log(`ℹ️ Aucune ligne trouvée pour la clé : "${idStation}"`);
+                console.log(`ℹ️ [Supabase] Aucun point historique trouvé pour : "${idStation}" avec scan flou.`);
             }
         } catch (err) {
-            console.error("⚠️ Exception critique lors de la requête :", err.message);
+            console.error("⚠️ Exception requête historique :", err.message);
         }
-
-        // ALIGNEMENT DU POINT PIVOT ACTUEL
-        labelsDates.push("Maintenant");
-        donneesReel.push(parseFloat(vraiPrixActuel).toFixed(3));
-        donneesPrediction.push(parseFloat(vraiPrixActuel).toFixed(3));
-
-        // PROJECTION FUTURE (FORECAST ALGORITHMIQUE)
-        const nomMinuscule = nomStation.toLowerCase();
-        const profilGrandesSurfaces = {
-            0: -0.005, 1: -0.005, 2: -0.005, 3: -0.005, 4: -0.002, 5: 0.000,
-            6: 0.002,  7: 0.004,  8: 0.004,  9: 0.002,  10: 0.001, 11: 0.003,
-            12: 0.005, 13: 0.004, 14: 0.002, 15: 0.002, 16: 0.004, 17: 0.006,
-            18: 0.005, 19: 0.002, 20: 0.000, 21: -0.002, 22: -0.004, 23: -0.005
-        };
-        const profilPetroliers = {
-            0: -0.018, 1: -0.020, 2: -0.022, 3: -0.025, 4: -0.020, 5: -0.010,
-            6: 0.002,  7: 0.012,  8: 0.015,  9: 0.006,  10: 0.003, 11: 0.008,
-            12: 0.018, 13: 0.014, 14: 0.007, 15: 0.005, 16: 0.010, 17: 0.022,
-            18: 0.025, 19: 0.012, 20: 0.004, 21: -0.005, 22: -0.010, 23: -0.014
-        };
-
-        let profilActif = nomMinuscule.match(/(leclerc|carrefour|intermar|auchan|super u|u utile|systeme u)/) ? profilGrandesSurfaces : profilPetroliers;
-        const pasMinutes = 30;
-        const totalHeuresEtude = 48;
-
-        for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
-            let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-            let h = heureBoucle.getHours();
-            let coefHeure = profilActif[h] || 0;
-
-            let prixPredit = parseFloat(vraiPrixActuel) + coefHeure;
-
-            labelsDates.push(formaterLabelM30(heureBoucle));
-            donneesReel.push(null);
-            donneesPrediction.push(prixPredit.toFixed(3));
-        }
-
-        return { labels: labelsDates, reel: donneesReel, prev: donneesPrediction };
+        return historique;
     }
-
-    function formaterLabelM30(date) {
-        let options = { weekday: 'short' };
-        let nomJour = date.toLocaleDateString('fr-FR', options).replace('.', '');
-        nomJour = nomJour.charAt(0).toUpperCase() + nomJour.slice(1);
-        let min = date.getMinutes().toString().padStart(2, '0');
-        return `${nomJour} ${date.getHours()}h${min}`;
-    }
-
     // ==========================================
     // 5. RETICULE EN CROIX (CROSSHAIR PLUGIN)
     // ==========================================
