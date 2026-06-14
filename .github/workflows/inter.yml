@@ -1,9 +1,10 @@
+
 name: Actualisation Automatique du Radar inter
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch: 
+    - cron: '*/30 * * * *'  # S'exécute toutes les 30 minutes
+  workflow_dispatch:        # Permet un déclenchement manuel pour tester
 
 permissions:
   contents: write
@@ -24,14 +25,14 @@ jobs:
     - name: Installation des dépendances
       run: |
         python -m pip install --upgrade pip
-        pip install requests supabase
+        pip install requests
 
-    - name: Exécution du script de compression
-      run: recuperateur_europe.py
+    - name: Exécution du récupérateur allemand
+      run: python recuperateur_europe.py
 
     - name: Sauvegarde et déploiement du fichier JSON sur GitHub
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "GitHub Actions"
-        git add stations_inter.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour automatique des prix et Supabase" && git push)
+        git add stations_allemagne.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Radar : Mise à jour des prix transfrontaliers [Allemagne]" && git push)
