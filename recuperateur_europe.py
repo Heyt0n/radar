@@ -25,21 +25,37 @@ def collecter_allemagne():
             
             # On boucle sur les stations allemandes reçues
             for st in data.get("stations", []):
-                # 🟢 NORMALISATION : On utilise EXACTEMENT tes clés françaises
+                
+                # 🟢 NORMALISATION ET NETTOYAGE DES EMPLACEMENTS
+                # Tankerkönig sépare déjà la rue et la ville, on en profite pour injecter
+                # les bonnes clés correspondantes au format français.
+                nom_station = st.get("name", "Station Allemande").strip()
+                rue = st.get("street", "").strip()
+                ville = st.get("place", "").strip()
+                code_postal = str(st.get("postCode", "")).strip() if st.get("postCode") else None
+
+                # On convertit les coordonnées et les prix directement en FLOAT (sans guillemets)
+                # S'ils sont manquants ou égaux à False, on met None (null en JSON)
                 stations_normalisees.append({
-                    "n": st.get("name", "Station Allemande"),
-                    "lt": str(st.get("lat")),
-                    "ln": str(st.get("lng")),
-                    "gz": str(st.get("diesel")) if st.get("diesel") else None,
-                    "95": str(st.get("e5")) if st.get("e5") else None,
-                    "e10": str(st.get("e10")) if st.get("e10") else None
+                    "n": nom_station,
+                    "a": rue if rue else nom_station, # Repli sur le nom si la rue est vide
+                    "v": ville,
+                    "cp": code_postal,
+                    "lt": float(st["lat"]) if st.get("lat") is not None else None,
+                    "ln": float(st["lng"]) if st.get("lng") is not None else None,
+                    "gz": float(st["diesel"]) if st.get("diesel") else None,
+                    "95": float(st["e5"]) if st.get("e5") else None,
+                    "e10": float(st["e10"]) if st.get("e10") else None,
+                    "98": None # L'API de base Tankerkönig ne renvoie pas le SP98 sur ce endpoint list
                 })
 
-            # Sauvegarde dans le fichier lu par international.js
-            with open("stations_allemagne.json", "w", encoding="utf-8") as f:
+            # Sauvegarde dans le fichier lu par international.js (ou script_live.js)
+            # ATTENTION : J'ai gardé le nom que tu as écrit dans ton script (stations_allemagne.json)
+            # Ajuste-le en "stationallemagne.json" si c'est exactement ce que ton JS attend.
+            with open("stationallemagne.json", "w", encoding="utf-8") as f:
                 json.dump(stations_normalisees, f, ensure_ascii=False, indent=2)
             
-            print(f"✅ Extraction réussie : {len(stations_normalisees)} stations allemandes synchronisées.")
+            print(f"✅ Extraction réussie : {len(stations_normalisees)} stations allemandes synchronisées au format commun.")
             
     except Exception as e:
         print(f"❌ Échec de la mission Allemagne : {e}")
