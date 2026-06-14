@@ -67,4 +67,4 @@ def collecter_zone_frontaliere_definitive():
         print(f"❌ Échec critique de la synchronisation : {e}")
 
 if __name__ == "__main__":
-    制造 = collecter_zone_frontaliere_definitive()
+    collecter_zone_frontaliere_definitive()
