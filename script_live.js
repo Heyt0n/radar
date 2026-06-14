@@ -1,4 +1,6 @@
-// 0. INITIALISATION ET ETAT GLOBAL //
+// ==========================================
+// 0. INITIALISATION ET ETAT GLOBAL
+// ==========================================
 
 let currentUser = null;
 let stationsGlobales = [];
@@ -203,7 +205,7 @@ function afficherFavoris() {
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
             <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                <a href="https://maps.google.com/?q=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
+                <a href="http://maps.google.com/?q=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
                 <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
             </div>
         `;
@@ -324,7 +326,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     </div>
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
-                        <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                        <a href="http://maps.google.com/?q=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
                     </div>
                 </div>
             `);
@@ -343,11 +345,20 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
+        // ==========================================
         // 4. ⚡ PONTAGE INTERNATIONAL SÉCURISÉ
-        // On exécute l'injection transfrontalière uniquement si le script international.js est chargé
+        // ==========================================
         if (typeof injecterStationsFrontalieres === "function") {
             await injecterStationsFrontalieres(map, centerLat, centerLon, RAYON_KM, (stationEtrangere, nomModifie) => {
-                // Utilisation directe du moteur graphique unifié
+                
+                // Recalcul des bornes prix min/max pour intégrer l'Allemagne au dégradé de couleur
+                let prixCourant = formatPrix(stationEtrangere[carburantActif]);
+                if (prixCourant) {
+                    if (prixCourant < prixMin) prixMin = prixCourant;
+                    if (prixCourant > prixMax) prixMax = prixCourant;
+                }
+
+                // Envoi de la station étrangère normalisée au moteur graphique
                 dessinerMarqueurStation(stationEtrangere, nomModifie);
             });
         }
