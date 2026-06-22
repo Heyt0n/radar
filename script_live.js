@@ -265,66 +265,29 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
     let stationsTrouvees = [];
     stationsGlobales = []; 
 
-    // --- PARTIE A : FLUX FRANCE LIVE (Avec nouveau Proxy Robuste & Sécurisé) ---
+    // --- PARTIE A : FLUX FRANCE (Lecture de ton JSON local mis à jour par ton script Python) ---
     try {
-        console.log("⚡ Extraction du flux France Temps Réel...");
+        console.log("⚡ Extraction du flux France (Lecture locale sans proxy)...");
         
-        // Utilisation d'un proxy alternatif propre (allorigins encodé ou cors-anywhere)
-        // Si tu as ton propre serveur ou un reverse proxy, c'est encore mieux !
-        const urlCibleFR = encodeURIComponent(URL_FRANCE_DIRECT);
-        const nouveauProxy = `https://api.allorigins.win/raw?url=`; 
+        // On appelle directement ton fichier généré à la racine par ton GitHub Action
+        const resFR = await fetch('./stations_france.json');
+        if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (Statut ${resFR.status})`);
         
-        const resFR = await fetch(nouveauProxy + urlCibleFR);
-        if (!resFR.ok) throw new Error(`Erreur Proxy Flux FR: Statut ${resFR.status}`);
-        
-        const blobFR = await resFR.blob();
-        const zip = await JSZip.loadAsync(blobFR);
-        const fichierXmlNom = Object.keys(zip.files)[0]; 
-        const xmlString = await zip.files[fichierXmlNom].async("string");
+        const toutesLesStationsFR = await resFR.json();
 
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-        const xmlStations = xmlDoc.getElementsByTagName("pdv");
-
-        for (let i = 0; i < xmlStations.length; i++) {
-            let pdv = xmlStations[i];
-            let lat = parseFloat(pdv.getAttribute("latitude")) / 100000;
-            let lon = parseFloat(pdv.getAttribute("longitude")) / 100000;
-
-            if (isNaN(lat) || isNaN(lon)) continue;
-
-            if (getDistance(centerLat, centerLon, lat, lon) <= RAYON_KM) {
-                let currentStation = {
-                    n: "", 
-                    a: pdv.getElementsByTagName("adresse")[0]?.textContent || "",
-                    v: pdv.getElementsByTagName("ville")[0]?.textContent || "",
-                    cp: pdv.getAttribute("cp") || "",
-                    lt: lat,
-                    ln: lon,
-                    gz: null, 95: null, e10: null, 98: null
-                };
-
-                let prixElements = pdv.getElementsByTagName("prix");
-                for (let j = 0; j < prixElements.length; j++) {
-                    let p = prixElements[j];
-                    let nomCarb = p.getAttribute("nom");
-                    let val = parseFloat(p.getAttribute("valeur"));
-                    
-                    if (nomCarb === "Gazole") currentStation.gz = val;
-                    else if (nomCarb === "SP95") currentStation["95"] = val;
-                    else if (nomCarb === "E10") currentStation.e10 = val;
-                    else if (nomCarb === "SP98") currentStation["98"] = val;
-                }
-                stationsTrouvees.push(currentStation);
+        // Filtrage géolocalisé selon le rayon (RAYON_KM) autour de l'utilisateur
+        toutesLesStationsFR.forEach(station => {
+            if (getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
+                stationsTrouvees.push(station);
             }
-        }
-        console.log(`🇫🇷 ${stationsTrouvees.length} stations FR chargées avec succès.`);
+        });
+        
+        console.log(`🇫🇷 ${stationsTrouvees.length} stations FR importées depuis le stockage local.`);
     } catch (err) {
-        // L'erreur est capturée ici, elle ne bloque plus le reste de l'application !
-        console.error("⚠️ Impossible de synchroniser le flux France Direct (Erreur Proxy/CORS), repli automatique :", err.message);
+        console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // --- PARTIE B : FLUX ALLEMAGNE LIVE (Toujours exécuté, quoi qu'il arrive) ---
+    // --- PARTIE B : FLUX ALLEMAGNE (Toujours en Direct Live via Tankerkönig) ---
     try {
         console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${RAYON_KM}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
@@ -345,6 +308,7 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 e10: st.e10 && st.e10 > 0 ? st.e10 : null,
                 98: null
             }));
+            
             stationsGlobales = [...stationsTrouvees, ...allemagneNormalisee];
             console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées en direct.`);
         } else {
