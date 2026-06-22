@@ -4,7 +4,8 @@
 
 // --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
-let stationsGlobales = []; // Fusion dynamique [France Direct + Allemagne Direct]
+let fluxFranceBrut = [];      // Cache en mémoire pour stocker le fichier national UNE SEULE FOIS
+let stationsGlobales = [];    // Fusion dynamique locale [France Filtrée + Allemagne Direct]
 let favoris = []; 
 let marqueursActifs = {}; 
 
@@ -204,7 +205,7 @@ function afficherFavoris() {
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
-        // 🛠️ CORRECTION ICI : Remplacement de 3{f.lat} par ${f.lat}
+        // 🛠️ FIX COORDONNÉES ET LIEN MAPS
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
                  id="fav-${cleMarqueur}">
@@ -262,27 +263,30 @@ async function rechercherVille() {
 }
 
 async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
-    let stationsTrouvees = [];
+    let stationsTrouveesFR = [];
     stationsGlobales = []; 
 
-    // --- PARTIE A : FLUX FRANCE (Lecture de ton JSON local mis à jour par ton script Python) ---
+    // --- PARTIE A : FLUX FRANCE (Mise en cache intelligente) ---
     try {
-        console.log("⚡ Extraction du flux France (Lecture locale sans proxy)...");
-        
-        // On appelle directement ton fichier généré à la racine par ton GitHub Action
-        const resFR = await fetch('./stations_france.json');
-        if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (Statut ${resFR.status})`);
-        
-        const toutesLesStationsFR = await resFR.json();
+        // On télécharge le fichier UNE SEULE FOIS pour éviter de geler l'appli
+        if (fluxFranceBrut.length === 0) {
+            console.log("🛰️ Premier chargement : Extraction du flux France (Lecture locale unique)...");
+            const resFR = await fetch('./stations_france.json');
+            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (Statut ${resFR.status})`);
+            fluxFranceBrut = await resFR.json();
+            console.log(`✅ ${fluxFranceBrut.length} stations chargées dans le cache global.`);
+        }
 
-        // Filtrage géolocalisé selon le rayon (RAYON_KM) autour de l'utilisateur
-        toutesLesStationsFR.forEach(station => {
-            if (getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
-                stationsTrouvees.push(station);
+        // Filtrage géolocalisé hyper rapide en mémoire RAM
+        fluxFranceBrut.forEach(station => {
+            if (station.lt && station.ln) {
+                if (getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
+                    stationsTrouveesFR.push(station);
+                }
             }
         });
         
-        console.log(`🇫🇷 ${stationsTrouvees.length} stations FR importées depuis le stockage local.`);
+        console.log(`🇫🇷 ${stationsTrouveesFR.length} stations FR à proximité.`);
     } catch (err) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
@@ -309,14 +313,14 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 98: null
             }));
             
-            stationsGlobales = [...stationsTrouvees, ...allemagneNormalisee];
+            stationsGlobales = [...stationsTrouveesFR, ...allemagneNormalisee];
             console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées en direct.`);
         } else {
-            stationsGlobales = [...stationsTrouvees];
+            stationsGlobales = [...stationsTrouveesFR];
         }
     } catch (err) {
         console.error("⚠️ Échec API Allemagne :", err);
-        stationsGlobales = [...stationsTrouvees];
+        stationsGlobales = [...stationsTrouveesFR];
     }
 }
 
@@ -374,7 +378,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
-            // 🛠️ CORRECTION ICI : Remplacement de 0{lat} par ${lat} et passage sur l'URL officielle de recherche Maps
+            // 🛠️ FIX DU LIEN ITINÉRAIRE GOOGLE MAPS CORROMPU
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
                     <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold;">${nomAffiche}</h4>
