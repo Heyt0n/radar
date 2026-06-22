@@ -1,16 +1,15 @@
-// ==========================================
-// 0. INITIALISATION ET ETAT GLOBAL
-// ==========================================
+// ============================================================================
+// 📡 RADAR CARBURANT - COEUR DE REQUÊTE ET ENGINE TACTIQUE UNIFIÉ
+// ============================================================================
 
+// --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
-let stationsGlobales = []; // Contiendra la fusion dynamique [France Direct + Allemagne Direct]
+let stationsGlobales = []; // Fusion dynamique [France Direct + Allemagne Direct]
 let favoris = []; 
 let marqueursActifs = {}; 
 
-// 📡 Configuration des APIs Live (Version Test Réparée)
-const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
-
-// Ce proxy ajoute dynamiquement les entêtes Access-Control-Allow-Origin manquants
+// Configuration des APIs Live 
+const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; // Clé Tankerkönig
 const PROXY_CORS = "https://corsproxy.io/?"; 
 const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
@@ -21,6 +20,7 @@ let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15;
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 
+// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS (SUPABASE) ---
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         const { data: { session }, error } = await _supabase.auth.getSession();
@@ -211,7 +211,7 @@ function afficherFavoris() {
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
             <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                <a href="http://maps.google.com/?q=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
+                <a href="https://www.google.com/maps/search/?api=1&query=$${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
                 <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
             </div>
         `;
@@ -237,9 +237,9 @@ function afficherFavoris() {
     });
 }
 
-// ==========================================
-// 4. MOTEUR DE RECHERCHE ET REQUETES API (TEMPS RÉEL FR & DE)
-// ==========================================
+// ============================================================================
+// 4. MOTEUR DE RECHERCHE ET REQUETES API (100% TEMPS RÉEL FR & DE)
+// ============================================================================
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
@@ -260,11 +260,12 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-// 📡 COEUR DU SYSTÈME : Téléchargement, Décompression XML & Parsing en Direct
+// 📡 CONFIGURATION TECHNIQUE DIRECTE : Extraction et couplage instantané France/Allemagne
 async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
     let stationsTrouvees = [];
+    stationsGlobales = []; // Flush à chaque scan
 
-    // --- PARTIE 1 : FRANCE TEMPS RÉEL (ZIP -> XML via Proxy CORS) ---
+    // --- PARTIE A : FLUX FRANCE LIVE (ZIP -> XML de la DGEC dézippé en mémoire) ---
     try {
         console.log("⚡ Extraction du flux France Temps Réel...");
         const resFR = await fetch(PROXY_CORS + encodeURIComponent(URL_FRANCE_DIRECT));
@@ -272,12 +273,12 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
         
         const blobFR = await resFR.blob();
         
-        // Utilisation de JSZip injecté dans le HTML pour lire le flux compressé en mémoire
+        // Utilisation de JSZip pour extraire l'archive en direct
         const zip = await JSZip.loadAsync(blobFR);
-        const fichierXmlNom = Object.keys(zip.files)[0]; // Trouve le fichier XML à l'intérieur
+        const fichierXmlNom = Object.keys(zip.files)[0]; 
         const xmlString = await zip.files[fichierXmlNom].async("string");
 
-        // Parse du XML brut du gouvernement
+        // Parse du document XML
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlString, "text/xml");
         const xmlStations = xmlDoc.getElementsByTagName("pdv");
@@ -287,10 +288,12 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
             let lat = parseFloat(pdv.getAttribute("latitude")) / 100000;
             let lon = parseFloat(pdv.getAttribute("longitude")) / 100000;
 
-            // Filtrage géographique immédiat pour ne pas saturer la mémoire
+            if (isNaN(lat) || isNaN(lon)) continue;
+
+            // Filtrage immédiat selon le rayon tactique sélectionné
             if (getDistance(centerLat, centerLon, lat, lon) <= RAYON_KM) {
                 let currentStation = {
-                    n: "", // Le nom sera déduit par l'adresse dans extraireVraiNom
+                    n: "", // Calibré dynamiquement par extraireVraiNom via l'adresse
                     a: pdv.getElementsByTagName("adresse")[0]?.textContent || "",
                     v: pdv.getElementsByTagName("ville")[0]?.textContent || "",
                     cp: pdv.getAttribute("cp") || "",
@@ -299,7 +302,6 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                     gz: null, 95: null, e10: null, 98: null
                 };
 
-                // Extraction des carburants du point de vente
                 let prixElements = pdv.getElementsByTagName("prix");
                 for (let j = 0; j < prixElements.length; j++) {
                     let p = prixElements[j];
@@ -316,10 +318,10 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
         }
         console.log(`🇫🇷 ${stationsTrouvees.length} stations FR chargées à la seconde près.`);
     } catch (err) {
-        console.error("⚠️ Impossible de synchroniser le flux France Direct, repli ou erreur :", err);
+        console.error("⚠️ Impossible de synchroniser le flux France Direct :", err);
     }
 
-    // --- PARTIE 2 : ALLEMAGNE TEMPS RÉEL (API Tankerkönig) ---
+    // --- PARTIE B : FLUX ALLEMAGNE LIVE (API Tankerkönig) ---
     try {
         console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${RAYON_KM}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
@@ -355,16 +357,16 @@ async function fetchLiveStations(centerLat, centerLon) {
     try {
         dernierePosition = { lat: centerLat, lon: centerLon };
         
-        // Lance le rafraîchissement complet Europe en Temps Réel à chaque changement de position
+        // Exécute le scan géolocalisé complet
         await recupererBrutFranceEtAllemagneDirect(centerLat, centerLon);
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-        // Nettoyage de la carte
+        // Reset complet des calques graphiques de la carte
         map.eachLayer((layer) => { if (layer instanceof L.Marker) map.removeLayer(layer); });
         marqueursActifs = {}; 
 
-        // 1. Calcul du min/max prix local sur le réseau fusionné pour le gradient des bulles
+        // 1. Calcul du min/max prix local sur le réseau fusionné
         let prixMin = Infinity, prixMax = -Infinity;
         stationsGlobales.forEach(station => {
             if (station.lt && station.ln && getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
@@ -376,7 +378,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
-        // 2. Fonction de rendu réutilisable
+        // 2. Moteur de rendu réutilisable pour injecter les marqueurs
         const dessinerMarqueurStation = (station, nomAffiche) => {
             let lat = parseFloat(station.lt);
             let lon = parseFloat(station.ln);
@@ -420,13 +422,13 @@ async function fetchLiveStations(centerLat, centerLon) {
                     </div>
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
-                        <a href="http://maps.google.com/?q=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                        <a href="https://www.google.com/maps/search/?api=1&query=$${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
                     </div>
                 </div>
             `);
         };
 
-        // 3. Déploiement graphique immédiat de toutes les stations capturées (FR + DE)
+        // 3. Dessin des marqueurs pour la zone de recherche cible
         stationsGlobales.forEach(station => {
             if (station.lt && station.ln) {
                 let vraiNomStation = extraireVraiNom(station);
@@ -479,5 +481,6 @@ function toggleBurgerMenu() {
     document.getElementById('menuOverlay')?.classList.toggle('active');
 }
 
+// Rattachement aux scopes pour conservation des triggers HTML inline
 window.basculerFavori = basculerFavori;
 window.toggleBurgerMenu = toggleBurgerMenu;
