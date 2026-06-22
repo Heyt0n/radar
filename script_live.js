@@ -7,9 +7,11 @@ let stationsGlobales = []; // Contiendra la fusion dynamique [France Direct + Al
 let favoris = []; 
 let marqueursActifs = {}; 
 
-// Configuration des APIs Live
-const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b";
-const PROXY_CORS = "https://api.allorigins.win/raw?url=";
+// 📡 Configuration des APIs Live (Version Test Réparée)
+const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
+
+// Ce proxy ajoute dynamiquement les entêtes Access-Control-Allow-Origin manquants
+const PROXY_CORS = "https://corsproxy.io/?"; 
 const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
 const DEF_LAT = 48.71;
