@@ -9,12 +9,12 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "./icônes/Cdemu_192x192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "./icônes/Blisk-logo-512-512-fond-transparent.png",
       "sizes": "512x512",
       "type": "image/png"
     }
