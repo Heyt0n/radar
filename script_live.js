@@ -265,11 +265,17 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
     let stationsTrouvees = [];
     stationsGlobales = []; 
 
-    // --- PARTIE A : FLUX FRANCE LIVE ---
+    // --- PARTIE A : FLUX FRANCE LIVE (Avec nouveau Proxy Robuste & Sécurisé) ---
     try {
         console.log("⚡ Extraction du flux France Temps Réel...");
-        const resFR = await fetch(PROXY_CORS + encodeURIComponent(URL_FRANCE_DIRECT));
-        if (!resFR.ok) throw new Error("Erreur Proxy Flux FR");
+        
+        // Utilisation d'un proxy alternatif propre (allorigins encodé ou cors-anywhere)
+        // Si tu as ton propre serveur ou un reverse proxy, c'est encore mieux !
+        const urlCibleFR = encodeURIComponent(URL_FRANCE_DIRECT);
+        const nouveauProxy = `https://api.allorigins.win/raw?url=`; 
+        
+        const resFR = await fetch(nouveauProxy + urlCibleFR);
+        if (!resFR.ok) throw new Error(`Erreur Proxy Flux FR: Statut ${resFR.status}`);
         
         const blobFR = await resFR.blob();
         const zip = await JSZip.loadAsync(blobFR);
@@ -312,15 +318,17 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 stationsTrouvees.push(currentStation);
             }
         }
-        console.log(`🇫🇷 ${stationsTrouvees.length} stations FR chargées.`);
+        console.log(`🇫🇷 ${stationsTrouvees.length} stations FR chargées avec succès.`);
     } catch (err) {
-        console.error("⚠️ Flux France Direct en erreur :", err);
+        // L'erreur est capturée ici, elle ne bloque plus le reste de l'application !
+        console.error("⚠️ Impossible de synchroniser le flux France Direct (Erreur Proxy/CORS), repli automatique :", err.message);
     }
 
-    // --- PARTIE B : FLUX ALLEMAGNE LIVE ---
+    // --- PARTIE B : FLUX ALLEMAGNE LIVE (Toujours exécuté, quoi qu'il arrive) ---
     try {
         console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${RAYON_KM}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
+        
         const resDE = await fetch(urlDE);
         const dataDE = await resDE.json();
 
@@ -338,7 +346,7 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 98: null
             }));
             stationsGlobales = [...stationsTrouvees, ...allemagneNormalisee];
-            console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées.`);
+            console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées en direct.`);
         } else {
             stationsGlobales = [...stationsTrouvees];
         }
