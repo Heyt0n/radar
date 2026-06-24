@@ -265,7 +265,7 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
     let stationsTrouveesFR = [];
     stationsGlobales = []; 
 
-    // --- PARTIE A : FLUX FRANCE (Mise en cache intelligente) ---
+    // --- PARTIE A : FLUX FRANCE ---
     try {
         if (fluxFranceBrut.length === 0) {
             console.log("🛰️ Premier chargement : Extraction du flux France (Lecture locale unique)...");
@@ -288,14 +288,15 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // --- PARTIE B : FLUX ALLEMAGNE (Sécurisé à 25km maximum pour Tankerkönig) ---
+    // --- PARTIE B : FLUX ALLEMAGNE ---
     try {
         console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
-        // 🛠️ CORRECTIF : On plafonne le rayon à 25km max pour éviter le plantage strict de l'API allemande
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
         
         const resDE = await fetch(urlDE);
+        if (!resDE.ok) throw new Error(`HTTP Error ${resDE.status}`);
+        
         const dataDE = await resDE.json();
 
         if (dataDE && dataDE.ok && dataDE.stations) {
@@ -315,11 +316,12 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
             stationsGlobales = [...stationsTrouveesFR, ...allemagneNormalisee];
             console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées en direct.`);
         } else {
+            console.warn("⚠️ Tankerkönig a renvoyé un statut négatif:", dataDE);
             stationsGlobales = [...stationsTrouveesFR];
         }
     } catch (err) {
-        console.error("⚠️ Échec API Allemagne :", err);
-        stationsGlobales = [...stationsTrouveesFR];
+        console.error("⚠️ Échec API Allemagne (Utilisation du flux FR uniquement) :", err);
+        stationsGlobales = [...stationsTrouveesFR]; // Sécurité totale : l'application ne plante pas
     }
 }
 
@@ -411,7 +413,6 @@ async function fetchLiveStations(centerLat, centerLon) {
 function initialiserEcouteursInterface() {
     afficherFavoris(); 
 
-    // 🛠️ SYNC DU SLIDER AVEC NOTRE VARIABLE GLOBALE ET LE LOCALSTORAGE
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
 
@@ -419,13 +420,22 @@ function initialiserEcouteursInterface() {
         sliderRayon.value = RAYON_KM;
         if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
 
+        // 🛡️ APPLICATION DU TEMPO (DEBOUNCE) SUR LE SLIDER
+        let antiMitrailleuseTimeout;
+        
         sliderRayon.addEventListener('input', (e) => {
             RAYON_KM = Number(e.target.value);
             if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
             localStorage.setItem('radar_rayon', RAYON_KM);
             
-            // Re-calcul immédiat à chaque mouvement du curseur autour de la dernière position
-            fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+            // On annule la recherche précédente si le curseur bouge encore
+            clearTimeout(antiMitrailleuseTimeout);
+            
+            // On attend 250ms de stabilité avant de lancer la requête réseau lourde
+            antiMitrailleuseTimeout = setTimeout(() => {
+                console.log(`🎯 Rayon stabilisé à ${RAYON_KM}km. Lancement des requêtes.`);
+                fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+            }, 250);
         });
     }
 
