@@ -7,7 +7,7 @@
   "background_color": "#111827",
   "theme_color": "#1f2937",
   "orientation": "portrait-primary",
-  "icons": [
+ "icons": [
     {
       "src": "./png/Cdemu_192x192.png",
       "sizes": "192x192",
@@ -16,7 +16,8 @@
     {
       "src": "./png/Blisk-logo-512-512-fond-transparent.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
