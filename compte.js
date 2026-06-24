@@ -1,5 +1,5 @@
 // ==========================================
-// CONTROL DU MENU BURGER (COMPTE.HTML)
+// CONTROLE DU MENU BURGER (COMPTE.HTML)
 // ==========================================
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
@@ -28,15 +28,10 @@ document.addEventListener("DOMContentLoaded", () => {
         badgeCount.textContent = `${favoris.length} Cible${favoris.length > 1 ? 's' : ''}`;
     }
 
-    // Chargement des préférences utilisateur sauvegardées
+    // Chargement du pseudo sauvegardé localement
     const pseudoSauvegarde = localStorage.getItem('radar_pseudo');
-    if (pseudoSauvegarde) {
+    if (pseudoSauvegarde && document.getElementById('user-pseudo')) {
         document.getElementById('user-pseudo').value = pseudoSauvegarde;
-    }
-    
-    const rayonSauvegarde = localStorage.getItem('radar_rayon');
-    if (rayonSauvegarde) {
-        document.getElementById('user-rayon').value = rayonSauvegarde;
     }
 
     // Écouteur pour la soumission du formulaire
@@ -44,75 +39,61 @@ document.addEventListener("DOMContentLoaded", () => {
     if (profileForm) {
         profileForm.addEventListener('submit', sauvegarderProfil);
     }
-
-    // Écouteur pour la purge des données
-    const btnPurge = document.getElementById('btn-purge');
-    if (btnPurge) {
-        btnPurge.addEventListener('click', purgerDonnees);
-    }
 });
 
-// Sauvegarde dans le localStorage partagé
+// Sauvegarde du pseudo local
 function sauvegarderProfil(event) {
     event.preventDefault();
     const pseudo = document.getElementById('user-pseudo').value.trim();
-    const rayon = document.getElementById('user-rayon').value;
-
     localStorage.setItem('radar_pseudo', pseudo);
-    localStorage.setItem('radar_rayon', rayon);
-
-    alert("Préférences enregistrées avec succès !");
+    alert("Pseudo enregistré avec succès !");
 }
 
-// Purge complète de la session
-function purgerDonnees() {
-    if (confirm("Êtes-vous sûr de vouloir supprimer vos favoris et configurations ? Cette action est irréversible.")) {
-        localStorage.clear();
-        alert("Données effacées.");
-        window.location.reload();
-    }
-}
-
-// Attendre que le document HTML soit complètement chargé
+// ==========================================
+// SÉCURITÉ & CONNEXION SUPABASE
+// ==========================================
 document.addEventListener("DOMContentLoaded", async () => {
     
-    // ==========================================
-    // 1. SÉCURITÉ : VÉRIFICATION DE LA SESSION
-    // ==========================================
+    // 1. VÉRIFICATION DE LA SESSION ACTIVE
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
         console.log("Aucune session active trouvée. Redirection...");
-        window.location.href = "connexion.html"; // Remplace par ta page de login si besoin
+        window.location.href = "connexion.html";
         return;
     }
 
-    // Si tu as un élément pour afficher le pseudo sur la page compte, tu peux l'alimenter ici :
+    // Affichage dynamique du Pseudo Supabase
     const nomUtilisateur = document.getElementById("nom-utilisateur-compte");
     if (nomUtilisateur && session.user.user_metadata) {
-        // Ajuste "pseudo" selon le nom du champ dans ton user_metadata
-        nomUtilisateur.textContent = session.user.user_metadata.pseudo || "Opérateur";
+        nomUtilisateur.textContent = session.user.user_metadata.pseudo || "Opérateur Connecté";
     }
 
+    // Traitement et affichage de la date de création du compte
+    const dateElement = document.getElementById("account-created");
+    if (dateElement && session.user.created_at) {
+        const rawDate = new Date(session.user.created_at);
+        // Formatage propre : JJ/MM/AAAA
+        const formattedDate = rawDate.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+        dateElement.textContent = formattedDate;
+    }
 
-    // ==========================================
-    // 2. LOGIQUE DE DÉCONNEXION
-    // ==========================================
+    // 2. LOGIQUE DE DÉCONNEXION RÉELLE
     const btnDeconnexion = document.getElementById("btn-deconnexion");
-
     if (btnDeconnexion) {
         btnDeconnexion.addEventListener("click", async (e) => {
-            e.preventDefault(); // Empêche le comportement par défaut du lien ou bouton
+            e.preventDefault();
             
             try {
-                // Demande de déconnexion à Supabase
+                // Déconnexion complète du serveur d'authentification Supabase
                 const { error } = await supabase.auth.signOut();
-                
                 if (error) throw error;
 
                 alert("Déconnexion réussie. Fermeture de la session tactique.");
-                
-                // Redirection immédiate vers l'accès au système
                 window.location.href = "connexion.html"; 
                 
             } catch (err) {
