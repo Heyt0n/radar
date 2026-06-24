@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Radar Carburant - Système Tactique</title>
 
-
-   <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="./manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-   <link rel="apple-touch-icon" href="./png/Cdemu_192x192.png">
-
+    <link rel="apple-touch-icon" href="./png/Cdemu_192x192.png">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-   
 
     <style>
         :root {
@@ -105,6 +102,12 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
+        /* Styles curseur Km */
+        .range-container { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+        .range-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--texte-secondaire); font-weight: 600; }
+        .range-slider { width: 100%; -webkit-appearance: none; background: #1f2937; height: 6px; border-radius: 3px; outline: none; cursor: pointer; }
+        .range-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-bleu); cursor: pointer; }
+
         #map-container { flex: 1; height: 100%; position: relative; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
 
@@ -125,7 +128,7 @@
     
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connecté</span>
+            <span class="menu-user-status">📡 Système Connected</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
         <a href="index.html" class="menu-link active">📡 Radar Tactique</a>
@@ -134,7 +137,7 @@
     </nav>
 
     <header>
-        <h1>Radar Carburant weich</h1>
+        <h1>Radar Carburant </h1>
         <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
     </header>
 
@@ -153,7 +156,16 @@
                     <input type="text" id="search-ville" placeholder="Ex: Bordeaux, Haguenau..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
                     <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
                 </div>
-                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase;">📍 Retour Ma Position</button>
+                
+                <div class="range-container">
+                    <div class="range-header">
+                        <span>Rayon de recherche</span>
+                        <span id="valeur-rayon">15 km</span>
+                    </div>
+                    <input type="range" id="user-rayon" class="range-slider" min="5" max="50" value="15" oninput="document.getElementById('valeur-rayon').textContent = this.value + ' km'; localStorage.setItem('radar_rayon', this.value)">
+                </div>
+
+                <button id="btn-reset" style="width: 100%; background: #374151; color: #9ca3af; border: 1px solid #4b5563; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; margin-top: 10px;">📍 Retour Ma Position</button>
             </div>
             
             <div class="widget" style="flex: 1; margin-bottom: 10px;">
@@ -177,14 +189,32 @@
     <script src="script_live.js"></script>
     
     <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('🚀 Service Worker activé avec succès !', reg.scope))
-        .catch(err => console.error('❌ Échec de l\'enregistrement du Service Worker :', err));
-    });
-  }
-</script>
+        function toggleBurgerMenu() {
+            const menu = document.getElementById('burgerMenu');
+            const overlay = document.getElementById('menuOverlay');
+            if (menu && overlay) {
+                menu.classList.toggle('open');
+                overlay.classList.toggle('active');
+            }
+        }
 
+        // Initialisation de la valeur du curseur au chargement de l'index
+        document.addEventListener("DOMContentLoaded", () => {
+            const rayonSauvegarde = localStorage.getItem('radar_rayon') || "15";
+            const rangeInput = document.getElementById('user-rayon');
+            if (rangeInput) {
+                rangeInput.value = rayonSauvegarde;
+                document.getElementById('valeur-rayon').textContent = rayonSauvegarde + ' km';
+            }
+        });
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('🚀 Service Worker activé !', reg.scope))
+                    .catch(err => console.error('❌ Échec du Service Worker :', err));
+            });
+        }
+    </script>
 </body>
 </html>
