@@ -4,13 +4,14 @@
 
 // --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
-let fluxFranceBrut = [];      // Cache en mémoire pour stocker le fichier national UNE SEULE FOIS
-let stationsGlobales = [];    // Fusion dynamique locale [France Filtrée + Allemagne Direct]
+let fluxFranceBrut = [];      
+let stationsGlobales = [];    
 let favoris = []; 
 let marqueursActifs = {}; 
+let marqueurPositionReelle = null; // 📍 Stocke le pion de notre position pour ne pas le perdre
 
 // Configuration des APIs Live 
-const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; // Clé Tankerkönig
+const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 const PROXY_CORS = "https://corsproxy.io/?"; 
 const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
@@ -21,7 +22,7 @@ let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15;
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 
-// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS (SUPABASE) ---
+// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         const { data: { session }, error } = await _supabase.auth.getSession();
@@ -282,8 +283,6 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 }
             }
         });
-        
-        console.log(`🇫🇷 ${stationsTrouveesFR.length} stations FR à proximité.`);
     } catch (err) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
@@ -314,14 +313,12 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
             }));
             
             stationsGlobales = [...stationsTrouveesFR, ...allemagneNormalisee];
-            console.log(`🇩🇪 ${allemagneNormalisee.length} stations DE couplées en direct.`);
         } else {
-            console.warn("⚠️ Tankerkönig a renvoyé un statut négatif:", dataDE);
             stationsGlobales = [...stationsTrouveesFR];
         }
     } catch (err) {
         console.error("⚠️ Échec API Allemagne (Utilisation du flux FR uniquement) :", err);
-        stationsGlobales = [...stationsTrouveesFR]; // Sécurité totale : l'application ne plante pas
+        stationsGlobales = [...stationsTrouveesFR]; 
     }
 }
 
@@ -333,7 +330,12 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-        map.eachLayer((layer) => { if (layer instanceof L.Marker) map.removeLayer(layer); });
+        // 🛡️ NETTOYAGE SÉCURISÉ : On supprime les anciens marqueurs de stations, mais on protège notre pion de position !
+        map.eachLayer((layer) => { 
+            if (layer instanceof L.Marker && layer !== marqueurPositionReelle) {
+                map.removeLayer(layer); 
+            }
+        });
         marqueursActifs = {}; 
 
         let prixMin = Infinity, prixMax = -Infinity;
@@ -420,7 +422,6 @@ function initialiserEcouteursInterface() {
         sliderRayon.value = RAYON_KM;
         if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
 
-        // 🛡️ APPLICATION DU TEMPO (DEBOUNCE) SUR LE SLIDER
         let antiMitrailleuseTimeout;
         
         sliderRayon.addEventListener('input', (e) => {
@@ -428,12 +429,9 @@ function initialiserEcouteursInterface() {
             if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
             localStorage.setItem('radar_rayon', RAYON_KM);
             
-            // On annule la recherche précédente si le curseur bouge encore
             clearTimeout(antiMitrailleuseTimeout);
             
-            // On attend 250ms de stabilité avant de lancer la requête réseau lourde
             antiMitrailleuseTimeout = setTimeout(() => {
-                console.log(`🎯 Rayon stabilisé à ${RAYON_KM}km. Lancement des requêtes.`);
                 fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
             }, 250);
         });
@@ -455,17 +453,49 @@ function initialiserEcouteursInterfaceOutils() {
     console.log("Interface outils synchronisée.");
 }
 
+// 📍 FONCTION DE GEOLOCALISATION METAMORPHOSÉE
 function declencherGeolocalisation() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                maPositionReelle = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                maPositionReelle = { lat, lon };
+                
                 if (map) {
-                    map.setView([pos.coords.latitude, pos.coords.longitude], 11);
-                    fetchLiveStations(pos.coords.latitude, pos.coords.longitude);
+                    // Si le pion existe déjà, on le déplace juste
+                    if (marqueurPositionReelle) {
+                        marqueurPositionReelle.setLatLng([lat, lon]);
+                    } else {
+                        // Sinon, on le crée avec un style unique (Ici couleur 'violet' pour trancher net avec les stations)
+                        const iconeMoi = L.divIcon({
+                            html: `
+                                <div style="position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
+                                    <div style="position: absolute; width: 100%; height: 100%; background: #3b82f6; opacity: 0.25; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                                    <div style="width: 14px; height: 14px; background: #2563eb; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0,0,0,0.5); z-index:100;"></div>
+                                </div>
+                                <style>
+                                    @keyframes pulse {
+                                        0% { transform: scale(0.6); opacity: 0.6; }
+                                        100% { transform: scale(1.8); opacity: 0; }
+                                    }
+                                </style>
+                            `,
+                            className: 'pion-operateur-live',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                        });
+
+                        marqueurPositionReelle = L.marker([lat, lon], { icon: iconeMoi, zIndexOffset: 1000 }).addTo(map);
+                        marqueurPositionReelle.bindPopup("<b style='color:#1f2937;'>📍 Votre Position Actuelle</b>");
+                    }
+
+                    map.setView([lat, lon], 11);
+                    fetchLiveStations(lat, lon);
                 }
             },
-            () => { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
+            () => { if (map) fetchLiveStations(DEF_LAT, DEF_LON); },
+            { enableHighAccuracy: true } // Demande une précision maximale au navigateur / téléphone
         );
     } else { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
 }
