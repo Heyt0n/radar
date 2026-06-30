@@ -1,6 +1,5 @@
-// ============================================================================
-// 🗺️ RADAR CARBURANT - MOTEUR D'ITINÉRAIRE TACTIQUE (FRANCE)
-// ============================================================================
+/ 🗺️ RADAR CARBURANT - MOTEUR D'ITINÉRAIRE TACTIQUE (FRANCE)
+/
 
 let mapTrajet = null;
 let fluxFranceTrajetBrut = [];     // Cache local du JSON national
