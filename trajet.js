@@ -1,97 +1,140 @@
 // ============================================================================
-// 🗺️ RADAR CARBURANT - MOTEUR D'ITINÉRAIRE TACTIQUE (FRANCE)
+// 🗺️ RADAR CARBURANT - LOGIQUE TRAJET & SUGGESTIONS HTML
 // ============================================================================
 
 let mapTrajet = null;
-let fluxFranceTrajetBrut = [];     // Cache mémoire du fichier JSON national
-let stationsSurTrajet = [];        // Tableau des stations interceptées sur la route
-let routePolyline = null;          // L'élément géométrique tracé sur la map
-let marqueursStationsTrajet = [];     // Index des épingles affichées sur l'écran
-
-let DISTANCE_MAX_ROUTE_KM = 10;    // Rayon par défaut ajustable via l'UI
+let fluxFranceTrajetBrut = [];
+let stationsSurTrajet = [];
+let routePolyline = null;
+let marqueursStationsTrajet = [];
+let DISTANCE_MAX_ROUTE_KM = 10;
 
 document.addEventListener("DOMContentLoaded", () => {
+    chargerMenuCommun(); // Charge le menu burger externe
     initialiserCarteTrajet();
     initialiserEcouteursTrajet();
-    initialiserAutocompletion();
+    initialiserAutocompletionSurMesure();
 });
 
-// --- 1. CONFIGURATION INITIALE DE LA MAP ---
+// --- CHARGEMENT DU MENU BURGER MUTUALISÉ ---
+async function chargerMenuCommun() {
+    try {
+        const reponse = await fetch('menu.html');
+        if (reponse.ok) {
+            const htmlMenu = await reponse.text();
+            document.getElementById('conteneur-menu-commun').innerHTML = htmlMenu;
+        }
+    } catch (err) {
+        console.error("Impossible de charger le menu commun :", err);
+    }
+}
+
+function toggleBurgerMenu() {
+    document.getElementById('burgerMenu')?.classList.toggle('open');
+    document.getElementById('menuOverlay')?.classList.toggle('active');
+}
+
+// --- CONFIGURATION INITIALE DE LA MAP ---
 function initialiserCarteTrajet() {
     mapTrajet = L.map('map-trajet', { zoomControl: false }).setView([48.71, 7.82], 9);
-
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '© CARTO © OpenStreetMap'
     }).addTo(mapTrajet);
-    
-    console.log("📍 Moteur cartographique actif.");
 }
 
 function initialiserEcouteursTrajet() {
     document.getElementById('btn-calculer-trajet')?.addEventListener('click', executerCalculTrajet);
-    document.getElementById('trajet-arrivee')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') executerCalculTrajet();
-    });
     
-    // Écouteur sur le carburant (Simple rafraîchissement graphique)
     document.getElementById('select-carburant-trajet')?.addEventListener('change', () => {
         if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
     });
 
-    // Écouteur sur le rayon d'action (Nécessite de refiltrer la base)
     document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
         DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
-        if (routePolyline) filtrerEtAfficherStations();
+        if (routePolyline) {
+            filtrerEtAfficherStations();
+            mapTrajet.invalidateSize();
+        }
     });
 
-    // Écouteur sur le mode d'affichage (Top 10 / Top 20 / Tout)
     document.getElementById('select-affichage-trajet')?.addEventListener('change', () => {
         if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
     });
+
+    // Fermer les suggestions si on clique n'importe où ailleurs sur la page
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.wrapper-input')) {
+            document.getElementById('box-suggestions-depart').style.display = 'none';
+            document.getElementById('box-suggestions-arrivee').style.display = 'none';
+        }
+    });
 }
 
-// --- 2. LOGIQUE AUTOCOMPLÉTION DYNAMIQUE ---
-function initialiserAutocompletion() {
+// --- AUTOCOMPLÉTION GRAPHIQUE SOUS L'INPUT ---
+function initialiserAutocompletionSurMesure() {
     const inputDep = document.getElementById('trajet-depart');
     const inputArr = document.getElementById('trajet-arrivee');
 
-    if (inputDep) inputDep.addEventListener('input', (e) => gererSuggestions(e.target.value, 'suggestions-depart'));
-    if (inputArr) inputArr.addEventListener('input', (e) => gererSuggestions(e.target.value, 'suggestions-arrivee'));
+    if (inputDep) {
+        inputDep.addEventListener('input', (e) => gererSuggestionsHTML(e.target.value, 'box-suggestions-depart', inputDep));
+    }
+    if (inputArr) {
+        inputArr.addEventListener('input', (e) => gererSuggestionsHTML(e.target.value, 'box-suggestions-arrivee', inputArr));
+    }
 }
 
 let timeoutSuggestion;
-function gererSuggestions(valeur, idDatalist) {
-    const datalist = document.getElementById(idDatalist);
-    if (!datalist) return;
+function gererSuggestionsHTML(valeur, idBox, inputElement) {
+    const box = document.getElementById(idBox);
+    if (!box) return;
 
     if (valeur.trim().length < 3) {
-        datalist.innerHTML = "";
+        box.innerHTML = "";
+        box.style.display = 'none';
         return;
     }
 
     clearTimeout(timeoutSuggestion);
     timeoutSuggestion = setTimeout(async () => {
         try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(valeur)}&countrycodes=fr,de&limit=5`);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(valeur)}&countrycodes=fr,de&limit=5&addressdetails=1`);
             const data = await res.json();
             
-            datalist.innerHTML = "";
+            box.innerHTML = "";
             
+            if(data.length === 0) {
+                box.style.display = 'none';
+                return;
+            }
+
             data.forEach(item => {
-                const option = document.createElement('option');
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                
                 const villeNom = item.display_name.split(',')[0];
                 const codePostal = item.address?.postcode || '';
+                const affichage = codePostal ? `${villeNom} (${codePostal})` : villeNom;
                 
-                option.value = codePostal ? `${villeNom} (${codePostal})` : villeNom;
-                datalist.appendChild(option);
+                div.textContent = affichage;
+                
+                // Au clic sur la suggestion
+                div.addEventListener('click', () => {
+                    inputElement.value = affichage;
+                    box.innerHTML = "";
+                    box.style.display = 'none';
+                });
+                
+                box.appendChild(div);
             });
+
+            box.style.display = 'block';
         } catch (e) {
             console.error("Erreur suggestions :", e);
         }
     }, 300);
 }
 
-// --- 3. ALGORITHMES GÉOMÉTRIQUES ---
+// --- ALGORITHMES GÉOMÉTRIQUES ---
 function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -103,7 +146,6 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
-    // Échantillonnage performant pour économiser les processeurs mobiles
     const pas = Math.max(1, Math.floor(pointsRoute.length / 150)); 
     for (let i = 0; i < pointsRoute.length; i += pas) {
         if (getDistance(stationLat, stationLon, pointsRoute[i][0], pointsRoute[i][1]) <= DISTANCE_MAX_ROUTE_KM) {
@@ -113,7 +155,7 @@ function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
     return false;
 }
 
-// --- 4. EXÉCUTION DU CALCUL DU TRAJET ---
+// --- CALCUL DE L'ITINÉRAIRE ---
 async function executerCalculTrajet() {
     const depart = document.getElementById('trajet-depart').value.trim();
     const arrivee = document.getElementById('trajet-arrivee').value.trim();
@@ -163,6 +205,7 @@ async function executerCalculTrajet() {
         if (routePolyline) mapTrajet.removeLayer(routePolyline);
         routePolyline = L.polyline(pointsRouteLeaflet, { color: '#2563eb', weight: 6, opacity: 0.85 }).addTo(mapTrajet);
         
+        mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
         statut.textContent = "🛰️ Analyse de la zone...";
@@ -176,7 +219,7 @@ async function executerCalculTrajet() {
 
     } catch (err) {
         console.error(err);
-        statut.textContent = "❌ Échec de la liaison API.";
+        statut.textContent = "❌ Erreur de liaison.";
         statut.style.color = "#ef4444";
     }
 }
@@ -205,7 +248,6 @@ function filtrerEtAfficherStations() {
     rafraichirAffichageStationsTrajet();
 }
 
-// --- 5. ETAGE DE TRI ET DE CONTRÔLE VISUEL ---
 function rafraichirAffichageStationsTrajet() {
     marqueursStationsTrajet.forEach(m => mapTrajet.removeLayer(m));
     marqueursStationsTrajet = [];
@@ -217,7 +259,6 @@ function rafraichirAffichageStationsTrajet() {
     const carburantActif = document.getElementById('select-carburant-trajet')?.value || 'gz';
     const modeAffichage = document.getElementById('select-affichage-trajet')?.value || 'top10';
 
-    // Recherche des extrêmes prix pour la colorimétrie dynamique
     let prixMin = Infinity, prixMax = -Infinity;
     stationsSurTrajet.forEach(s => {
         let p = parseFloat(s[carburantActif]);
@@ -227,14 +268,12 @@ function rafraichirAffichageStationsTrajet() {
         }
     });
 
-    // Tri de la liste globale par prix croissant
     let stationsAffichables = [...stationsSurTrajet].sort((a, b) => {
         let prixA = parseFloat(a[carburantActif]) || Infinity;
         let prixB = parseFloat(b[carburantActif]) || Infinity;
         return prixA - prixB;
     });
 
-    // Écrêtage selon la demande de l'utilisateur (Top 10 / Top 20)
     if (modeAffichage === 'top10') {
         stationsAffichables = stationsAffichables.slice(0, 10);
     } else if (modeAffichage === 'top20') {
@@ -242,11 +281,10 @@ function rafraichirAffichageStationsTrajet() {
     }
 
     if (stationsAffichables.length === 0) {
-        conteneurListe.innerHTML = `<p style="font-size:12px; color:#6b7280; text-align:center;">Aucune station disponible.</p>`;
+        conteneurListe.innerHTML = `<p style="font-size:12px; color:#6b7280; text-align:center;">Aucune station.</p>`;
         return;
     }
 
-    // Affichage ciblé sur la map et le menu latéral
     stationsAffichables.forEach(station => {
         let lat = parseFloat(station.lt);
         let lon = parseFloat(station.ln);
@@ -311,9 +349,4 @@ function rafraichirAffichageStationsTrajet() {
 
         conteneurListe.appendChild(item);
     });
-}
-
-function toggleBurgerMenu() {
-    document.getElementById('burgerMenu')?.classList.toggle('open');
-    document.getElementById('menuOverlay')?.classList.toggle('active');
 }
