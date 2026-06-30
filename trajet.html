@@ -1,17 +1,26 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Radar Carburant - Calcul d'Itinéraire</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
     <style>
+        /* Neutralisation des bordures blanches parasites */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111827;
+        }
         .ecran-trajet {
             display: flex;
             flex-direction: column;
             height: 100vh;
+            width: 100vw;
         }
         .barre-recherche-trajet {
             background: #1f2937;
@@ -20,14 +29,16 @@
             flex-direction: column;
             gap: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            z-index: 1000;
+            z-index: 2000;
         }
         .inputs-trajet {
             display: flex;
             gap: 10px;
+            position: relative;
         }
-        .inputs-trajet > div {
+        .wrapper-input {
             flex: 1;
+            position: relative;
         }
         .inputs-trajet input {
             width: 100%;
@@ -38,7 +49,35 @@
             border-radius: 8px;
             font-size: 14px;
             box-sizing: border-box;
+            outline: none;
         }
+        
+        /* Liste de suggestions sur mesure (remplace le datalist) */
+        .suggestions-flottantes {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #273549;
+            border: 1px solid #4b5563;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 3000;
+            margin-top: 5px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #374151;
+            color: #e5e7eb;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: #374151; color: #fff; }
+
         .btn-calculer {
             background: #2563eb;
             color: white;
@@ -47,17 +86,20 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
         }
-        .btn-calculer:hover { background: #1d4ed8; }
         
         .zone-contenu {
             flex: 1;
             display: flex;
             position: relative;
             overflow: hidden;
+            width: 100%;
         }
-        #map-trajet { flex: 1; height: 100%; }
+        #map-trajet { 
+            flex: 1; 
+            height: 100%; 
+            background: #111827;
+        }
         
         .panneau-stations {
             width: 350px;
@@ -77,31 +119,33 @@
         }
     </style>
 </head>
-<body class="bg-slate-900 text-white m-0 p-0">
+<body class="text-white">
 
     <div class="ecran-trajet">
         <div class="barre-recherche-trajet">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin:0; color:#eab308; font-size: 16px;">🗺️ FILTRE PAR ITINÉRAIRE</h3>
-                <div class="burger-icon" onclick="toggleBurgerMenu()" style="cursor: pointer; font-size: 24px;">☰</div>
+                <!-- Le conteneur du menu burger sera injecté ici dynamiquement -->
+                <div id="conteneur-menu-commun"></div>
             </div>
             
             <div class="inputs-trajet">
-                <div>
-                    <input type="text" id="trajet-depart" list="suggestions-depart" placeholder="Ville de départ (ex: Gries)" autocomplete="off">
-                    <datalist id="suggestions-depart"></datalist>
+                <div class="wrapper-input">
+                    <input type="text" id="trajet-depart" placeholder="Ville de départ (ex: Gries)" autocomplete="off">
+                    <div id="box-suggestions-depart" class="suggestions-flottantes"></div>
                 </div>
-                <div>
-                    <input type="text" id="trajet-arrivee" list="suggestions-arrivee" placeholder="Ville d'arrivée (ex: Bordeaux)" autocomplete="off">
-                    <datalist id="suggestions-arrivee"></datalist>
+                <div class="wrapper-input">
+                    <input type="text" id="trajet-arrivee" placeholder="Ville d'arrivée (ex: Besançon)" autocomplete="off">
+                    <div id="box-suggestions-arrivee" class="suggestions-flottantes"></div>
                 </div>
                 <button class="btn-calculer" id="btn-calculer-trajet">Calculer</button>
             </div>
             
+            <!-- Sélecteurs tactiques -->
             <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; background: #111827; padding: 10px; border-radius: 8px; border: 1px solid #1f2937;">
                 <div style="display: flex; gap: 5px; align-items: center;">
                     <label for="select-carburant-trajet" style="font-size: 12px; color: #9ca3af;">Carburant :</label>
-                    <select id="select-carburant-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px;">
+                    <select id="select-carburant-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
                         <option value="gz">Gazole</option>
                         <option value="e10">SP95-E10</option>
                         <option value="95">SP95</option>
@@ -111,7 +155,7 @@
 
                 <div style="display: flex; gap: 5px; align-items: center;">
                     <label for="select-rayon-trajet" style="font-size: 12px; color: #9ca3af;">Détour max :</label>
-                    <select id="select-rayon-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px;">
+                    <select id="select-rayon-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
                         <option value="2">2 km (Autoroute)</option>
                         <option value="5">5 km (Rapide)</option>
                         <option value="10" selected>10 km (Standard)</option>
@@ -120,7 +164,7 @@
 
                 <div style="display: flex; gap: 5px; align-items: center;">
                     <label for="select-affichage-trajet" style="font-size: 12px; color: #9ca3af;">Affichage :</label>
-                    <select id="select-affichage-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px;">
+                    <select id="select-affichage-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
                         <option value="top10" selected>Top 10 moins chères</option>
                         <option value="top20">Top 20 moins chères</option>
                         <option value="all">Toutes les stations</option>
@@ -142,18 +186,8 @@
         </div>
     </div>
 
-    <div id="menuOverlay" class="menu-overlay" onclick="toggleBurgerMenu()"></div>
-    <div id="burgerMenu" class="burger-menu">
-        <div class="close-menu" onclick="toggleBurgerMenu()">✕</div>
-        <div class="menu-links">
-            <a href="index.html">🌐 Radar Principal (Carte)</a>
-            <a href="trajet.html" class="active">🗺️ Mode Itinéraire</a>
-            <a href="outils.html">📈 Historique & Prévisions</a>
-            <a href="compte.html">👤 Mon Compte</a>
-        </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="trajet.js"></script>
 </body>
 </html>
+
