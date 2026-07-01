@@ -29,7 +29,7 @@
 
         body { display: flex; flex-direction: column; position: fixed; width: 100%; }
 
-        /* Style du Menu Burger */
+        /* Menu Burger */
         .burger-btn {
             background: none; border: none; color: var(--texte-principal);
             font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px;
@@ -69,7 +69,7 @@
         }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
 
-        /* Structure Écran */
+        /* Structure */
         .ecran-trajet {
             display: flex;
             flex-direction: column;
@@ -107,6 +107,16 @@
             outline: none;
         }
 
+        .btn-calculer {
+            background: var(--accent-bleu);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
         /* Suggestions */
         .suggestions-flottantes {
             position: absolute;
@@ -130,17 +140,35 @@
             border-bottom: 1px solid #374151;
             color: var(--texte-secondaire);
         }
-        .suggestion-item:last-child { border-bottom: none; }
         .suggestion-item:hover { background: #374151; color: #fff; }
 
-        .btn-calculer {
-            background: var(--accent-bleu);
+        /* Volet Filtres Flottant Dépliable */
+        .declencheur-filtres {
+            background: #1f2937;
+            border: 1px solid #374151;
             color: white;
-            border: none;
-            padding: 10px 20px;
+            padding: 10px;
             border-radius: 8px;
-            font-weight: bold;
+            font-size: 13px;
+            font-weight: 700;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .bloc-options-trajet {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: rgba(17, 24, 39, 0.95);
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #374151;
+            transition: all 0.3s ease;
+        }
+        .bloc-options-trajet.masque-mobile {
+            display: flex;
         }
 
         /* Zone de contenu principale */
@@ -167,25 +195,67 @@
             overflow-y: auto;
         }
 
-        /* 📱 RESPONSIVE MOBILE SÉCURISÉ (Vérifié avec 1000010704.jpg) */
+        /* Style des Popups Leaflet Sombres (Type Radar) */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #111827 !important;
+            color: #f3f4f6 !important;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .leaflet-popup-content {
+            margin: 12px !important;
+            min-width: 240px;
+        }
+        .popup-station-title {
+            font-size: 12px; font-weight: 800; color: #eab308;
+            text-transform: uppercase; margin-bottom: 6px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .popup-carburant-ligne {
+            display: flex; justify-content: space-between; padding: 6px 8px;
+            background: rgba(31, 41, 55, 0.6); margin-bottom: 4px; border-radius: 6px;
+            font-size: 12px; font-family: 'JetBrains Mono', monospace;
+        }
+        .popup-carburant-ligne.actif {
+            background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+        .popup-btn-actions {
+            display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+        }
+        .popup-btn {
+            padding: 8px; border-radius: 6px; font-size: 11px; font-weight: bold;
+            text-align: center; cursor: pointer; text-decoration: none; display: flex;
+            align-items: center; justify-content: center; gap: 6px; border: none;
+        }
+        .popup-btn-fav { background: #22c55e; color: white; }
+        .popup-btn-fav.deja-fav { background: #ef4444; color: white; }
+        .popup-btn-maps { background: #3b82f6; color: white; }
+
+        /* 📱 RESPONSIVE MOBILE SÉCURISÉ */
         @media (max-width: 768px) {
-            .zone-contenu { 
-                flex-direction: column; /* Pas de reverse, la carte reste en haut */
-            }
+            .zone-contenu { flex-direction: column; }
             #map-trajet { 
-                flex: none;
-                width: 100%;
-                height: 35vh; /* Assure une hauteur fixe visible directement sous les filtres */
+                flex: none; width: 100%; height: 35vh; 
                 border-bottom: 1px solid #1f2937;
             }
-            .panneau-stations { 
-                flex: 1;
-                width: 100%; 
-                height: auto;
-                border-left: none; 
-            }
+            .panneau-stations { flex: 1; width: 100%; height: auto; border-left: none; }
             .inputs-trajet { flex-direction: column; gap: 8px; }
             .btn-calculer { width: 100%; padding: 12px; }
+
+            /* Gestion du Volet Flottant des paramètres */
+            .bloc-options-trajet {
+                position: absolute;
+                top: 145px; left: 15px; right: 15px;
+                z-index: 2000;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            }
+            .bloc-options-trajet.masque-mobile {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -223,8 +293,15 @@
                 <button class="btn-calculer" id="btn-calculer-trajet">Calculer</button>
             </div>
 
-            <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; background: rgba(31, 41, 55, 0.5); padding: 10px; border-radius: 12px; border: 1px solid #374151;">
-                <div style="display: flex; gap: 5px; align-items: center;">
+            <!-- Déclencheur Tactique du volet Paramètres -->
+            <div class="declencheur-filtres" onclick="toggleVoletFiltres()">
+                <span>⚙️ Configuration tactique des filtres</span>
+                <span id="indicateur-filtre-fleche">▼</span>
+            </div>
+
+            <!-- Volet Paramètres Flottant -->
+            <div id="options-trajet" class="bloc-options-trajet masque-mobile">
+                <div style="display: flex; gap: 5px; align-items: center; justify-content: space-between;">
                     <label for="select-carburant-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Carburant :</label>
                     <select id="select-carburant-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="gz">Gazole</option>
@@ -234,7 +311,7 @@
                     </select>
                 </div>
 
-                <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="display: flex; gap: 5px; align-items: center; justify-content: space-between;">
                     <label for="select-rayon-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Détour max :</label>
                     <select id="select-rayon-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="2">2 km (Autoroute)</option>
@@ -243,7 +320,7 @@
                     </select>
                 </div>
 
-                <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="display: flex; gap: 5px; align-items: center; justify-content: space-between;">
                     <label for="select-affichage-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Affichage :</label>
                     <select id="select-affichage-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="top10" selected>Top 10 moins chères</option>
@@ -252,7 +329,7 @@
                     </select>
                 </div>
 
-                <span id="trajet-statut" style="font-size: 12px; font-weight: bold; margin-left: auto; font-family: 'JetBrains Mono', monospace;"></span>
+                <span id="trajet-statut" style="font-size: 12px; font-weight: bold; text-align: center; font-family: 'JetBrains Mono', monospace; display: block;"></span>
             </div>
         </div>
 
