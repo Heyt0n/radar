@@ -9,35 +9,7 @@ let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
 
-document.addEventListener("DOMContentLoaded", () => {
-    chargerMenuCommun(); // Charge le menu burger externe
-    initialiserCarteTrajet();
-    initialiserEcouteursTrajet();
-    initialiserAutocompletionSurMesure();
-});
-
-
-
-
-
-
-// --- CHARGEMENT DU MENU BURGER MUTUALISÉ ---
-async function chargerMenuCommun() {
-    try {
-        const reponse = await fetch('menu.html');
-        if (reponse.ok) {
-            const htmlMenu = await reponse.text();
-            document.getElementById('conteneur-menu-commun').innerHTML = htmlMenu;
-            
-            // 🎯 Met en surbrillance le lien de la page actuelle automatiquement
-            gererLienActifMenu();
-        }
-    } catch (err) {
-        console.error("Impossible de charger le menu commun :", err);
-    }
-}
-
-// --- COMMANDE D'OUVERTURE / FERMETURE ---
+// --- COMMANDE D'OUVERTURE / FERMETURE DU MENU BURGER ---
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
     const overlay = document.getElementById('menuOverlay');
@@ -47,26 +19,12 @@ function toggleBurgerMenu() {
     }
 }
 
-// --- GESTION DYNAMIQUE DE LA CLASSE ACTIVE ---
-function gererLienActifMenu() {
-    // On retire d'abord toutes les classes actives importées du fichier brut
-    document.querySelectorAll('.menu-link').forEach(link => link.classList.remove('active'));
-
-    // On détecte sur quelle page on est grâce à l'URL et on active le bon ID
-    const pageActuelle = window.location.pathname;
-
-    if (pageActuelle.includes('index.html') || pageActuelle === '/') {
-        document.getElementById('link-radar')?.classList.add('active');
-    } else if (pageActuelle.includes('trajet.html')) {
-        document.getElementById('link-trajet')?.classList.add('active');
-    } else if (pageActuelle.includes('outils.html')) {
-        document.getElementById('link-outils')?.classList.add('active');
-    } else if (pageActuelle.includes('compte.html')) {
-        document.getElementById('link-compte')?.classList.add('active');
-    }
-}
-
-
+// Lancement au chargement complet du DOM
+document.addEventListener("DOMContentLoaded", () => {
+    initialiserCarteTrajet();
+    initialiserEcouteursTrajet();
+    initialiserAutocompletionSurMesure();
+});
 
 // --- CONFIGURATION INITIALE DE LA MAP ---
 function initialiserCarteTrajet() {
@@ -78,7 +36,7 @@ function initialiserCarteTrajet() {
 
 function initialiserEcouteursTrajet() {
     document.getElementById('btn-calculer-trajet')?.addEventListener('click', executerCalculTrajet);
-    
+
     document.getElementById('select-carburant-trajet')?.addEventListener('change', () => {
         if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
     });
@@ -133,9 +91,9 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
         try {
             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(valeur)}&countrycodes=fr,de&limit=5&addressdetails=1`);
             const data = await res.json();
-            
+
             box.innerHTML = "";
-            
+
             if(data.length === 0) {
                 box.style.display = 'none';
                 return;
@@ -144,20 +102,20 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
             data.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
-                
+
                 const villeNom = item.display_name.split(',')[0];
                 const codePostal = item.address?.postcode || '';
                 const affichage = codePostal ? `${villeNom} (${codePostal})` : villeNom;
-                
+
                 div.textContent = affichage;
-                
+
                 // Au clic sur la suggestion
                 div.addEventListener('click', () => {
                     inputElement.value = affichage;
                     box.innerHTML = "";
                     box.style.display = 'none';
                 });
-                
+
                 box.appendChild(div);
             });
 
@@ -217,14 +175,14 @@ async function executerCalculTrajet() {
 
         let urlOSRM = `https://router.project-osrm.org/route/v1/driving/${coordsDep[1]},${coordsDep[0]};${coordsArr[1]},${coordsArr[0]}?overview=full&geometries=geojson`;
         let resRoute;
-        
+
         try {
             resRoute = await fetch(urlOSRM);
             if (!resRoute.ok) throw new Error();
         } catch(e) {
             resRoute = await fetch(`https://corsproxy.io/?${encodeURIComponent(urlOSRM)}`);
         }
-        
+
         const dataRoute = await resRoute.json();
 
         if (!dataRoute.routes || dataRoute.routes.length === 0) {
@@ -238,7 +196,7 @@ async function executerCalculTrajet() {
 
         if (routePolyline) mapTrajet.removeLayer(routePolyline);
         routePolyline = L.polyline(pointsRouteLeaflet, { color: '#2563eb', weight: 6, opacity: 0.85 }).addTo(mapTrajet);
-        
+
         mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
@@ -363,7 +321,7 @@ function rafraichirAffichageStationsTrajet() {
         item.style.display = "flex";
         item.style.justifyContent = "space-between";
         item.style.alignItems = "center";
-        
+
         if (prix === prixMin && prixMin !== Infinity) {
             item.style.border = "1px solid #22c55e";
         }
