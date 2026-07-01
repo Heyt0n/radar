@@ -2,20 +2,75 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Radar Carburant - Calcul d'Itinéraire</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Radar Carburant - Mode Itinéraire</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
     <style>
-        /* Neutralisation des bordures blanches parasites */
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #111827;
+        :root {
+            --bg-principal: #0b0f19;
+            --bg-panneau: #111827;
+            --bg-carte: #1f2937;
+            --accent-vert: #22c55e;
+            --accent-bleu: #3b82f6;
+            --texte-principal: #f3f4f6;
+            --texte-secondaire: #9ca3af;
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: var(--bg-principal);
+            color: var(--texte-principal); font-family: 'Plus Jakarta Sans', sans-serif;
+            position: fixed;
+        }
+
+        body { display: flex; flex-direction: column; }
+
+        /* Style du Menu Burger - Copié d'index.html */
+        .burger-btn {
+            background: none; border: none; color: var(--texte-principal);
+            font-size: 24px; cursor: pointer; z-index: 1100; padding: 5px;
+        }
+
+        .burger-menu {
+            position: fixed; top: 0; right: -280px; width: 280px; height: 100%;
+            background-color: var(--bg-panneau); border-left: 1px solid #1f2937;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000;
+            transition: right 0.3s ease; padding: 20px; display: flex;
+            flex-direction: column; gap: 10px;
+        }
+
+        .burger-menu.open { right: 0; }
+
+        .menu-user-header {
+            padding-top: 50px; padding-bottom: 15px;
+            border-bottom: 1px solid #1f2937; margin-bottom: 10px;
+        }
+        .menu-user-status {
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--accent-vert); font-weight: 700; display: block; margin-bottom: 4px;
+        }
+        .menu-user-greeting { font-size: 15px; font-weight: 600; color: var(--texte-secondaire); }
+        #nom-operateur { color: var(--texte-principal); font-weight: 800; }
+
+        .menu-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6); z-index: 999;
+        }
+        .menu-overlay.active { display: block; }
+
+        .menu-link {
+            background: #1f2937; color: var(--texte-principal); border: 1px solid #374151;
+            padding: 14px; border-radius: 8px; text-align: left; font-weight: 600;
+            font-size: 14px; text-decoration: none; display: flex; align-items: center; gap: 10px;
+        }
+        .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); }
+
+        /* Structure de l'écran Trajet */
         .ecran-trajet {
             display: flex;
             flex-direction: column;
@@ -23,13 +78,13 @@
             width: 100vw;
         }
         .barre-recherche-trajet {
-            background: #1f2937;
+            background: var(--bg-panneau);
             padding: 15px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            z-index: 2000;
+            border-bottom: 1px solid #1f2937;
+            z-index: 100;
         }
         .inputs-trajet {
             display: flex;
@@ -42,8 +97,8 @@
         }
         .inputs-trajet input {
             width: 100%;
-            background: #374151;
-            border: 1px solid #4b5563;
+            background: #1f2937;
+            border: 1px solid #374151;
             color: white;
             padding: 10px;
             border-radius: 8px;
@@ -52,14 +107,14 @@
             outline: none;
         }
 
-        /* Liste de suggestions sur mesure */
+        /* Suggestions flottantes */
         .suggestions-flottantes {
             position: absolute;
             top: 100%;
             left: 0;
             right: 0;
-            background: #273549;
-            border: 1px solid #4b5563;
+            background: #1f2937;
+            border: 1px solid #374151;
             border-radius: 8px;
             max-height: 200px;
             overflow-y: auto;
@@ -73,13 +128,13 @@
             cursor: pointer;
             font-size: 13px;
             border-bottom: 1px solid #374151;
-            color: #e5e7eb;
+            color: var(--texte-secondaire);
         }
         .suggestion-item:last-child { border-bottom: none; }
         .suggestion-item:hover { background: #374151; color: #fff; }
 
         .btn-calculer {
-            background: #2563eb;
+            background: var(--accent-bleu);
             color: white;
             border: none;
             padding: 10px 20px;
@@ -98,12 +153,12 @@
         #map-trajet { 
             flex: 1; 
             height: 100%; 
-            background: #111827;
+            background: var(--bg-principal);
         }
 
         .panneau-stations {
-            width: 350px;
-            background: #111827;
+            width: 320px;
+            background: var(--bg-panneau);
             border-left: 1px solid #1f2937;
             display: flex;
             flex-direction: column;
@@ -112,34 +167,36 @@
         }
 
         @media (max-width: 768px) {
-            .zone-contenu { flex-direction: column; }
-            .panneau-stations { width: 100%; height: 40%; border-left: none; border-top: 1px solid #1f2937; }
+            body { position: fixed; width: 100%; }
+            .ecran-trajet { height: 100vh; }
+            .zone-contenu { flex-direction: column-reverse; }
+            .panneau-stations { width: 100%; height: 40vh; border-left: none; border-top: 1px solid #1f2937; }
+            #map-container-trajet { flex: 1; height: 60vh; }
             .inputs-trajet { flex-direction: column; gap: 8px; }
             .btn-calculer { width: 100%; padding: 12px; }
         }
     </style>
 </head>
-<body class="text-white">
+<body>
 
-    <!-- MENU BURGER INTEGRÉ -->
+    <!-- INTERFACE DU MENU BURGER IDENTIQUE A INDEX -->
     <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
 
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connecté</span>
+            <span class="menu-user-status">📡 Système Connected</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
-        <a href="index.html" class="menu-link" id="link-radar">📡 Radar Tactique</a>
-        <a href="trajet.html" class="menu-link active" id="link-trajet">🗺️ Mode Itinéraire</a>
-        <a href="outils.html" class="menu-link" id="link-outils">📊 Outils & Stats</a>
-        <a href="compte.html" class="menu-link" id="link-compte">👤 Mon Compte</a>
+        <a href="index.html" class="menu-link">📡 Radar Tactique</a>
+        <a href="trajet.html" class="menu-link active">🗺️ Mode Itinéraire</a>
+        <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
+        <a href="compte.html" class="menu-link">👤 Mon Compte</a>
     </nav>
 
     <div class="ecran-trajet">
         <div class="barre-recherche-trajet">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin:0; color:#eab308; font-size: 16px;">🗺️ FILTRE PAR ITINÉRAIRE</h3>
-                <!-- Bouton burger déplacé ici pour l'avoir dans ta barre de recherche tactique -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h1 style="font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #eab308;">🗺️ Filtrer par Itinéraire</h1>
                 <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
             </div>
 
@@ -155,11 +212,11 @@
                 <button class="btn-calculer" id="btn-calculer-trajet">Calculer</button>
             </div>
 
-            <!-- Sélecteurs tactiques -->
-            <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; background: #111827; padding: 10px; border-radius: 8px; border: 1px solid #1f2937;">
+            <!-- Filtres tactiques harmonisés -->
+            <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; background: rgba(31, 41, 55, 0.5); padding: 10px; border-radius: 12px; border: 1px solid #374151;">
                 <div style="display: flex; gap: 5px; align-items: center;">
-                    <label for="select-carburant-trajet" style="font-size: 12px; color: #9ca3af;">Carburant :</label>
-                    <select id="select-carburant-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
+                    <label for="select-carburant-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Carburant :</label>
+                    <select id="select-carburant-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="gz">Gazole</option>
                         <option value="e10">SP95-E10</option>
                         <option value="95">SP95</option>
@@ -168,8 +225,8 @@
                 </div>
 
                 <div style="display: flex; gap: 5px; align-items: center;">
-                    <label for="select-rayon-trajet" style="font-size: 12px; color: #9ca3af;">Détour max :</label>
-                    <select id="select-rayon-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
+                    <label for="select-rayon-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Détour max :</label>
+                    <select id="select-rayon-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="2">2 km (Autoroute)</option>
                         <option value="5">5 km (Rapide)</option>
                         <option value="10" selected>10 km (Standard)</option>
@@ -177,29 +234,32 @@
                 </div>
 
                 <div style="display: flex; gap: 5px; align-items: center;">
-                    <label for="select-affichage-trajet" style="font-size: 12px; color: #9ca3af;">Affichage :</label>
-                    <select id="select-affichage-trajet" style="background:#374151; color:white; border:1px solid #4b5563; padding:5px; border-radius:6px; font-size:12px; outline: none;">
+                    <label for="select-affichage-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Affichage :</label>
+                    <select id="select-affichage-trajet" style="background:#1f2937; color:white; border:1px solid #374151; padding:6px; border-radius:6px; font-size:12px; outline: none; font-weight: bold;">
                         <option value="top10" selected>Top 10 moins chères</option>
                         <option value="top20">Top 20 moins chères</option>
                         <option value="all">Toutes les stations</option>
                     </select>
                 </div>
 
-                <span id="trajet-statut" style="font-size: 12px; font-weight: bold; margin-left: auto;"></span>
+                <span id="trajet-statut" style="font-size: 12px; font-weight: bold; margin-left: auto; font-family: 'JetBrains Mono', monospace;"></span>
             </div>
         </div>
 
         <div class="zone-contenu">
             <div id="map-trajet"></div>
             <div class="panneau-stations">
-                <h4 style="margin: 0 0 10px 0; font-size: 14px; border-bottom: 1px solid #1f2937; padding-bottom: 5px; color: #9ca3af;">Stations sur le trajet</h4>
-                <div id="liste-stations-trajet" style="display: flex; flex-direction: column; gap: 10px;">
-                    <p style="font-size: 12px; color: #6b7280; font-style: italic; text-align: center; margin-top: 20px;">Entrez un itinéraire pour analyser les prix.</p>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 12px; font-weight: 600;">Stations sur le trajet</div>
+                <div id="liste-stations-trajet" style="display: flex; flex-direction: column; gap: 8px;">
+                    <p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic; margin-top: 20px;">Entrez un itinéraire pour analyser les prix.</p>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Chargement de Supabase pour conserver les données de session du menu -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="trajet.js"></script>
 </body>
