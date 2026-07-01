@@ -51,8 +51,8 @@
             box-sizing: border-box;
             outline: none;
         }
-        
-        /* Liste de suggestions sur mesure (remplace le datalist) */
+
+        /* Liste de suggestions sur mesure */
         .suggestions-flottantes {
             position: absolute;
             top: 100%;
@@ -87,7 +87,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        
+
         .zone-contenu {
             flex: 1;
             display: flex;
@@ -100,7 +100,7 @@
             height: 100%; 
             background: #111827;
         }
-        
+
         .panneau-stations {
             width: 350px;
             background: #111827;
@@ -110,7 +110,7 @@
             padding: 15px;
             overflow-y: auto;
         }
-        
+
         @media (max-width: 768px) {
             .zone-contenu { flex-direction: column; }
             .panneau-stations { width: 100%; height: 40%; border-left: none; border-top: 1px solid #1f2937; }
@@ -121,34 +121,28 @@
 </head>
 <body class="text-white">
 
+    <!-- MENU BURGER INTEGRÉ -->
+    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
 
- <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
-    
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connected</span>
+            <span class="menu-user-status">📡 Système Connecté</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
-        <a href="index.html" class="menu-link active">📡 Radar Tactique</a>
-<a href="trajet.html">🗺️ Mode Itinéraire</a>
-        <a href="outils.html" class="menu-link">📊 Outils & Stats</a>
-        <a href="compte.html" class="menu-link">👤 Mon Compte</a>
+        <a href="index.html" class="menu-link" id="link-radar">📡 Radar Tactique</a>
+        <a href="trajet.html" class="menu-link active" id="link-trajet">🗺️ Mode Itinéraire</a>
+        <a href="outils.html" class="menu-link" id="link-outils">📊 Outils & Stats</a>
+        <a href="compte.html" class="menu-link" id="link-compte">👤 Mon Compte</a>
     </nav>
-
-    <header>
-        <h1>Radar Carburant</h1>
-        <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
-    </header>
-
 
     <div class="ecran-trajet">
         <div class="barre-recherche-trajet">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin:0; color:#eab308; font-size: 16px;">🗺️ FILTRE PAR ITINÉRAIRE</h3>
-                <!-- Le conteneur du menu burger sera injecté ici dynamiquement -->
-                <div id="conteneur-menu-commun"></div>
+                <!-- Bouton burger déplacé ici pour l'avoir dans ta barre de recherche tactique -->
+                <button class="burger-btn" onclick="toggleBurgerMenu()">☰</button>
             </div>
-            
+
             <div class="inputs-trajet">
                 <div class="wrapper-input">
                     <input type="text" id="trajet-depart" placeholder="Ville de départ (ex: Gries)" autocomplete="off">
@@ -160,7 +154,7 @@
                 </div>
                 <button class="btn-calculer" id="btn-calculer-trajet">Calculer</button>
             </div>
-            
+
             <!-- Sélecteurs tactiques -->
             <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px; flex-wrap: wrap; background: #111827; padding: 10px; border-radius: 8px; border: 1px solid #1f2937;">
                 <div style="display: flex; gap: 5px; align-items: center;">
@@ -208,31 +202,5 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="trajet.js"></script>
-    <script>
-        function toggleBurgerMenu() {
-            const menu = document.getElementById('burgerMenu');
-            const overlay = document.getElementById('menuOverlay');
-            if (menu && overlay) {
-                menu.classList.toggle('open');
-                overlay.classList.toggle('active');
-            }
-        }
-
-
-
-
-
-
-
-
-function toggleBurgerMenu() {
-    document.getElementById('burgerMenu')?.classList.toggle('open');
-    document.getElementById('menuOverlay')?.classList.toggle('active');
-}
-
-window.basculerFavori = basculerFavori;
-window.toggleBurgerMenu = toggleBurgerMenu;
-</script>
 </body>
 </html>
-
