@@ -362,10 +362,9 @@ function rafraichirAffichageStationsTrajet() {
 
         const estFav = listeFavorisIds.includes(idStation);
         
-        // CORRECTION DE SYNTAXE REQUIS ICI : Remplacement des syntaxes à points défectueuses par l'accès via crochets []
         const popupContent = `
             <div class="popup-station-title">${nomStation}</div>
-            <div style="font-size:10px; color:#9ca3af; margin-bottom:8px; line-height:1.2;">📍 ${adresse}</div>
+            <div style="font-size:10px; color:#9ca3af; margin-bottom:6px; line-height:1.2;">📍 ${adresse}</div>
             
             <div class="popup-carburant-ligne ${carburantActif === 'gz' ? 'actif' : ''}">
                 <span>Gazole :</span><b>${formatPrix(station['gz'])}</b>
@@ -382,16 +381,20 @@ function rafraichirAffichageStationsTrajet() {
 
             <div class="popup-btn-actions">
                 <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${idStation}')">
-                    ⭐️ ${estFav ? 'Retirer des Favoris' : 'Épingler en Favori'}
+                    ⭐ ${estFav ? 'Enlever' : 'Favori'}
                 </button>
                 <a class="popup-btn popup-btn-maps" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank">
-                    🗺️ Itinéraire Google Maps
+                    🗺️ Itinéraire
                 </a>
             </div>
         `;
 
+        // AJOUT SÉCURITÉ AUTOPAN : Force la carte à se décaler intelligemment vers le bas pour ne pas cacher le haut de la popup
         const marker = L.marker([lat, lon], { icon: iconeHTML }).addTo(mapTrajet);
-        marker.bindPopup(popupContent);
+        marker.bindPopup(popupContent, {
+            autoPan: true,
+            autoPanPadding: L.point(15, 60) // Sécurité de 60px par rapport au haut de l'écran mobile !
+        });
         marqueursStationsTrajet.push(marker);
 
         const item = document.createElement('div');
