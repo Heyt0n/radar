@@ -76,6 +76,8 @@
             height: 100vh;
             width: 100vw;
         }
+        
+        /* Barre de recherche parente avec priorité absolue sur Leaflet */
         .barre-recherche-trajet {
             background: var(--bg-panneau);
             padding: 15px;
@@ -83,10 +85,11 @@
             flex-direction: column;
             gap: 10px;
             border-bottom: 1px solid #1f2937;
-            z-index: 100;
-            flex-shrink: 0;
             position: relative;
+            z-index: 10000 !important; /* Force tout le bloc recherche devant la carte */
+            flex-shrink: 0;
         }
+        
         .inputs-trajet {
             display: flex;
             gap: 10px;
@@ -143,7 +146,7 @@
         }
         .suggestion-item:hover { background: #374151; color: #fff; }
 
-             /* Volet Filtres Flottant Dépliable */
+        /* Volet Filtres Flottant Dépliable */
         .declencheur-filtres {
             background: #1f2937;
             border: 1px solid #374151;
@@ -162,17 +165,16 @@
             gap: 15px;
             align-items: center;
             flex-wrap: wrap;
-            background: rgba(17, 24, 39, 0.98); /* Légèrement plus opaque pour bloquer la carte */
+            background: rgba(17, 24, 39, 0.98);
             padding: 12px;
             border-radius: 12px;
             border: 1px solid #374151;
             transition: all 0.2s ease;
-            z-index: 1500 !important; /* 🔥 FORCE LE PASSAGE DEVANT LA CARTE LEAFLET */
+            z-index: 10001 !important; /* Priorité immédiate */
         }
         .bloc-options-trajet.masque-mobile {
             display: flex;
         }
-
 
         /* Zone de contenu principale */
         .zone-contenu {
@@ -243,6 +245,7 @@
             #map-trajet { 
                 flex: none; width: 100%; height: 35vh; 
                 border-bottom: 1px solid #1f2937;
+                z-index: 1 !important; /* Force la carte à rester au niveau le plus bas en arrière-plan */
             }
             .panneau-stations { flex: 1; width: 100%; height: auto; border-left: none; }
             .inputs-trajet { flex-direction: column; gap: 8px; }
@@ -251,15 +254,15 @@
             /* Déroulement vers le bas propre sous l'en-tête */
             .bloc-options-trajet {
                 position: absolute;
-                top: 100%; /* S'ouvre impérativement vers le bas à la fin de la barre de recherche */
+                top: 100%; 
                 left: 0; right: 0;
-                z-index: 2500;
                 flex-direction: column;
                 align-items: stretch;
                 gap: 10px;
                 border-radius: 0 0 12px 12px;
                 border-top: none;
                 box-shadow: 0 12px 25px rgba(0, 0, 0, 0.7);
+                z-index: 10002 !important; /* Écrase complètement le calque de la carte */
             }
             .bloc-options-trajet.masque-mobile {
                 display: none;
