@@ -4,6 +4,7 @@ let stationsSurTrajet = [];
 let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
+let listeFavorisIds = []; // Contiendra les ID des stations favorites de l'utilisateur
 
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
@@ -14,6 +15,18 @@ function toggleBurgerMenu() {
     }
 }
 
+// Commande d'ouverture/fermeture du volet flottant de paramètres
+function toggleVoletFiltres() {
+    const volet = document.getElementById('options-trajet');
+    const indicateur = document.getElementById('indicateur-filtre-fleche');
+    if (volet) {
+        volet.classList.toggle('masque-mobile');
+        if (indicateur) {
+            indicateur.textContent = volet.classList.contains('masque-mobile') ? '▼' : '▲';
+        }
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -21,6 +34,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pseudo = session.user.user_metadata.display_name || "Opérateur";
             const nomOperateurBadge = document.getElementById("nom-operateur");
             if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
+            
+            // Charger la liste des favoris de l'utilisateur depuis Supabase
+            chargerFavorisUtilisateur(session.user.id);
         }
     } catch (err) {
         console.error("Erreur synchro session menu trajet :", err);
@@ -31,6 +47,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     initialiserAutocompletionSurMesure();
 });
 
+async function chargerFavorisUtilisateur(userId) {
+    try {
+        const { data, error } = await _supabase
+            .from('profiles')
+            .select('favorites')
+            .eq('id', userId)
+            .single();
+        if (data && data.favorites) {
+            listeFavorisIds = data.favorites;
+        }
+    } catch(e) { console.error("Erreur favoris :", e); }
+}
+
+async function basculerFavoriSupabase(stationId) {
+    try {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) {
+            alert("Veuillez vous connecter pour gérer vos favoris.");
+            return;
+        }
+
+        if (listeFavorisIds.includes(stationId)) {
+            listeFavorisIds = listeFavorisIds.filter(id => id !== stationId);
+        } else {
+            listeFavorisIds.push(stationId);
+        }
+
+        await _supabase
+            .from('profiles')
+            .update({ favorites: listeFavorisIds })
+            .eq('id', session.user.id);
+
+        // Rafraichit la vue pour mettre à jour les boutons dans les popups
+        rafraichirAffichageStationsTrajet();
+    } catch(err) {
+        console.error(err);
+    }
+}
+
 function initialiserCarteTrajet() {
     mapTrajet = L.map('map-trajet', { zoomControl: false }).setView([48.71, 7.82], 9);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -39,7 +94,14 @@ function initialiserCarteTrajet() {
 }
 
 function initialiserEcouteursTrajet() {
-    document.getElementById('btn-calculer-trajet')?.addEventListener('click', executerCalculTrajet);
+    document.getElementById('btn-calculer-trajet')?.addEventListener('click', () => {
+        executerCalculTrajet();
+        // Ferme le volet sur mobile après calcul pour voir la carte immédiatement
+        if (window.innerWidth <= 768) {
+            document.getElementById('options-trajet').classList.add('masque-mobile');
+            document.getElementById('indicateur-filtre-fleche').textContent = '▼';
+        }
+    });
 
     document.getElementById('select-carburant-trajet')?.addEventListener('change', () => {
         if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
@@ -47,9 +109,7 @@ function initialiserEcouteursTrajet() {
 
     document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
         DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
-        if (routePolyline) {
-            filtrerEtAfficherStations();
-        }
+        if (routePolyline) filtrerEtAfficherStations();
     });
 
     document.getElementById('select-affichage-trajet')?.addEventListener('change', () => {
@@ -183,7 +243,7 @@ async function executerCalculTrajet() {
         mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
-        statut.textContent = "🛰️ Analyse de la zone...";
+        statut.textContent = "🛰️ Analyse...";
         if (fluxFranceTrajetBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
             fluxFranceTrajetBrut = await resFR.json();
@@ -218,6 +278,11 @@ function filtrerEtAfficherStations() {
         statut.style.color = "#22c55e";
     }
     rafraichirAffichageStationsTrajet();
+}
+
+function formatPrix(valeur) {
+    let p = parseFloat(valeur);
+    return (p && p > 0) ? `${p.toFixed(3)} €` : "Rupture";
 }
 
 function rafraichirAffichageStationsTrajet() {
@@ -257,18 +322,19 @@ function rafraichirAffichageStationsTrajet() {
     stationsAffichables.forEach(station => {
         let lat = parseFloat(station.lt);
         let lon = parseFloat(station.ln);
-        let prix = parseFloat(station[carburantActif]);
-        let affichagePrix = (prix && prix > 0) ? `${prix.toFixed(3)} €` : "Rupture";
+        let prixIndex = parseFloat(station[carburantActif]);
+        let affichagePrixIndex = formatPrix(prixIndex);
 
         let nomStation = (station.n || "Station").trim();
         let adresse = (station.a || "").trim();
+        let idStation = station.id || `${lat}_${lon}`;
 
         let couleurMarker = 'blue';
         let couleurBulle = null;
-        if (prix && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
-            if (prix === prixMin) couleurMarker = 'green';
-            else if (prix === prixMax) couleurMarker = 'red';
-            let score = (prix - prixMin) / (prixMax - prixMin);
+        if (prixIndex && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+            if (prixIndex === prixMin) couleurMarker = 'green';
+            else if (prixIndex === prixMax) couleurMarker = 'red';
+            let score = (prixIndex - prixMin) / (prixMax - prixMin);
             couleurBulle = `hsl(${(1 - score) * 120}, 100%, 50%)`;
         }
 
@@ -285,26 +351,56 @@ function rafraichirAffichageStationsTrajet() {
             popupAnchor: [1, -34]
         });
 
+        // --- GÉNÉRATION POPUP AVANCÉE SOMBRE AVEC TOUS LES CARBURANTS (TYPE RADAR) ---
+        const estFav = listeFavorisIds.includes(idStation);
+        const popupContent = `
+            <div class="popup-station-title">${nomStation}</div>
+            <div style="font-size:10px; color:#9ca3af; margin-bottom:8px; line-height:1.2;">📍 ${adresse}</div>
+            
+            <div class="popup-carburant-ligne ${carburantActif === 'gz' ? 'actif' : ''}">
+                <span>Gazole :</span><b>${formatPrix(station.gz)}</b>
+            </div>
+            <div class="popup-carburant-ligne ${carburantActif === 'e10' ? 'actif' : ''}">
+                <span>SP95-E10 :</span><b>${formatPrix(station.e10)}</b>
+            </div>
+            <div class="popup-carburant-ligne ${carburantActif === '95' ? 'actif' : ''}">
+                <span>SP95 :</span><b>${formatPrix(station.95)}</b>
+            </div>
+            <div class="popup-carburant-ligne ${carburantActif === '98' ? 'actif' : ''}">
+                <span>SP98 :</span><b>${formatPrix(station.98)}</b>
+            </div>
+
+            <div class="popup-btn-actions">
+                <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${idStation}')">
+                    ⭐️ ${estFav ? 'Retirer des Favoris' : 'Épingler en Favori'}
+                </button>
+                <a class="popup-btn popup-btn-maps" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank">
+                    🗺️ Itinéraire Google Maps
+                </a>
+            </div>
+        `;
+
         const marker = L.marker([lat, lon], { icon: iconeHTML }).addTo(mapTrajet);
-        marker.bindPopup(`<b>${nomStation}</b><br>${adresse}<br><b style="color:#22c55e;">${affichagePrix}</b>`);
+        marker.bindPopup(popupContent);
         marqueursStationsTrajet.push(marker);
 
+        // --- AJOUT COMPOSANT LISTE DES STATIONS ---
         const item = document.createElement('div');
         item.style.background = "#1f2937";
-        item.style.padding = "10px";
+        item.style.padding = "12px";
         item.style.borderRadius = "8px";
         item.style.cursor = "pointer";
         item.style.display = "flex";
         item.style.justifyContent = "space-between";
         item.style.alignItems = "center";
-        if (prix === prixMin && prixMin !== Infinity) item.style.border = "1px solid #22c55e";
+        if (prixIndex === prixMin && prixMin !== Infinity) item.style.border = "1px solid #22c55e";
 
         item.innerHTML = `
             <div style="flex: 1; min-width: 0; padding-right:8px;">
-                <div style="font-weight:bold; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#eab308;">${nomStation}</div>
+                <div style="font-weight:bold; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#eab308;">${nomStation}</div>
                 <div style="font-size:10px; color:var(--texte-secondaire); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">📍 ${adresse}</div>
             </div>
-            <div style="font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:bold; color:${prix === prixMin ? '#22c55e' : '#ffffff'}">${affichagePrix}</div>
+            <div style="font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:bold; color:${prixIndex === prixMin ? '#22c55e' : '#ffffff'}">${affichagePrixIndex}</div>
         `;
 
         item.addEventListener('click', () => {
@@ -318,3 +414,5 @@ function rafraichirAffichageStationsTrajet() {
 }
 
 window.toggleBurgerMenu = toggleBurgerMenu;
+window.toggleVoletFiltres = toggleVoletFiltres;
+window.basculerFavoriSupabase = basculerFavoriSupabase;
