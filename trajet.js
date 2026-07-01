@@ -4,7 +4,7 @@ let stationsSurTrajet = [];
 let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
-let listeFavorisIds = []; // Contiendra les ID des stations favorites de l'utilisateur
+let listeFavorisIds = [];
 
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
@@ -15,7 +15,6 @@ function toggleBurgerMenu() {
     }
 }
 
-// Commande d'ouverture/fermeture du volet flottant de paramètres
 function toggleVoletFiltres() {
     const volet = document.getElementById('options-trajet');
     const indicateur = document.getElementById('indicateur-filtre-fleche');
@@ -29,14 +28,14 @@ function toggleVoletFiltres() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (session && session.user) {
-            const pseudo = session.user.user_metadata.display_name || "Opérateur";
-            const nomOperateurBadge = document.getElementById("nom-operateur");
-            if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-            
-            // Charger la liste des favoris de l'utilisateur depuis Supabase
-            chargerFavorisUtilisateur(session.user.id);
+        if (typeof _supabase !== 'undefined') {
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (session && session.user) {
+                const pseudo = session.user.user_metadata.display_name || "Opérateur";
+                const nomOperateurBadge = document.getElementById("nom-operateur");
+                if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
+                chargerFavorisUtilisateur(session.user.id);
+            }
         }
     } catch (err) {
         console.error("Erreur synchro session menu trajet :", err);
@@ -79,7 +78,6 @@ async function basculerFavoriSupabase(stationId) {
             .update({ favorites: listeFavorisIds })
             .eq('id', session.user.id);
 
-        // Rafraichit la vue pour mettre à jour les boutons dans les popups
         rafraichirAffichageStationsTrajet();
     } catch(err) {
         console.error(err);
@@ -87,6 +85,8 @@ async function basculerFavoriSupabase(stationId) {
 }
 
 function initialiserCarteTrajet() {
+    const el = document.getElementById('map-trajet');
+    if (!el) return;
     mapTrajet = L.map('map-trajet', { zoomControl: false }).setView([48.71, 7.82], 9);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '© CARTO © OpenStreetMap'
@@ -96,7 +96,6 @@ function initialiserCarteTrajet() {
 function initialiserEcouteursTrajet() {
     document.getElementById('btn-calculer-trajet')?.addEventListener('click', () => {
         executerCalculTrajet();
-        // Ferme le volet sur mobile après calcul pour voir la carte immédiatement
         if (window.innerWidth <= 768) {
             document.getElementById('options-trajet').classList.add('masque-mobile');
             document.getElementById('indicateur-filtre-fleche').textContent = '▼';
@@ -118,8 +117,10 @@ function initialiserEcouteursTrajet() {
 
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.wrapper-input')) {
-            document.getElementById('box-suggestions-depart').style.display = 'none';
-            document.getElementById('box-suggestions-arrivee').style.display = 'none';
+            const boxDep = document.getElementById('box-suggestions-depart');
+            const boxArr = document.getElementById('box-suggestions-arrivee');
+            if (boxDep) boxDep.style.display = 'none';
+            if (boxArr) boxArr.style.display = 'none';
         }
     });
 }
@@ -150,7 +151,7 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
             const data = await res.json();
             box.innerHTML = "";
 
-            if(data.length === 0) {
+            if(!data || data.length === 0) {
                 box.style.display = 'none';
                 return;
             }
@@ -204,19 +205,23 @@ async function executerCalculTrajet() {
     }
 
     try {
-        statut.textContent = "⚡ Localisation...";
-        statut.style.color = "#eab308";
+        if (statut) {
+            statut.textContent = "⚡ Localisation...";
+            statut.style.color = "#eab308";
+        }
 
         const coordsDep = await obtenirCoordonnees(depart);
         const coordsArr = await obtenirCoordonnees(arrivee);
 
         if (!coordsDep || !coordsArr) {
-            statut.textContent = "❌ Ville introuvable.";
-            statut.style.color = "#ef4444";
+            if (statut) {
+                statut.textContent = "❌ Ville introuvable.";
+                statut.style.color = "#ef4444";
+            }
             return;
         }
 
-        statut.textContent = "🗺️ Tracé de la route...";
+        if (statut) statut.textContent = "🗺️ Tracé de la route...";
         let urlOSRM = `https://router.project-osrm.org/route/v1/driving/${coordsDep[1]},${coordsDep[0]};${coordsArr[1]},${coordsArr[0]}?overview=full&geometries=geojson`;
         let resRoute;
 
@@ -229,8 +234,10 @@ async function executerCalculTrajet() {
 
         const dataRoute = await resRoute.json();
         if (!dataRoute.routes || dataRoute.routes.length === 0) {
-            statut.textContent = "❌ Aucun trajet trouvé.";
-            statut.style.color = "#ef4444";
+            if (statut) {
+                statut.textContent = "❌ Aucun trajet trouvé.";
+                statut.style.color = "#ef4444";
+            }
             return;
         }
 
@@ -243,7 +250,7 @@ async function executerCalculTrajet() {
         mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
-        statut.textContent = "🛰️ Analyse...";
+        if (statut) statut.textContent = "🛰️ Analyse...";
         if (fluxFranceTrajetBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
             fluxFranceTrajetBrut = await resFR.json();
@@ -252,8 +259,10 @@ async function executerCalculTrajet() {
         filtrerEtAfficherStations();
     } catch (err) {
         console.error(err);
-        statut.textContent = "❌ Erreur.";
-        statut.style.color = "#ef4444";
+        if (statut) {
+            statut.textContent = "❌ Erreur.";
+            statut.style.color = "#ef4444";
+        }
     }
 }
 
@@ -351,23 +360,24 @@ function rafraichirAffichageStationsTrajet() {
             popupAnchor: [1, -34]
         });
 
-        // --- GÉNÉRATION POPUP AVANCÉE SOMBRE AVEC TOUS LES CARBURANTS (TYPE RADAR) ---
         const estFav = listeFavorisIds.includes(idStation);
+        
+        // CORRECTION DE SYNTAXE REQUIS ICI : Remplacement des syntaxes à points défectueuses par l'accès via crochets []
         const popupContent = `
             <div class="popup-station-title">${nomStation}</div>
             <div style="font-size:10px; color:#9ca3af; margin-bottom:8px; line-height:1.2;">📍 ${adresse}</div>
             
             <div class="popup-carburant-ligne ${carburantActif === 'gz' ? 'actif' : ''}">
-                <span>Gazole :</span><b>${formatPrix(station.gz)}</b>
+                <span>Gazole :</span><b>${formatPrix(station['gz'])}</b>
             </div>
             <div class="popup-carburant-ligne ${carburantActif === 'e10' ? 'actif' : ''}">
-                <span>SP95-E10 :</span><b>${formatPrix(station.e10)}</b>
+                <span>SP95-E10 :</span><b>${formatPrix(station['e10'])}</b>
             </div>
             <div class="popup-carburant-ligne ${carburantActif === '95' ? 'actif' : ''}">
-                <span>SP95 :</span><b>${formatPrix(station.95)}</b>
+                <span>SP95 :</span><b>${formatPrix(station['95'])}</b>
             </div>
             <div class="popup-carburant-ligne ${carburantActif === '98' ? 'actif' : ''}">
-                <span>SP98 :</span><b>${formatPrix(station.98)}</b>
+                <span>SP98 :</span><b>${formatPrix(station['98'])}</b>
             </div>
 
             <div class="popup-btn-actions">
@@ -384,7 +394,6 @@ function rafraichirAffichageStationsTrajet() {
         marker.bindPopup(popupContent);
         marqueursStationsTrajet.push(marker);
 
-        // --- AJOUT COMPOSANT LISTE DES STATIONS ---
         const item = document.createElement('div');
         item.style.background = "#1f2937";
         item.style.padding = "12px";
@@ -409,8 +418,6 @@ function rafraichirAffichageStationsTrajet() {
         });
         conteneurListe.appendChild(item);
     });
-    
-    setTimeout(() => { mapTrajet.invalidateSize(); }, 200);
 }
 
 window.toggleBurgerMenu = toggleBurgerMenu;
