@@ -1,7 +1,3 @@
-// ============================================================================
-// 🗺️ RADAR CARBURANT - MOTEUR ITINÉRAIRE SYNCHRONISÉ
-// ============================================================================
-
 let mapTrajet = null;
 let fluxFranceTrajetBrut = [];
 let stationsSurTrajet = [];
@@ -9,7 +5,6 @@ let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
 
-// --- COMMANDE UNIQUE DU MENU BURGER ---
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
     const overlay = document.getElementById('menuOverlay');
@@ -19,9 +14,7 @@ function toggleBurgerMenu() {
     }
 }
 
-// Lancement global
 document.addEventListener("DOMContentLoaded", async () => {
-    // Synchronisation de la session utilisateur pour le header du menu
     try {
         const { data: { session } } = await _supabase.auth.getSession();
         if (session && session.user) {
@@ -56,7 +49,6 @@ function initialiserEcouteursTrajet() {
         DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
         if (routePolyline) {
             filtrerEtAfficherStations();
-            mapTrajet.invalidateSize();
         }
     });
 
@@ -321,6 +313,8 @@ function rafraichirAffichageStationsTrajet() {
         });
         conteneurListe.appendChild(item);
     });
+    
+    setTimeout(() => { mapTrajet.invalidateSize(); }, 200);
 }
 
 window.toggleBurgerMenu = toggleBurgerMenu;
