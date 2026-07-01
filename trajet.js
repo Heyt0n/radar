@@ -16,6 +16,11 @@ document.addEventListener("DOMContentLoaded", () => {
     initialiserAutocompletionSurMesure();
 });
 
+
+
+
+
+
 // --- CHARGEMENT DU MENU BURGER MUTUALISÉ ---
 async function chargerMenuCommun() {
     try {
@@ -23,16 +28,45 @@ async function chargerMenuCommun() {
         if (reponse.ok) {
             const htmlMenu = await reponse.text();
             document.getElementById('conteneur-menu-commun').innerHTML = htmlMenu;
+            
+            // 🎯 Met en surbrillance le lien de la page actuelle automatiquement
+            gererLienActifMenu();
         }
     } catch (err) {
         console.error("Impossible de charger le menu commun :", err);
     }
 }
 
+// --- COMMANDE D'OUVERTURE / FERMETURE ---
 function toggleBurgerMenu() {
-    document.getElementById('burgerMenu')?.classList.toggle('open');
-    document.getElementById('menuOverlay')?.classList.toggle('active');
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
 }
+
+// --- GESTION DYNAMIQUE DE LA CLASSE ACTIVE ---
+function gererLienActifMenu() {
+    // On retire d'abord toutes les classes actives importées du fichier brut
+    document.querySelectorAll('.menu-link').forEach(link => link.classList.remove('active'));
+
+    // On détecte sur quelle page on est grâce à l'URL et on active le bon ID
+    const pageActuelle = window.location.pathname;
+
+    if (pageActuelle.includes('index.html') || pageActuelle === '/') {
+        document.getElementById('link-radar')?.classList.add('active');
+    } else if (pageActuelle.includes('trajet.html')) {
+        document.getElementById('link-trajet')?.classList.add('active');
+    } else if (pageActuelle.includes('outils.html')) {
+        document.getElementById('link-outils')?.classList.add('active');
+    } else if (pageActuelle.includes('compte.html')) {
+        document.getElementById('link-compte')?.classList.add('active');
+    }
+}
+
+
 
 // --- CONFIGURATION INITIALE DE LA MAP ---
 function initialiserCarteTrajet() {
