@@ -208,6 +208,16 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="trajet.js"></script>
+    <script>
+        function toggleBurgerMenu() {
+            const menu = document.getElementById('burgerMenu');
+            const overlay = document.getElementById('menuOverlay');
+            if (menu && overlay) {
+                menu.classList.toggle('open');
+                overlay.classList.toggle('active');
+            }
+        }
+</script>
 </body>
 </html>
 
