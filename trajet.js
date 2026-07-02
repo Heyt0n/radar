@@ -4,7 +4,10 @@ let stationsSurTrajet = [];
 let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
-let listeFavorisIds = [];
+let listeFavorisIds = []; // Stockera les noms ou identifiants uniques des favoris synchronisés
+
+// Configuration de l'API Allemagne (Identique à script_live.js)
+const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
@@ -34,7 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const pseudo = session.user.user_metadata.display_name || "Opérateur";
                 const nomOperateurBadge = document.getElementById("nom-operateur");
                 if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-                chargerFavorisUtilisateur(session.user.id);
+                // 🔥 ALIGNEMENT : On charge les favoris depuis la table dédiée
+                await chargerFavorisUtilisateur();
             }
         }
     } catch (err) {
@@ -46,20 +50,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     initialiserAutocompletionSurMesure();
 });
 
-async function chargerFavorisUtilisateur(userId) {
+// 🔥 ALIGNEMENT SUPABASE : Lecture depuis la table 'favoris' comme sur l'index
+async function chargerFavorisUtilisateur() {
     try {
         const { data, error } = await _supabase
-            .from('profiles')
-            .select('favorites')
-            .eq('id', userId)
-            .single();
-        if (data && data.favorites) {
-            listeFavorisIds = data.favorites;
+            .from('favoris')
+            .select('nom_station');
+        if (data) {
+            // On stocke les noms des stations pour faire la correspondance facilement
+            listeFavorisIds = data.map(f => f.nom_station);
         }
-    } catch(e) { console.error("Erreur favoris :", e); }
+    } catch(e) { 
+        console.error("Erreur récupération favoris trajet :", e); 
+    }
 }
 
-async function basculerFavoriSupabase(stationId) {
+// 🔥 ALIGNEMENT SUPABASE : Écriture/Suppression dans la table 'favoris'
+async function basculerFavoriSupabase(nomStation, lat, lon) {
     try {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) {
@@ -67,20 +74,34 @@ async function basculerFavoriSupabase(stationId) {
             return;
         }
 
-        if (listeFavorisIds.includes(stationId)) {
-            listeFavorisIds = listeFavorisIds.filter(id => id !== stationId);
-        } else {
-            listeFavorisIds.push(stationId);
-        }
+        const index = listeFavorisIds.indexOf(nomStation);
 
-        await _supabase
-            .from('profiles')
-            .update({ favorites: listeFavorisIds })
-            .eq('id', session.user.id);
+        if (index !== -1) {
+            // Déjà en favori -> Supprimer
+            const { error } = await _supabase
+                .from('favoris')
+                .delete()
+                .eq('user_id', session.user.id)
+                .eq('nom_station', nomStation);
+                
+            if (!error) listeFavorisIds.splice(index, 1);
+        } else {
+            // Pas en favori -> Ajouter
+            const { error } = await _supabase
+                .from('favoris')
+                .insert([{ 
+                    user_id: session.user.id, 
+                    nom_station: nomStation, 
+                    latitude: parseFloat(lat), 
+                    longitude: parseFloat(lon) 
+                }]);
+                
+            if (!error) listeFavorisIds.push(nomStation);
+        }
 
         rafraichirAffichageStationsTrajet();
     } catch(err) {
-        console.error(err);
+        console.error("Erreur bascule favori trajet :", err);
     }
 }
 
@@ -108,7 +129,7 @@ function initialiserEcouteursTrajet() {
 
     document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
         DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
-        if (routePolyline) filtrerEtAfficherStations();
+        if (routePolyline) filtrerEtAfficherStationsUnifie(dernierePositionRouteCentrale);
     });
 
     document.getElementById('select-affichage-trajet')?.addEventListener('change', () => {
@@ -194,6 +215,8 @@ function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
     return false;
 }
 
+let dernierePositionRouteCentrale = null; // Sauvegarde du centre pour recalculer le rayon à la volée
+
 async function executerCalculTrajet() {
     const depart = document.getElementById('trajet-depart').value.trim();
     const arrivee = document.getElementById('trajet-arrivee').value.trim();
@@ -220,6 +243,12 @@ async function executerCalculTrajet() {
             }
             return;
         }
+
+        // Calcul du point central du trajet pour interroger l'API allemande au bon endroit
+        dernierePositionRouteCentrale = {
+            lat: (coordsDep[0] + coordsArr[0]) / 2,
+            lon: (coordsDep[1] + coordsArr[1]) / 2
+        };
 
         if (statut) statut.textContent = "🗺️ Tracé de la route...";
         let urlOSRM = `https://router.project-osrm.org/route/v1/driving/${coordsDep[1]},${coordsDep[0]};${coordsArr[1]},${coordsArr[0]}?overview=full&geometries=geojson`;
@@ -250,13 +279,42 @@ async function executerCalculTrajet() {
         mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
-        if (statut) statut.textContent = "🛰️ Analyse...";
+        if (statut) statut.textContent = "🛰️ Analyse frontalière...";
+        
+        // 1. Récupération France (Locale)
         if (fluxFranceTrajetBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
             fluxFranceTrajetBrut = await resFR.json();
         }
 
-        filtrerEtAfficherStations();
+        // 2. 🔥 RÉSOLUTION ALLEMAGNE : Appel en temps réel autour de la zone de conduite
+        let allemagneNormalisee = [];
+        try {
+            const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${dernierePositionRouteCentrale.lat}&lng=${dernierePositionRouteCentrale.lon}&rad=25&type=all&apikey=${API_KEY_ALLEMAGNE}`;
+            const resDE = await fetch(urlDE);
+            if (resDE.ok) {
+                const dataDE = await resDE.json();
+                if (dataDE && dataDE.ok && dataDE.stations) {
+                    allemagneNormalisee = dataDE.stations.map(st => ({
+                        id: `${st.lat}_${st.lng}`,
+                        n: st.name || "Station Allemande",
+                        a: st.street || st.name,
+                        v: st.place || "",
+                        lt: parseFloat(st.lat),
+                        ln: parseFloat(st.lng),
+                        gz: st.diesel && st.diesel > 0 ? st.diesel : null,
+                        95: st.e5 && st.e5 > 0 ? st.e5 : null,
+                        e10: st.e10 && st.e10 > 0 ? st.e10 : null,
+                        98: null
+                    }));
+                }
+            }
+        } catch(e) { console.error("API Allemande injoignable sur ce trajet :", e); }
+
+        // Fusion unifiée des deux pays avant filtrage géométrique de la route
+        fluxGlobalUnifie = [...fluxFranceTrajetBrut, ...allemagneNormalisee];
+
+        filtrerEtAfficherStationsUnifie();
     } catch (err) {
         console.error(err);
         if (statut) {
@@ -273,11 +331,13 @@ async function obtenirCoordonnees(nomVille) {
     return (data && data.length > 0) ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
 }
 
-function filtrerEtAfficherStations() {
+let fluxGlobalUnifie = [];
+
+function filtrerEtAfficherStationsUnifie() {
     const statut = document.getElementById('trajet-statut');
     const pointsRouteLeaflet = routePolyline.getLatLngs().map(latlng => [latlng.lat, latlng.lng]);
 
-    stationsSurTrajet = fluxFranceTrajetBrut.filter(station => {
+    stationsSurTrajet = fluxGlobalUnifie.filter(station => {
         if (!station.lt || !station.ln) return false;
         return estProcheDeLaRoute(station.lt, station.ln, pointsRouteLeaflet);
     });
@@ -292,6 +352,15 @@ function filtrerEtAfficherStations() {
 function formatPrix(valeur) {
     let p = parseFloat(valeur);
     return (p && p > 0) ? `${p.toFixed(3)} €` : "Rupture";
+}
+
+function extraireVraiNom(station) {
+    let nomBrut = (station.n || "Station").trim();
+    let adresseBrute = (station.a || "").trim();
+    if (adresseBrute && nomBrut === "Station") {
+        return `Station - ${adresseBrute}`;
+    }
+    return nomBrut;
 }
 
 function rafraichirAffichageStationsTrajet() {
@@ -334,9 +403,8 @@ function rafraichirAffichageStationsTrajet() {
         let prixIndex = parseFloat(station[carburantActif]);
         let affichagePrixIndex = formatPrix(prixIndex);
 
-        let nomStation = (station.n || "Station").trim();
+        let nomStation = extraireVraiNom(station);
         let adresse = (station.a || "").trim();
-        let idStation = station.id || `${lat}_${lon}`;
 
         let couleurMarker = 'blue';
         let couleurBulle = null;
@@ -360,8 +428,10 @@ function rafraichirAffichageStationsTrajet() {
             popupAnchor: [1, -34]
         });
 
-        const estFav = listeFavorisIds.includes(idStation);
-        
+        // 🔥 COMPARISON SUR LE NOM DE LA STATION UNI-SOURCE
+        const estFav = listeFavorisIds.includes(nomStation);
+        const nomSecuriseJS = nomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
+
         const popupContent = `
             <div class="popup-station-title">${nomStation}</div>
             <div style="font-size:10px; color:#9ca3af; margin-bottom:6px; line-height:1.2;">📍 ${adresse}</div>
@@ -380,7 +450,7 @@ function rafraichirAffichageStationsTrajet() {
             </div>
 
             <div class="popup-btn-actions">
-                <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${idStation}')">
+                <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${nomSecuriseJS}', '${lat}', '${lon}')">
                     ⭐ ${estFav ? 'Enlever' : 'Favori'}
                 </button>
                 <a class="popup-btn popup-btn-maps" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank">
@@ -389,11 +459,10 @@ function rafraichirAffichageStationsTrajet() {
             </div>
         `;
 
-        // AJOUT SÉCURITÉ AUTOPAN : Force la carte à se décaler intelligemment vers le bas pour ne pas cacher le haut de la popup
         const marker = L.marker([lat, lon], { icon: iconeHTML }).addTo(mapTrajet);
         marker.bindPopup(popupContent, {
             autoPan: true,
-            autoPanPadding: L.point(15, 60) // Sécurité de 60px par rapport au haut de l'écran mobile !
+            autoPanPadding: L.point(15, 60)
         });
         marqueursStationsTrajet.push(marker);
 
@@ -425,4 +494,4 @@ function rafraichirAffichageStationsTrajet() {
 
 window.toggleBurgerMenu = toggleBurgerMenu;
 window.toggleVoletFiltres = toggleVoletFiltres;
-window.basculerFavoriSupabase = basculerFavoriSupabase;
+window.basculerFavoriSupabase = basculerFavoriSupabase
