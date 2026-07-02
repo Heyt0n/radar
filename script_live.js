@@ -8,9 +8,8 @@ let fluxFranceBrut = [];
 let stationsGlobales = [];    
 let favoris = []; 
 let marqueursActifs = {}; 
-let marqueurPositionReelle = null; // 📍 Stocke le pion de notre position pour ne pas le perdre
+let marqueurPositionReelle = null;
 
-// Configuration des APIs Live 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 const PROXY_CORS = "https://corsproxy.io/?"; 
 const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
@@ -22,8 +21,41 @@ let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15;
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 
+function toggleBurgerMenu() {
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+}
+
 // --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
+    // Synchronisation initiale du slider de rayon
+    const sliderRayon = document.getElementById('user-rayon');
+    const affichageRayon = document.getElementById('valeur-rayon');
+    if (sliderRayon) {
+        sliderRayon.value = RAYON_KM;
+        if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
+    }
+
+    // Gestion unifiée des écouteurs du menu burger
+    const burgerBtn = document.querySelector('.burger-btn');
+    const menuOverlay = document.getElementById('menuOverlay');
+
+    if (burgerBtn) {
+        burgerBtn.addEventListener('click', () => toggleBurgerMenu());
+        burgerBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleBurgerMenu();
+        }, { passive: false });
+    }
+
+    if (menuOverlay) {
+        menuOverlay.addEventListener('click', () => toggleBurgerMenu());
+    }
+
     try {
         const { data: { session }, error } = await _supabase.auth.getSession();
 
@@ -37,8 +69,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         } else {
             currentUser = session.user;
-            const pseudo = currentUser.user_metadata.display_name || "Opérateur";
-            
+            const pseudo = currentUser.user_metadata.display_name || currentUser.user_metadata.pseudo || "Opérateur";
+
             const nomOperateurBadge = document.getElementById("nom-operateur");
             if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
 
@@ -122,7 +154,7 @@ function extraireVraiNom(station) {
     let adresseBrute = (station.a || "").trim();
     let marque = "Station";
     let adresseMinuscule = adresseBrute.toLowerCase();
-    
+
     if (adresseMinuscule.includes("total")) marque = "Total";
     else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
     else if (adresseMinuscule.includes("carrefour")) marque = "Carrefour";
@@ -179,29 +211,29 @@ async function basculerFavori(nom, lat, lon) {
 function afficherFavoris() {
     const conteneur = document.getElementById('liste-favoris');
     if (!conteneur) return;
-    
+
     if (favoris.length === 0) {
         conteneur.innerHTML = `<p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>`;
         return;
     }
-    
+
     const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
     conteneur.innerHTML = '';
-    
+
     favoris.forEach(f => {
         const stationDataLive = stationsGlobales.find(s => Math.abs(parseFloat(s.lt) - f.lat) < 0.005 && Math.abs(parseFloat(s.ln) - f.lon) < 0.005) || 
                                 stationsGlobales.find(s => extraireVraiNom(s) === f.nom);
-        
+
         let affichagePrix = "Rupture";
         if (stationDataLive) {
             let prix = formatPrix(stationDataLive[carburantActif]);
             if (prix) affichagePrix = `${prix.toFixed(3)} €`;
         }
-        
+
         const item = document.createElement('div');
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
-        
+
         const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, "'");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
@@ -217,7 +249,7 @@ function afficherFavoris() {
                 <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
             </div>
         `;
-        
+
         conteneur.appendChild(item);
 
         document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
@@ -240,12 +272,12 @@ function afficherFavoris() {
 }
 
 // ============================================================================
-// 4. MOTEUR DE RECHERCHE ET REQUETES API (100% TEMPS RÉEL FR & DE)
+// 4. MOTEUR DE RECHERCHE ET REQUETES API
 // ============================================================================
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
-    
+
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,be&limit=1`);
         const data = await response.json();
@@ -266,7 +298,6 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
     let stationsTrouveesFR = [];
     stationsGlobales = []; 
 
-    // --- PARTIE A : FLUX FRANCE ---
     try {
         if (fluxFranceBrut.length === 0) {
             console.log("🛰️ Premier chargement : Extraction du flux France (Lecture locale unique)...");
@@ -287,15 +318,14 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // --- PARTIE B : FLUX ALLEMAGNE ---
     try {
         console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
-        
+
         const resDE = await fetch(urlDE);
         if (!resDE.ok) throw new Error(`HTTP Error ${resDE.status}`);
-        
+
         const dataDE = await resDE.json();
 
         if (dataDE && dataDE.ok && dataDE.stations) {
@@ -311,7 +341,7 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
                 e10: st.e10 && st.e10 > 0 ? st.e10 : null,
                 98: null
             }));
-            
+
             stationsGlobales = [...stationsTrouveesFR, ...allemagneNormalisee];
         } else {
             stationsGlobales = [...stationsTrouveesFR];
@@ -330,7 +360,6 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-        // 🛡️ NETTOYAGE SÉCURISÉ : On supprime les anciens marqueurs de stations, mais on protège notre pion de position !
         map.eachLayer((layer) => { 
             if (layer instanceof L.Marker && layer !== marqueurPositionReelle) {
                 map.removeLayer(layer); 
@@ -409,6 +438,7 @@ async function fetchLiveStations(centerLat, centerLon) {
     } catch (e) { console.error("Erreur rendering :", e); }
 }
 
+
 // ==========================================
 // 5. INTERFACE ET GEOLOCALISATION
 // ==========================================
@@ -419,18 +449,14 @@ function initialiserEcouteursInterface() {
     const affichageRayon = document.getElementById('valeur-rayon');
 
     if (sliderRayon) {
-        sliderRayon.value = RAYON_KM;
-        if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
-
         let antiMitrailleuseTimeout;
-        
+
         sliderRayon.addEventListener('input', (e) => {
             RAYON_KM = Number(e.target.value);
             if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
             localStorage.setItem('radar_rayon', RAYON_KM);
-            
+
             clearTimeout(antiMitrailleuseTimeout);
-            
             antiMitrailleuseTimeout = setTimeout(() => {
                 fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
             }, 250);
@@ -453,7 +479,6 @@ function initialiserEcouteursInterfaceOutils() {
     console.log("Interface outils synchronisée.");
 }
 
-// 📍 FONCTION DE GEOLOCALISATION METAMORPHOSÉE
 function declencherGeolocalisation() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -461,13 +486,11 @@ function declencherGeolocalisation() {
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
                 maPositionReelle = { lat, lon };
-                
+
                 if (map) {
-                    // Si le pion existe déjà, on le déplace juste
                     if (marqueurPositionReelle) {
                         marqueurPositionReelle.setLatLng([lat, lon]);
                     } else {
-                        // Sinon, on le crée avec un style unique (Ici couleur 'violet' pour trancher net avec les stations)
                         const iconeMoi = L.divIcon({
                             html: `
                                 <div style="position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
@@ -495,14 +518,9 @@ function declencherGeolocalisation() {
                 }
             },
             () => { if (map) fetchLiveStations(DEF_LAT, DEF_LON); },
-            { enableHighAccuracy: true } // Demande une précision maximale au navigateur / téléphone
+            { enableHighAccuracy: true }
         );
     } else { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
-}
-
-function toggleBurgerMenu() {
-    document.getElementById('burgerMenu')?.classList.toggle('open');
-    document.getElementById('menuOverlay')?.classList.toggle('active');
 }
 
 window.basculerFavori = basculerFavori;
