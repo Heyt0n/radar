@@ -3,6 +3,15 @@ if (typeof ChartZoomHub === 'undefined' && window['chartjs-plugin-zoom']) {
     Chart.register(window['chartjs-plugin-zoom']);
 }
 
+function toggleBurgerMenu() {
+    const menu = document.getElementById('burgerMenu');
+    const overlay = document.getElementById('menuOverlay');
+    if (menu && overlay) {
+        menu.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     let instanceGraphique = null;
     let stationsGlobales = [];
@@ -11,10 +20,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Éléments du DOM
     const nomOperateurBadge = document.getElementById("nom-operateur");
     const selectStation = document.getElementById("select-station-outils");
-    const selectCarburant = document.getElementById("select-carburant-outils"); // 🎯 Nouveau sélecteur
+    const selectCarburant = document.getElementById("select-carburant-outils");
     const graphiqueElem = document.getElementById("graphiquePrevisionnel");
     const briefingTexte = document.getElementById("briefing-texte");
-    
+
     if (!graphiqueElem || !selectStation || !selectCarburant) return;
     const ctx = graphiqueElem.getContext("2d");
 
@@ -24,15 +33,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     graphiqueElem.style.webkitUserSelect = "none";
 
     // ==========================================
-    // 1. GESTION DU MENU BURGER (PC & Mobile)
+    // 1. GESTION DU MENU BURGER (PC & Mobile - Identique à trajet.js)
     // ==========================================
     const burgerBtn = document.querySelector('.burger-btn');
+    const menuOverlay = document.getElementById('menuOverlay');
+
     if (burgerBtn) {
         burgerBtn.addEventListener('click', () => toggleBurgerMenu());
         burgerBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             toggleBurgerMenu();
         }, { passive: false });
+    }
+
+    if (menuOverlay) {
+        menuOverlay.addEventListener('click', () => toggleBurgerMenu());
     }
 
     // ==========================================
@@ -90,7 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (favoris && favoris.length > 0) {
                 selectStation.innerHTML = ''; 
-                
+
                 favoris.forEach(fav => {
                     const idSecteurCalcule = `${fav.latitude}_${fav.longitude}`;
 
@@ -100,7 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     option.dataset.idUnique = idSecteurCalcule; 
                     option.dataset.lat = fav.latitude;
                     option.dataset.lon = fav.longitude;
-                    
+
                     option.textContent = `${fav.nom_station || "Station"}`;
                     selectStation.appendChild(option);
                 });
@@ -138,7 +153,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function extraireHistoriqueReel(idStation, codeCarburant) {
         let historique = { labels: [], prix: [] };
         console.log(`📡 [Supabase] Extraction historique_prix pour : ID="${idStation}" | Carburant="${codeCarburant}"`);
-        
+
         try {
             let { data: points, error } = await _supabase
                 .from("historique_prix")
@@ -161,7 +176,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         .ilike("id_station", `%${lonTronquee}%`)
                         .eq("carburant", codeCarburant)
                         .order("horodatage", { ascending: true });
-                    
+
                     if (!reponseFloue.error) points = reponseFloue.data;
                 }
             }
@@ -181,7 +196,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ==========================================
-    // 5. FONCTION PRÉDICTION STABILISÉE ET LISSÉE (MODIFIÉE) 🧠🎯
+    // 5. FONCTION PRÉDICTION STABILISÉE ET LISSÉE
     // ==========================================
     function calculerProjectionFuture(vraiPrixActuel, nomStation, historiquePrix = []) {
         let projection = { labels: [], prix: [] };
@@ -189,28 +204,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         let minutes = momentActuel.getMinutes();
         momentActuel.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
 
-        // 🟢 CALCUL DE LA VOLATILITÉ RÉELLE DE L'HISTORIQUE POUR ADAPTER L'AMPLITUDE
-        let facteurAjustement = 0.002; // Valeur de sécurité par défaut trèèès calme
+        let facteurAjustement = 0.002;
         if (historiquePrix.length > 1) {
             const prixNumeriques = historiquePrix.map(p => parseFloat(p));
             const prixMin = Math.min(...prixNumeriques);
             const prixMax = Math.max(...prixNumeriques);
             const volatiliteReelle = prixMax - prixMin;
-            
-            // Si le prix n'a quasiment pas bougé (historique plat), on force un lissage extrême
+
             facteurAjustement = volatiliteReelle < 0.005 ? 0.001 : volatiliteReelle * 0.35;
         }
 
         const pasMinutes = 30;
-        const totalHeuresEtude = 48; // Fenêtre d'anticipation macro-économique
+        const totalHeuresEtude = 48;
 
         for (let offset = pasMinutes; offset <= (totalHeuresEtude * 60); offset += pasMinutes) {
             let heureBoucle = new Date(momentActuel.getTime() + (offset * 60 * 1000));
-            
-            // Simulation d'onde sinusoïdale amortie indexée sur notre facteur de volatilité réelle
+
             const indexEtape = offset / pasMinutes;
             const ondeDouce = Math.sin(indexEtape * 0.4) * Math.cos(indexEtape * 0.2);
-            
+
             let prixPredit = parseFloat(vraiPrixActuel) + (ondeDouce * facteurAjustement);
 
             projection.labels.push(formaterLabelM30(heureBoucle));
@@ -251,8 +263,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-   // ==========================================
-    // 7. CONSTRUCTEUR / MISE A JOUR DU GRAPHIQUE (AMPLITUDE MACRO 10 CTS)
+    // ==========================================
+    // 7. CONSTRUCTEUR / MISE A JOUR DU GRAPHIQUE
     // ==========================================
     function mettreAJourGraphique(labels, donneesReel, donneesPrediction) {
         if (instanceGraphique) instanceGraphique.destroy();
@@ -266,13 +278,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             indexMaxInitial = Math.min(labels.length - 1, indexMaintenant + 24);
         }
 
-        // 🟢 DECENTRHAGE SMART : Calcul du prix médian pour fixer les barrières Y
-        // On cherche le dernier prix valide disponible (réel ou dynamique) pour centrer notre vision
         const prixValides = [...donneesReel, ...donneesPrediction].filter(p => p !== null && !isNaN(p));
         const prixPivot = prixValides.length > 0 ? parseFloat(prixValides[prixValides.length - 1]) : 1.750;
 
-        // On crée une amplitude fixe de 10 centimes (0.10 €) centrée sur le cours pivot
-        // Ex: si le prix vaut 1.742 €, l'axe ira de 1.692 € à 1.792 €
         const yMinAxe = prixPivot - 0.05;
         const yMaxAxe = prixPivot + 0.05;
 
@@ -325,14 +333,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         ticks: { color: '#9ca3af', font: { family: 'Plus Jakarta Sans', size: 9 }, maxTicksLimit: 10, maxRotation: 0 }
                     },
                     y: {
-                        // 🎯 APPLICATION DES BORNES MACRO
                         min: yMinAxe,
                         max: yMaxAxe,
                         grid: { color: '#1f2937' },
                         ticks: { 
                             color: '#9ca3af', 
                             font: { family: 'Plus Jakarta Sans' }, 
-                            stepSize: 0.02, // Une ligne de grille tous les 2 centimes pour garder l'axe propre
+                            stepSize: 0.02, 
                             callback: (val) => parseFloat(val).toFixed(3) + ' €' 
                         }
                     }
@@ -341,6 +348,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             plugins: [pluginCrosshair]
         });
     }
+
     // ==========================================
     // 8. INTERSECTEUR DE MISE A JOUR CENTRALISÉ
     // ==========================================
@@ -352,21 +360,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const idStation = option.dataset.idUnique;
         const lat = option.dataset.lat;
         const lon = option.dataset.lon;
-        
+
         const carburantSelectionne = selectCarburant.value;
         const prixDynamique = extrairePrixDuLiveJson(lat, lon, nomStation, carburantSelectionne);
 
         genererBriefingAnalyste(nomStation, prixDynamique, carburantSelectionne);
 
-        // A. Extraction historique réelle depuis la table 'favoris' originelle
         const historique = await extraireHistoriqueReel(idStation, carburantSelectionne);
-
-        // B. Anticipation algorithmique future lissée intelligemment (on lui passe l'historique en paramètre)
         const anticipation = calculerProjectionFuture(prixDynamique, nomStation, historique.prix);
 
-        // C. Assemblage de l'axe temporel
         let labelsGlobaux = [...historique.labels, "Maintenant", ...anticipation.labels];
-        
+
         let datasetReel = [...historique.prix, parseFloat(prixDynamique).toFixed(3)];
         while(datasetReel.length < labelsGlobaux.length) { datasetReel.push(null); }
 
@@ -384,12 +388,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     await initialiserDonnees();
 });
 
-function toggleBurgerMenu() {
-    const menu = document.getElementById('burgerMenu');
-    const overlay = document.getElementById('menuOverlay');
-    if (menu && overlay) {
-        menu.classList.toggle('open');
-        overlay.classList.toggle('active');
-    }
-}
 window.toggleBurgerMenu = toggleBurgerMenu;
