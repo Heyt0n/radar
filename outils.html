@@ -27,17 +27,17 @@
 
         /* ==========================================
             HEADER & NAVIGATION
-        ========================================== --> */
+        ========================================== */
         header { 
             background-color: var(--bg-panneau); padding: 0 24px; 
             border-bottom: 1px solid var(--border-couleur); 
             display: flex; justify-content: space-between; align-items: center; 
-            height: 64px; sticky: top; z-index: 40;
+            height: 64px; position: sticky; top: 0; z-index: 40;
         }
         header h1 { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
-        
+
         .header-right { display: flex; align-items: center; gap: 16px; }
-        
+
         .burger-btn { 
             background: none; border: none; color: var(--texte-secondaire); 
             font-size: 24px; cursor: pointer; padding: 8px; border-radius: 8px;
@@ -45,7 +45,7 @@
         }
         .burger-btn:hover { color: #fff; background-color: #1f2937; }
 
-        /* Menu Burger Coulissant */
+        /* Menu Burger Coulissant Unifié */
         .burger-menu { 
             position: fixed; top: 0; right: -280px; width: 280px; height: 100%; 
             background-color: var(--bg-panneau); border-left: 1px solid var(--border-couleur); 
@@ -55,7 +55,7 @@
         .burger-menu.open { right: 0; }
         .menu-user-header { padding-top: 40px; padding-bottom: 16px; border-bottom: 1px solid var(--border-couleur); margin-bottom: 12px; }
         .menu-user-status { font-size: 10px; text-transform: uppercase; color: var(--accent-vert); font-weight: 700; letter-spacing: 0.5px; }
-        
+
         .menu-link { 
             background: #1f2937; color: var(--texte-secondaire); border: 1px solid var(--input-border); 
             padding: 12px 16px; border-radius: 8px; text-align: left; font-weight: 600; font-size: 14px; 
@@ -63,29 +63,27 @@
         }
         .menu-link:hover { color: #fff; background-color: #252f41; }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); color: #fff; }
-        
+
         .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); z-index: 999; backdrop-filter: blur(2px); }
         .menu-overlay.active { display: block; }
 
         /* ==========================================
             DISPOSITION DU CONTENU PRINCIPAL
-        ========================================== --> */
+        ========================================== */
         .content { 
             padding: 24px; max-width: 1280px; width: 100%; margin: 0 auto; 
-            display: flex; flex-direction: column; gap: 24px; flex-1: 1;
+            display: flex; flex-direction: column; gap: 24px; flex: 1;
         }
-        
+
         /* Widget de Briefing */
         .briefing-widget { 
             background: var(--bg-panneau); border: 1px solid var(--border-couleur); 
             border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         .briefing-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-bleu); margin-bottom: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-        
-        /* Architecture Grille (Terminal à gauche / Graphique à droite) */
-        .dashboard-grid { 
-            display: grid; grid-template-columns: 1fr; gap: 24px; 
-        }
+
+        /* Architecture Grille */
+        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
         @media (min-width: 1024px) {
             .dashboard-grid { grid-template-columns: 280px 1fr; }
         }
@@ -95,8 +93,8 @@
             background: var(--bg-panneau); border: 1px solid var(--border-couleur); 
             border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 20px;
         }
-        .panel-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--texte-secondaire); letter-spacing: 0.5px; border-b: 1px solid var(--border-couleur); padding-bottom: 8px; margin: 0; }
-        
+        .panel-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--texte-secondaire); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-couleur); padding-bottom: 8px; margin: 0; }
+
         .field-group { display: flex; flex-direction: column; gap: 8px; }
         .field-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--texte-secondaire); letter-spacing: 0.5px; }
 
@@ -128,15 +126,14 @@
         }
         .panel-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; font-weight: 700; }
         .panel-badge { font-size: 10px; font-weight: 700; background: #1e293b; color: var(--accent-bleu); border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
-        
+
         .chart-container { height: 420px; position: relative; width: 100%; padding: 20px; }
-        #graphiquePrevisionnel { touch-action: none; user-select: none; -webkit-user-select: none; }
     </style>
 </head>
 <body>
 
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleBurgerMenu()"></div>
-    
+    <div class="menu-overlay" id="menuOverlay"></div>
+
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
             <span class="menu-user-status">📡 Système Connecté</span>
@@ -145,6 +142,7 @@
             </div>
         </div>
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
+        <a href="trajet.html" class="menu-link">🗺️ Trajets & Itinéraires</a>
         <a href="outils.html" class="menu-link active">📊 Outils & Stats</a>
         <a href="compte.html" class="menu-link">👤 Mon Compte</a>
     </nav>
@@ -152,23 +150,23 @@
     <header>
         <h1>Outils & Statistiques</h1>
         <div class="header-right">
-            <button class="burger-btn" onclick="toggleBurgerMenu()" aria-label="Ouvrir le menu">☰</button>
+            <button class="burger-btn" aria-label="Ouvrir le menu">☰</button>
         </div>
     </header>
 
     <div class="content">
         <div class="briefing-widget">
             <div class="briefing-title">📝 Briefing de l'Opérateur</div>
-            <p id="sniper-comment" style="color: var(--texte-secondaire); font-size: 13.5px; line-height: 1.6; margin: 0; font-family: 'JetBrains Mono', monospace;">
-                Synchronisation avec le flux Sheets en cours...
+            <p id="briefing-texte" style="color: var(--texte-secondaire); font-size: 13.5px; line-height: 1.6; margin: 0; font-family: 'JetBrains Mono', monospace;">
+                Synchronisation avec le flux en cours...
             </p>
         </div>
 
         <div class="dashboard-grid">
-            
+
             <aside class="control-panel">
                 <h2 class="panel-section-title">Terminal de contrôle</h2>
-                
+
                 <div class="field-group">
                     <label class="field-label" for="select-station-outils">Cible active / Station :</label>
                     <select id="select-station-outils" class="custom-select">
@@ -210,19 +208,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
-    <script>
-        function toggleBurgerMenu() {
-            const menu = document.getElementById('burgerMenu');
-            const overlay = document.getElementById('menuOverlay');
-            if(menu && overlay) {
-                menu.classList.toggle('open');
-                overlay.classList.toggle('active');
-            }
-        }
-        window.toggleBurgerMenu = toggleBurgerMenu;
-    </script>
-
     <script src="outils.js"></script>
     <script src="commentaire.js"></script>
 </body>
