@@ -1,6 +1,6 @@
 {
-  "name": "Radar Carburant NEO",
-  "short_name": "RadarCarb",
+  "name": "Syphon",
+  "short_name": "Syphon",
   "description": "Suivi en direct des prix des carburants en Alsace et en Allemagne.",
   "start_url": "./index.html",
   "display": "standalone",
