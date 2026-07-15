@@ -6,7 +6,7 @@ let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
 let listeFavorisIds = []; // Stockera les noms ou identifiants uniques des favoris synchronisés
 
-// Configuration de l'API Allemagne (Identique à script_live.js)
+// Configuration de l'API Allemagne
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 
 function toggleBurgerMenu() {
@@ -37,7 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const pseudo = session.user.user_metadata.display_name || "Opérateur";
                 const nomOperateurBadge = document.getElementById("nom-operateur");
                 if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-                // 🔥 ALIGNEMENT : On charge les favoris depuis la table dédiée
                 await chargerFavorisUtilisateur();
             }
         }
@@ -48,16 +47,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     initialiserCarteTrajet();
     initialiserEcouteursTrajet();
     initialiserAutocompletionSurMesure();
+    initialiserEcouteursGPS();
 });
 
-// 🔥 ALIGNEMENT SUPABASE : Lecture depuis la table 'favoris' comme sur l'index
+// Lecture depuis la table 'favoris'
 async function chargerFavorisUtilisateur() {
     try {
         const { data, error } = await _supabase
             .from('favoris')
             .select('nom_station');
         if (data) {
-            // On stocke les noms des stations pour faire la correspondance facilement
             listeFavorisIds = data.map(f => f.nom_station);
         }
     } catch(e) { 
@@ -65,7 +64,7 @@ async function chargerFavorisUtilisateur() {
     }
 }
 
-// 🔥 ALIGNEMENT SUPABASE : Écriture/Suppression dans la table 'favoris'
+// Écriture/Suppression dans la table 'favoris'
 async function basculerFavoriSupabase(nomStation, lat, lon) {
     try {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -77,16 +76,14 @@ async function basculerFavoriSupabase(nomStation, lat, lon) {
         const index = listeFavorisIds.indexOf(nomStation);
 
         if (index !== -1) {
-            // Déjà en favori -> Supprimer
             const { error } = await _supabase
                 .from('favoris')
                 .delete()
                 .eq('user_id', session.user.id)
                 .eq('nom_station', nomStation);
-                
+
             if (!error) listeFavorisIds.splice(index, 1);
         } else {
-            // Pas en favori -> Ajouter
             const { error } = await _supabase
                 .from('favoris')
                 .insert([{ 
@@ -95,7 +92,7 @@ async function basculerFavoriSupabase(nomStation, lat, lon) {
                     latitude: parseFloat(lat), 
                     longitude: parseFloat(lon) 
                 }]);
-                
+
             if (!error) listeFavorisIds.push(nomStation);
         }
 
@@ -150,8 +147,21 @@ function initialiserAutocompletionSurMesure() {
     const inputDep = document.getElementById('trajet-depart');
     const inputArr = document.getElementById('trajet-arrivee');
 
-    if (inputDep) inputDep.addEventListener('input', (e) => gererSuggestionsHTML(e.target.value, 'box-suggestions-depart', inputDep));
-    if (inputArr) inputArr.addEventListener('input', (e) => gererSuggestionsHTML(e.target.value, 'box-suggestions-arrivee', inputArr));
+    if (inputDep) {
+        inputDep.addEventListener('input', (e) => {
+            // Si l'utilisateur tape manuellement, on détruit la liaison GPS précédente
+            inputDep.removeAttribute('data-lat');
+            inputDep.removeAttribute('data-lon');
+            gererSuggestionsHTML(e.target.value, 'box-suggestions-depart', inputDep);
+        });
+    }
+    if (inputArr) {
+        inputArr.addEventListener('input', (e) => {
+            inputArr.removeAttribute('data-lat');
+            inputArr.removeAttribute('data-lon');
+            gererSuggestionsHTML(e.target.value, 'box-suggestions-arrivee', inputArr);
+        });
+    }
 }
 
 let timeoutSuggestion;
@@ -197,6 +207,112 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
     }, 300);
 }
 
+// ============================================================================
+// LOGIQUE GÉOLOCALISATION EN DIRECT (GPS)
+// ============================================================================
+function obtenirPositionGPS() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("La géolocalisation n'est pas supportée par cet appareil."));
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                resolve({
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude
+                });
+            },
+            (error) => {
+                let msg = "Impossible de récupérer votre position GPS.";
+                if (error.code === error.PERMISSION_DENIED) msg = "Accès GPS refusé. Veuillez l'activer.";
+                else if (error.code === error.POSITION_UNAVAILABLE) msg = "Signal GPS indisponible (tunnel ou zone isolée).";
+                else if (error.code === error.TIMEOUT) msg = "Délai d'attente GPS dépassé.";
+                reject(new Error(msg));
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+    });
+}
+
+async function convertirGPSEnAdresse(lat, lon) {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`, {
+            headers: { 'Accept-Language': 'fr' }
+        });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        if (data && data.address) {
+            // Priorité : Nom de la route (autoroute, nationale), sinon ville
+            const route = data.address.road || data.address.pedestrian;
+            const ville = data.address.city || data.address.town || data.address.village || "";
+            if (route) {
+                return route + (ville ? ` (${ville})` : "");
+            }
+            return ville || "Ma Position GPS";
+        }
+        return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    } catch (err) {
+        return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    }
+}
+
+async function appliquerMaPosition(inputId, btnElement) {
+    const inputElement = document.getElementById(inputId);
+    if (!inputElement) return;
+
+    const originalText = btnElement.textContent;
+    btnElement.textContent = "⏳";
+    btnElement.style.opacity = "0.7";
+    inputElement.value = "Calcul GPS tactique...";
+
+    try {
+        const coords = await obtenirPositionGPS();
+        
+        // Enregistrement des coordonnées directement sur l'input
+        inputElement.setAttribute('data-lat', coords.lat);
+        inputElement.setAttribute('data-lon', coords.lon);
+
+        // Traduction textuelle
+        const adresseCalculat = await convertirGPSEnAdresse(coords.lat, coords.lon);
+        inputElement.value = adresseCalculat;
+        btnElement.textContent = "✅";
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+        inputElement.value = "";
+        btnElement.textContent = "❌";
+    } finally {
+        setTimeout(() => {
+            btnElement.textContent = originalText;
+            btnElement.style.opacity = "1";
+        }, 1500);
+    }
+}
+
+function initialiserEcouteursGPS() {
+    const btnGeoDep = document.getElementById('btn-gps-depart');
+    const btnGeoArr = document.getElementById('btn-gps-arrivee');
+
+    if (btnGeoDep) {
+        btnGeoDep.addEventListener('click', () => appliquerMaPosition('trajet-depart', btnGeoDep));
+        btnGeoDep.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            appliquerMaPosition('trajet-depart', btnGeoDep);
+        });
+    }
+    if (btnGeoArr) {
+        btnGeoArr.addEventListener('click', () => appliquerMaPosition('trajet-arrivee', btnGeoArr));
+        btnGeoArr.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            appliquerMaPosition('trajet-arrivee', btnGeoArr);
+        });
+    }
+}
+
+// ============================================================================
+// ALGORITHME DE CALCUL D'ITINÉRAIRE ET DE FILTRAGE
+// ============================================================================
 function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -218,11 +334,14 @@ function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
 let dernierePositionRouteCentrale = null; // Sauvegarde du centre pour recalculer le rayon à la volée
 
 async function executerCalculTrajet() {
-    const depart = document.getElementById('trajet-depart').value.trim();
-    const arrivee = document.getElementById('trajet-arrivee').value.trim();
+    const inputDep = document.getElementById('trajet-depart');
+    const inputArr = document.getElementById('trajet-arrivee');
     const statut = document.getElementById('trajet-statut');
 
-    if (!depart || !arrivee) {
+    const departText = inputDep.value.trim();
+    const arriveeText = inputArr.value.trim();
+
+    if (!departText || !arriveeText) {
         alert("Veuillez renseigner un départ et une arrivée.");
         return;
     }
@@ -233,18 +352,29 @@ async function executerCalculTrajet() {
             statut.style.color = "#eab308";
         }
 
-        const coordsDep = await obtenirCoordonnees(depart);
-        const coordsArr = await obtenirCoordonnees(arrivee);
+        // Récupération des coordonnées : Priorité à l'attribut data-* (géolocalisation), sinon Nominatim
+        let coordsDep = null;
+        if (inputDep.getAttribute('data-lat') && inputDep.getAttribute('data-lon')) {
+            coordsDep = [parseFloat(inputDep.getAttribute('data-lat')), parseFloat(inputDep.getAttribute('data-lon'))];
+        } else {
+            coordsDep = await obtenirCoordonnees(departText);
+        }
+
+        let coordsArr = null;
+        if (inputArr.getAttribute('data-lat') && inputArr.getAttribute('data-lon')) {
+            coordsArr = [parseFloat(inputArr.getAttribute('data-lat')), parseFloat(inputArr.getAttribute('data-lon'))];
+        } else {
+            coordsArr = await obtenirCoordonnees(arriveeText);
+        }
 
         if (!coordsDep || !coordsArr) {
             if (statut) {
-                statut.textContent = "❌ Ville introuvable.";
+                statut.textContent = "❌ Localisation échouée.";
                 statut.style.color = "#ef4444";
             }
             return;
         }
 
-        // Calcul du point central du trajet pour interroger l'API allemande au bon endroit
         dernierePositionRouteCentrale = {
             lat: (coordsDep[0] + coordsArr[0]) / 2,
             lon: (coordsDep[1] + coordsArr[1]) / 2
@@ -280,14 +410,12 @@ async function executerCalculTrajet() {
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
         if (statut) statut.textContent = "🛰️ Analyse frontalière...";
-        
-        // 1. Récupération France (Locale)
+
         if (fluxFranceTrajetBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
             fluxFranceTrajetBrut = await resFR.json();
         }
 
-        // 2. 🔥 RÉSOLUTION ALLEMAGNE : Appel en temps réel autour de la zone de conduite
         let allemagneNormalisee = [];
         try {
             const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${dernierePositionRouteCentrale.lat}&lng=${dernierePositionRouteCentrale.lon}&rad=25&type=all&apikey=${API_KEY_ALLEMAGNE}`;
@@ -309,11 +437,9 @@ async function executerCalculTrajet() {
                     }));
                 }
             }
-        } catch(e) { console.error("API Allemande injoignable sur ce trajet :", e); }
+        } catch(e) { console.error("API Allemande injoignable :", e); }
 
-        // Fusion unifiée des deux pays avant filtrage géométrique de la route
         fluxGlobalUnifie = [...fluxFranceTrajetBrut, ...allemagneNormalisee];
-
         filtrerEtAfficherStationsUnifie();
     } catch (err) {
         console.error(err);
@@ -428,7 +554,6 @@ function rafraichirAffichageStationsTrajet() {
             popupAnchor: [1, -34]
         });
 
-        // 🔥 COMPARISON SUR LE NOM DE LA STATION UNI-SOURCE
         const estFav = listeFavorisIds.includes(nomStation);
         const nomSecuriseJS = nomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
@@ -453,7 +578,7 @@ function rafraichirAffichageStationsTrajet() {
                 <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${nomSecuriseJS}', '${lat}', '${lon}')">
                     ⭐ ${estFav ? 'Enlever' : 'Favori'}
                 </button>
-                <a class="popup-btn popup-btn-maps" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank">
+                <a class="popup-btn popup-btn-maps" href="http://maps.google.com/?q=${lat},${lon}" target="_blank">
                     🗺️ Itinéraire
                 </a>
             </div>
