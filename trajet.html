@@ -76,7 +76,7 @@
             height: 100vh;
             width: 100vw;
         }
-        
+
         /* Barre de recherche parente avec priorité absolue sur Leaflet */
         .barre-recherche-trajet {
             background: var(--bg-panneau);
@@ -89,7 +89,7 @@
             z-index: 10000 !important; /* Force tout le bloc recherche devant la carte */
             flex-shrink: 0;
         }
-        
+
         .inputs-trajet {
             display: flex;
             gap: 10px;
@@ -98,9 +98,11 @@
         .wrapper-input {
             flex: 1;
             position: relative;
+            display: flex;
+            gap: 6px;
         }
         .inputs-trajet input {
-            width: 100%;
+            flex: 1;
             background: #1f2937;
             border: 1px solid #374151;
             color: white;
@@ -111,6 +113,31 @@
             outline: none;
         }
 
+        /* Bouton Géolocalisation dédié */
+        .btn-gps-target {
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: white;
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .btn-gps-target:hover {
+            background: #374151;
+            border-color: var(--accent-bleu);
+        }
+        .btn-gps-target:active {
+            transform: scale(0.95);
+        }
+
         .btn-calculer {
             background: var(--accent-bleu);
             color: white;
@@ -119,6 +146,7 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
+            height: 42px;
         }
 
         /* Suggestions */
@@ -126,7 +154,7 @@
             position: absolute;
             top: 100%;
             left: 0;
-            right: 0;
+            right: 48px; /* Ajusté pour ne pas chevaucher le bouton GPS */
             background: #1f2937;
             border: 1px solid #374151;
             border-radius: 8px;
@@ -276,7 +304,7 @@
 
     <nav class="burger-menu" id="burgerMenu">
         <div class="menu-user-header">
-            <span class="menu-user-status">📡 Système Connected</span>
+            <span class="menu-user-status">📡 Système Connecté</span>
             <div class="menu-user-greeting">Bonjour, <span id="nom-operateur">Opérateur</span></div>
         </div>
         <a href="index.html" class="menu-link">📡 Radar Tactique</a>
@@ -294,23 +322,23 @@
 
             <div class="inputs-trajet">
                 <div class="wrapper-input">
-                    <input type="text" id="trajet-depart" placeholder="Ville de départ (ex: Gries)" autocomplete="off">
+                    <input type="text" id="trajet-depart" placeholder="Départ (ou cible 🎯)" autocomplete="off">
+                    <button class="btn-gps-target" id="btn-gps-depart" title="Utiliser ma position actuelle">🎯</button>
                     <div id="box-suggestions-depart" class="suggestions-flottantes"></div>
                 </div>
                 <div class="wrapper-input">
-                    <input type="text" id="trajet-arrivee" placeholder="Ville d'arrivée (ex: Soufflenheim)" autocomplete="off">
+                    <input type="text" id="trajet-arrivee" placeholder="Arrivée (ou cible 🎯)" autocomplete="off">
+                    <button class="btn-gps-target" id="btn-gps-arrivee" title="Utiliser ma position actuelle">🎯</button>
                     <div id="box-suggestions-arrivee" class="suggestions-flottantes"></div>
                 </div>
                 <button class="btn-calculer" id="btn-calculer-trajet">Calculer</button>
             </div>
 
-            <!-- Déclencheur Tactique du volet Paramètres -->
             <div class="declencheur-filtres" onclick="toggleVoletFiltres()">
                 <span>⚙️ Configuration tactique des filtres</span>
                 <span id="indicateur-filtre-fleche">▼</span>
             </div>
 
-            <!-- Volet Paramètres Flottant Déroulant vers le bas -->
             <div id="options-trajet" class="bloc-options-trajet masque-mobile">
                 <div style="display: flex; gap: 5px; align-items: center; justify-content: space-between; width: 100%;">
                     <label for="select-carburant-trajet" style="font-size: 11px; color: var(--texte-secondaire); font-weight: 600;">Carburant :</label>
@@ -361,3 +389,4 @@
     <script src="trajet.js"></script>
 </body>
 </html>
+
