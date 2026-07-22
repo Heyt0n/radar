@@ -46,13 +46,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ============================================================================
-// MODULE BRIEF MACRO (LECTURE GOOGLE SHEETS CSV)
+// MODULE BRIEF MACRO & JAUGE DYNAMIQUE (GOOGLE SHEETS CSV)
 // ============================================================================
 async function chargerBriefDuSoir() {
     const elementHtml = document.getElementById('sniper-comment');
     const dateLabel = document.getElementById('brief-date');
+    const jaugeBarre = document.getElementById('jauge-barre');
+    const jaugeValeur = document.getElementById('jauge-valeur');
+    const jaugeMessage = document.getElementById('jauge-message');
 
     try {
+        console.log("Brief : Tentative de connexion au flux Google Sheets...");
         const response = await fetch(GOOGLE_SHEETS_COMMENTAIRE_URL);
         if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
 
@@ -68,16 +72,46 @@ async function chargerBriefDuSoir() {
                     // Extraction de la toute dernière ligne enregistrée dans le Sheet
                     const dernierBrief = lignes[lignes.length - 1];
 
-                    // Extraction du texte et de la date optionnelle
+                    // 1. Textes du brief
                     const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || dernierBrief["Commentaire "] || "Aucun brief disponible pour le moment.";
                     const dateTxt = dernierBrief.Date || dernierBrief.date || "Dernière Note";
 
-                    if (elementHtml) {
-                        elementHtml.innerText = tonTexte;
+                    if (elementHtml) elementHtml.innerText = tonTexte;
+                    if (dateLabel) dateLabel.textContent = dateTxt;
+
+                    // 2. Traitement de la Jauge (0 à 100)
+                    let valJauge = parseInt(dernierBrief.Jauge || dernierBrief.jauge || dernierBrief.Score || dernierBrief.score || 0);
+                    if (isNaN(valJauge)) valJauge = 0;
+                    if (valJauge < 0) valJauge = 0;
+                    if (valJauge > 100) valJauge = 100;
+
+                    // Détermination de la couleur et du message selon la valeur (0 à 20 : Vert, 20 à 80 : Orange, >80 : Rouge)
+                    let couleur = "#22c55e"; // Vert
+                    let message = "🎯 ACHETER — Prix bas / Moment opportun";
+
+                    if (valJauge >= 20 && valJauge <= 80) {
+                        couleur = "#f97316"; // Orange
+                        message = "⏳ ATTENDRE — Marché neutre / En observation";
+                    } else if (valJauge > 80) {
+                        couleur = "#ef4444"; // Rouge
+                        message = "🛑 NE PAS ACHETER — Sommet atteint / Baisse à venir";
                     }
-                    if (dateLabel) {
-                        dateLabel.textContent = dateTxt;
+
+                    // Application visuelle
+                    if (jaugeBarre) {
+                        jaugeBarre.style.width = `${valJauge}%`;
+                        jaugeBarre.style.backgroundColor = couleur;
                     }
+                    if (jaugeValeur) {
+                        jaugeValeur.textContent = `${valJauge}/100`;
+                        jaugeValeur.style.color = couleur;
+                    }
+                    if (jaugeMessage) {
+                        jaugeMessage.textContent = message;
+                        jaugeMessage.style.color = couleur;
+                    }
+
+                    console.log("🛰️ Brief & Jauge injectés avec succès :", valJauge, tonTexte);
                 } else {
                     if (elementHtml) elementHtml.innerText = "Aucun commentaire publié pour le moment.";
                 }
