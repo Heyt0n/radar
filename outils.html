@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Radar Carburant - Actualités & Veille</title>
+    <title>Radar Carburant - Analyse & Veille</title>
+
+    <!-- Librairie PapaParse pour la lecture directe du Google Sheets CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 
@@ -80,12 +83,13 @@
         }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); color: #fff; }
 
-        /* Style Grille Actu */
+        /* Conteneur principal */
         .main-content {
             flex: 1; padding: 20px; width: 100%; max-width: 900px; margin: 0 auto;
-            display: flex; flex-direction: column; gap: 20px;
+            display: flex; flex-direction: column; gap: 24px;
         }
 
+        /* En-tête des sections */
         .section-header {
             display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #1f2937; padding-bottom: 10px;
@@ -94,6 +98,30 @@
             font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-jaune);
         }
 
+        /* Widget Brief Macro Personalisé */
+        .brief-widget {
+            background: var(--bg-panneau);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-jaune);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .brief-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px; border-bottom: 1px solid #1f2937; padding-bottom: 8px;
+        }
+        .brief-badge {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--accent-jaune); background: rgba(234, 179, 8, 0.15);
+            padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+        .brief-content {
+            font-size: 14px; color: var(--texte-principal); line-height: 1.6;
+            white-space: pre-wrap; word-break: break-word; font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Grille Actu */
         .news-grid {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;
         }
@@ -116,12 +144,6 @@
         .news-title {
             font-size: 14px; font-weight: 700; color: var(--texte-principal);
             line-height: 1.4; margin-bottom: 8px;
-        }
-
-        .news-snippet {
-            font-size: 12px; color: var(--texte-secondaire); line-height: 1.5;
-            margin-bottom: 15px; display: -webkit-box; -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical; overflow: hidden;
         }
 
         .news-footer {
@@ -157,24 +179,41 @@
     </header>
 
     <div class="main-content">
-        <div class="section-header">
-            <div class="section-title">📰 Flux d'Actualités Carburant</div>
-            <span style="font-size: 11px; color: var(--texte-secondaire);" id="last-update">Mise à jour en cours...</span>
+        
+        <!-- SECTION 1 : BRIEF MACRO CHASSEUR (GOOGLE SHEETS) -->
+        <div>
+            <div class="section-header" style="margin-bottom: 12px;">
+                <div class="section-title">🎯 Brief Macro Opérateur</div>
+            </div>
+            <div class="brief-widget">
+                <div class="brief-header">
+                    <span class="brief-badge">Analyse Directe</span>
+                    <span style="font-size: 11px; color: var(--texte-secondaire);" id="brief-date">Chargement...</span>
+                </div>
+                <div class="brief-content" id="sniper-comment">
+                    ⏳ Récupération de la dernière note d'analyse en cours...
+                </div>
+            </div>
         </div>
 
-        <div class="news-grid" id="news-container">
-            <p style="font-size: 12px; color: var(--texte-secondaire); grid-column: 1/-1; text-align: center; padding: 40px 0;">
-                ⚡ Chargement des flux d'informations du secteur...
-            </p>
+        <!-- SECTION 2 : FLUX D'ACTUALITÉS FLUX RSS -->
+        <div>
+            <div class="section-header" style="margin-bottom: 12px;">
+                <div class="section-title">📰 Flux d'Actualités Carburant</div>
+                <span style="font-size: 11px; color: var(--texte-secondaire);" id="last-update">Mise à jour en cours...</span>
+            </div>
+
+            <div class="news-grid" id="news-container">
+                <p style="font-size: 12px; color: var(--texte-secondaire); grid-column: 1/-1; text-align: center; padding: 20px 0;">
+                    ⚡ Chargement du flux d'informations du secteur...
+                </p>
+            </div>
         </div>
+
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="outils.js"></script>
-    <script src="commentaire.js"></script>
 </body>
 </html>
