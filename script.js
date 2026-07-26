@@ -10,7 +10,7 @@ const API_URL = "stations_france.json";
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 
-let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 15; 
+let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 5; 
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 
