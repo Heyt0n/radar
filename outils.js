@@ -16,7 +16,7 @@ function toggleBurgerMenu() {
 // INITIALISATION
 // ============================================================================
 document.addEventListener("DOMContentLoaded", async () => {
-    // Écouteurs pour le menu burger
+    // 1. Écouteurs pour le menu burger
     const burgerBtn = document.getElementById('burgerBtn');
     const menuOverlay = document.getElementById('menuOverlay');
 
@@ -26,7 +26,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (menuOverlay) menuOverlay.addEventListener('click', toggleBurgerMenu);
 
-    // Synchronisation de la session utilisateur Supabase
+    // 2. Écouteur pour le calculateur de rentabilité
+    const btnCalculer = document.getElementById("btn-calculer-rentabilite");
+    if (btnCalculer) {
+        btnCalculer.addEventListener("click", calculerRentabiliteDetour);
+    }
+
+    // 3. Synchronisation de la session utilisateur Supabase
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
@@ -40,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error("Erreur session menu outils :", e);
     }
 
-    // Lancement simultané du Brief Macro et du flux d'Actualités
+    // 4. Lancement du Brief Macro et du flux d'Actualités
     chargerBriefDuSoir();
     chargerActualitesCarburant();
 });
@@ -69,23 +75,19 @@ async function chargerBriefDuSoir() {
                 const lignes = results.data;
 
                 if (lignes && lignes.length > 0) {
-                    // Extraction de la toute dernière ligne enregistrée dans le Sheet
                     const dernierBrief = lignes[lignes.length - 1];
 
-                    // 1. Textes du brief
                     const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || dernierBrief["Commentaire "] || "Aucun brief disponible pour le moment.";
                     const dateTxt = dernierBrief.Date || dernierBrief.date || "Dernière Note";
 
                     if (elementHtml) elementHtml.innerText = tonTexte;
                     if (dateLabel) dateLabel.textContent = dateTxt;
 
-                    // 2. Traitement de la Jauge (0 à 100)
                     let valJauge = parseInt(dernierBrief.Jauge || dernierBrief.jauge || dernierBrief.Score || dernierBrief.score || 0);
                     if (isNaN(valJauge)) valJauge = 0;
                     if (valJauge < 0) valJauge = 0;
                     if (valJauge > 100) valJauge = 100;
 
-                    // Détermination de la couleur et du message selon la valeur (0 à 20 : Vert, 20 à 80 : Orange, >80 : Rouge)
                     let couleur = "#22c55e"; // Vert
                     let message = "🎯 ACHETER — Prix bas / Moment opportun";
 
@@ -97,7 +99,6 @@ async function chargerBriefDuSoir() {
                         message = "🛑 NE PAS ACHETER — Sommet atteint / Baisse à venir";
                     }
 
-                    // Application visuelle
                     if (jaugeBarre) {
                         jaugeBarre.style.width = `${valJauge}%`;
                         jaugeBarre.style.backgroundColor = couleur;
@@ -185,13 +186,6 @@ async function chargerActualitesCarburant() {
 // ============================================================================
 // CALCULATEUR DE RENTABILITÉ RÉELLE DU DÉTOUR
 // ============================================================================
-document.addEventListener("DOMContentLoaded", () => {
-    const btnCalculer = document.getElementById("btn-calculer-rentabilite");
-    if (btnCalculer) {
-        btnCalculer.addEventListener("click", calculerRentabiliteDetour);
-    }
-});
-
 function calculerRentabiliteDetour() {
     const volumePlein = parseFloat(document.getElementById("calc-volume").value) || 0;
     const consoMoyenne = parseFloat(document.getElementById("calc-conso").value) || 0;
@@ -224,7 +218,7 @@ function calculerRentabiliteDetour() {
         resultBox.classList.add("rentable");
         resultBox.innerHTML = `
             <strong>🎯 DÉTOUR RENTABLE !</strong><br>
-            • Economie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
+            • Économie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
             • Carburant brûlé sur le détour (${kmDetour} km) : <strong>-${coutDetour.toFixed(2)} €</strong> (${litresBrules.toFixed(2)} L)<br>
             👉 <strong>Gain net réel : +${gainNet.toFixed(2)} €</strong>
         `;
@@ -232,10 +226,9 @@ function calculerRentabiliteDetour() {
         resultBox.classList.add("non-rentable");
         resultBox.innerHTML = `
             <strong>⚠️ DÉTOUR NON RENTABLE !</strong><br>
-            • Economie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
+            • Économie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
             • Carburant brûlé sur le détour (${kmDetour} km) : <strong>-${coutDetour.toFixed(2)} €</strong> (${litresBrules.toFixed(2)} L)<br>
             👉 <strong>Perte nette : ${gainNet.toFixed(2)} €</strong> (Le trajet coûte plus cher que le gain à la pompe !).
         `;
     }
 }
-
