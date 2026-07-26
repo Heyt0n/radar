@@ -181,3 +181,61 @@ async function chargerActualitesCarburant() {
         container.innerHTML = `<p style="font-size:12px; color:var(--texte-secondaire); grid-column:1/-1; text-align:center;">Échec du chargement du flux d'actualités.</p>`;
     }
 }
+
+// ============================================================================
+// CALCULATEUR DE RENTABILITÉ RÉELLE DU DÉTOUR
+// ============================================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const btnCalculer = document.getElementById("btn-calculer-rentabilite");
+    if (btnCalculer) {
+        btnCalculer.addEventListener("click", calculerRentabiliteDetour);
+    }
+});
+
+function calculerRentabiliteDetour() {
+    const volumePlein = parseFloat(document.getElementById("calc-volume").value) || 0;
+    const consoMoyenne = parseFloat(document.getElementById("calc-conso").value) || 0;
+    const diffPrix = parseFloat(document.getElementById("calc-diff-prix").value) || 0;
+    const kmDetour = parseFloat(document.getElementById("calc-detour").value) || 0;
+    const resultBox = document.getElementById("calc-result");
+
+    if (!resultBox) return;
+
+    if (volumePlein <= 0 || consoMoyenne <= 0 || kmDetour < 0) {
+        alert("Veuillez remplir des valeurs valides.");
+        return;
+    }
+
+    // 1. Calcul du gain brut à la pompe (Volume x Écart de prix)
+    const gainBrut = volumePlein * diffPrix;
+
+    // 2. Calcul du carburant consommé pendant le détour Aller-Retour
+    const litresBrules = (kmDetour * consoMoyenne) / 100;
+
+    // Estimation du coût du carburant brûlé pendant le détour (sur la base d'un prix moyen de 1.80€/L)
+    const coutDetour = litresBrules * 1.80; 
+
+    // 3. Calcul du Bénéfice Net
+    const gainNet = gainBrut - coutDetour;
+
+    resultBox.classList.remove("hidden", "rentable", "non-rentable");
+
+    if (gainNet > 0) {
+        resultBox.classList.add("rentable");
+        resultBox.innerHTML = `
+            <strong>🎯 DÉTOUR RENTABLE !</strong><br>
+            • Economie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
+            • Carburant brûlé sur le détour (${kmDetour} km) : <strong>-${coutDetour.toFixed(2)} €</strong> (${litresBrules.toFixed(2)} L)<br>
+            👉 <strong>Gain net réel : +${gainNet.toFixed(2)} €</strong>
+        `;
+    } else {
+        resultBox.classList.add("non-rentable");
+        resultBox.innerHTML = `
+            <strong>⚠️ DÉTOUR NON RENTABLE !</strong><br>
+            • Economie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
+            • Carburant brûlé sur le détour (${kmDetour} km) : <strong>-${coutDetour.toFixed(2)} €</strong> (${litresBrules.toFixed(2)} L)<br>
+            👉 <strong>Perte nette : ${gainNet.toFixed(2)} €</strong> (Le trajet coûte plus cher que le gain à la pompe !).
+        `;
+    }
+}
+
