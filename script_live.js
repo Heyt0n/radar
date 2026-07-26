@@ -17,7 +17,7 @@ const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 
-let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 5; 
+let RAYON_KM = parseFloat(localStorage.getItem('radar_rayon')) || 10; 
 let dernierePosition = { lat: DEF_LAT, lon: DEF_LON };
 let maPositionReelle = { lat: DEF_LAT, lon: DEF_LON }; 
 
