@@ -6,7 +6,6 @@
     <title>Radar Carburant - Baromètre & Veille</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 
     <style>
@@ -121,6 +120,86 @@
             white-space: pre-wrap; word-break: break-word; font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
+        /* Style du Calculateur de Rentabilité */
+        .calculator-card {
+            background: var(--bg-panneau);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .calc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--texte-secondaire);
+            text-transform: uppercase;
+        }
+
+        .form-group input {
+            background: #1f2937;
+            border: 1px solid var(--border-color);
+            color: var(--texte-principal);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-bleu);
+        }
+
+        .btn-calc {
+            width: 100%;
+            background: var(--accent-bleu);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-calc:hover { opacity: 0.9; }
+
+        .result-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .result-box.rentable {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid var(--accent-vert);
+            color: #4ade80;
+        }
+
+        .result-box.non-rentable {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #f87171;
+        }
+
+        .hidden { display: none !important; }
+
         /* Grille Actu */
         .news-grid {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;
@@ -156,88 +235,6 @@
             color: var(--accent-vert); text-decoration: none; font-weight: bold;
             display: flex; align-items: center; gap: 4px;
         }
-
-
-/* Style du Calculateur de Rentabilité */
-.calculator-card {
-    background: var(--bg-panneau);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 20px;
-}
-
-.calc-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-group label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--texte-secondaire);
-    text-transform: uppercase;
-}
-
-.form-group input {
-    background: #1f2937;
-    border: 1px solid var(--border-color);
-    color: var(--texte-principal);
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 14px;
-    outline: none;
-}
-
-.form-group input:focus {
-    border-color: var(--accent-bleu);
-}
-
-.btn-calc {
-    width: 100%;
-    background: var(--accent-bleu);
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.btn-calc:hover { opacity: 0.9; }
-
-.result-box {
-    margin-top: 16px;
-    padding: 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-.result-box.rentable {
-    background: rgba(34, 197, 94, 0.15);
-    border: 1px solid var(--accent-vert);
-    color: #4ade80;
-}
-
-.result-box.non-rentable {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid #ef4444;
-    color: #f87171;
-}
-
-.hidden { display: none !important; }
-
     </style>
 </head>
 <body>
@@ -262,6 +259,7 @@
 
     <div class="main-content">
         
+        <!-- SECTION BRIEF MACRO -->
         <div>
             <div class="section-header" style="margin-bottom: 12px;">
                 <div class="section-title">🎯 Baromètre & Brief Macro</div>
@@ -294,45 +292,45 @@
             </div>
         </div>
 
+        <!-- CALCULATEUR DE DETOUR ET RENTABILITÉ -->
+        <div class="calculator-card">
+            <div class="section-title">🎯 Calculateur de Rentabilité Réelle</div>
+            <p style="font-size: 12px; color: var(--texte-secondaire); margin-bottom: 16px;">
+                Évaluez si un détour vers une station moins chère est réellement rentable pour votre véhicule.
+            </p>
 
-<!-- CALCULATEUR DE DETOUR ET RENTABILITÉ -->
-<div class="calculator-card">
-    <div class="section-title">🎯 Calculateur de Rentabilité Réelle</div>
-    <p style="font-size: 12px; color: var(--texte-secondaire); margin-bottom: 16px;">
-        Évaluez si un détour vers une station moins chère est réellement rentable pour votre véhicule.
-    </p>
+            <div class="calc-grid">
+                <div class="form-group">
+                    <label for="calc-volume">Volume du plein (L)</label>
+                    <input type="number" id="calc-volume" value="45" placeholder="ex: 45">
+                </div>
 
-    <div class="calc-grid">
-        <div class="form-group">
-            <label for="calc-volume">Volume du plein (L)</label>
-            <input type="number" id="calc-volume" value="45" placeholder="ex: 45">
+                <div class="form-group">
+                    <label for="calc-conso">Conso. Moyenne (L/100 km)</label>
+                    <input type="number" step="0.1" id="calc-conso" value="6.5" placeholder="ex: 6.5">
+                </div>
+
+                <div class="form-group">
+                    <label for="calc-diff-prix">Écart de prix (€/L)</label>
+                    <input type="number" step="0.001" id="calc-diff-prix" value="0.06" placeholder="ex: 0.06">
+                </div>
+
+                <div class="form-group">
+                    <label for="calc-detour">Détour Aller-Retour (km)</label>
+                    <input type="number" step="0.1" id="calc-detour" value="8" placeholder="ex: 8">
+                </div>
+            </div>
+
+            <button type="button" class="btn-calc" onclick="calculerRentabiliteDetour()">
+                Calculer l'impact net
+            </button>
+
+            <div id="calc-result" class="result-box hidden">
+                <!-- Le résultat s'affichera ici -->
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="calc-conso">Conso. Moyenne (L/100 km)</label>
-            <input type="number" step="0.1" id="calc-conso" value="6.5" placeholder="ex: 6.5">
-        </div>
-
-        <div class="form-group">
-            <label for="calc-diff-prix">Écart de prix (€/L)</label>
-            <input type="number" step="0.001" id="calc-diff-prix" value="0.06" placeholder="ex: 0.06">
-        </div>
-
-        <div class="form-group">
-            <label for="calc-detour">Détour Aller-Retour (km)</label>
-            <input type="number" step="0.1" id="calc-detour" value="8" placeholder="ex: 8">
-        </div>
-    </div>
-
-    <button id="btn-calculer-rentabilite" class="btn-calc">Calculer l'impact net</button>
-
-    <div id="calc-result" class="result-box hidden">
-        <!-- Le résultat s'affichera ici -->
-    </div>
-</div>
-
-
-
+        <!-- SECTION FLUX D'ACTUALITÉS -->
         <div>
             <div class="section-header" style="margin-bottom: 12px;">
                 <div class="section-title">📰 Flux d'Actualités Carburant</div>
