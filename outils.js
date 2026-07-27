@@ -85,10 +85,10 @@ async function chargerBriefDuSoir() {
                     let couleur = "#22c55e"; // Vert
                     let message = "🎯 ACHETER — Prix bas / Moment opportun";
 
-                    if (valJauge >= 20 && valJauge <= 80) {
+                    if (valJauge >= 35 && valJauge <= 70) {
                         couleur = "#f97316"; // Orange
                         message = "⏳ ATTENDRE — Marché neutre / En observation";
-                    } else if (valJauge > 80) {
+                    } else if (valJauge > 70) {
                         couleur = "#ef4444"; // Rouge
                         message = "🛑 NE PAS ACHETER — Sommet atteint / Baisse à venir";
                     }
