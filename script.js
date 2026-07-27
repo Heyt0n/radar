@@ -271,7 +271,7 @@ function afficherFavoris() {
     });
 }
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : OVERPASS (IT), TANKERKÖNIG (DE) & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : REQUETES MULTI-PAYS, RENDU & GEOLOC
 // ============================================================================
 
 // --- 4. REQUETES APIS MULTI-PAYS ET TRAITEMENT ---
@@ -295,42 +295,65 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-// Extrait toutes les stations-services via Overpass OSM (Sans limite bridée)
-async function recupererStationsItalieOverpass(centerLat, centerLon, rayonKm) {
+// Extraction Italie : Teste le miroir OpenData direct puis bascule sur Nominatim BoundingBox si besoin
+async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
+    // Si la recherche est hors de la boîte géographique italienne globale, on zappe
+    if (centerLat < 35 || centerLat > 47 || centerLon < 6 || centerLon > 19) return [];
+
     try {
-        const rayonMetres = rayonKm * 1000;
-        const queryOverpass = `[out:json][timeout:10];node["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out body;`;
-        const urlOverpass = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(queryOverpass)}`;
+        // Source A : API OpenData Prezzi Carburanti via Proxy (contourne la limitation limit=5)
+        const urlDirect = `https://carburanti.mise.gov.it/api/search?zone=${centerLat},${centerLon}&radius=${rayonKm}`;
+        const resIT = await fetch(PROXY_CORS + encodeURIComponent(urlDirect));
+        
+        if (resIT.ok) {
+            const data = await resIT.json();
+            const liste = data.results || data.items || data;
+            if (Array.isArray(liste) && liste.length > 0) {
+                return liste.map(st => ({
+                    n: st.name || st.bandiera || "Station Italie",
+                    a: st.address || st.indirizzo || "",
+                    v: st.city || st.comune || "",
+                    cp: "",
+                    lt: parseFloat(st.lat || st.latitude),
+                    ln: parseFloat(st.lon || st.longitude),
+                    gz: st.fuels?.find(f => f.name?.toLowerCase().includes('diesel') || f.name?.toLowerCase().includes('gasolio'))?.price || null,
+                    95: st.fuels?.find(f => f.name?.toLowerCase().includes('benzina'))?.price || null,
+                    e10: null,
+                    98: null
+                }));
+            }
+        }
+    } catch (e) {
+        console.warn("⚠️ API directe Italie indisponible, tentative de secours...");
+    }
 
-        const resIT = await fetch(urlOverpass);
-        if (!resIT.ok) return [];
+    // Source B : Secours via recherche Nominatim Bounding Box pour forcer l'affichage de toutes les stations de la zone
+    try {
+        const delta = (rayonKm / 111); // Conversion approximative km -> degrés
+        const viewbox = `${centerLon - delta},${centerLat + delta},${centerLon + delta},${centerLat - delta}`;
+        const urlNominatim = `https://nominatim.openstreetmap.org/search?format=json&q=fuel&viewbox=${viewbox}&bounded=1&limit=50`;
 
-        const dataIT = await resIT.json();
-        if (!dataIT || !dataIT.elements) return [];
-
-        return dataIT.elements.map(el => {
-            const tags = el.tags || {};
-            const nomBrand = tags.brand || tags.operator || tags.name || "Station Italie";
-            const rue = tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "";
-            const ville = tags["addr:city"] || "";
-
-            return {
-                n: nomBrand,
-                a: rue,
-                v: ville,
-                cp: tags["addr:postcode"] || "",
-                lt: parseFloat(el.lat),
-                ln: parseFloat(el.lon),
-                gz: null, 
+        const resNom = await fetch(urlNominatim);
+        if (resNom.ok) {
+            const dataNom = await resNom.json();
+            return dataNom.map(st => ({
+                n: st.display_name.split(',')[0] || "Station Italie",
+                a: st.display_name,
+                v: "",
+                cp: "",
+                lt: parseFloat(st.lat),
+                ln: parseFloat(st.lon),
+                gz: null,
                 95: null,
                 e10: null,
                 98: null
-            };
-        });
+            }));
+        }
     } catch (err) {
-        console.warn("⚠️ Flux Italie Overpass indisponible :", err.message);
-        return [];
+        console.error("⚠️ Secours Italie échoué :", err);
     }
+
+    return [];
 }
 
 async function recupererBrutMultiPays(centerLat, centerLon) {
@@ -387,12 +410,12 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. FLUX ITALIE (Overpass API - Sans limite de stations)
+    // 3. FLUX ITALIE
     try {
-        console.log("⚡ Interrogation Overpass API Italie...");
-        stationsTrouveesIT = await recupererStationsItalieOverpass(centerLat, centerLon, RAYON_KM);
+        console.log("⚡ Interrogation Flux Italie...");
+        stationsTrouveesIT = await recupererStationsItalieUnrestricted(centerLat, centerLon, RAYON_KM);
     } catch (err) {
-        console.error("⚠️ Échec API Italie Overpass :", err);
+        console.error("⚠️ Échec Flux Italie :", err);
     }
 
     stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
