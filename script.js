@@ -285,7 +285,6 @@ async function rechercherVille() {
     if (!input || !input.value.trim()) return;
 
     try {
-        // Recherche étendue : FR, DE, BE, CH, IT, ES
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,be,ch,it,es&limit=1`);
         const data = await response.json();
         if (data && data.length > 0) {
@@ -301,38 +300,70 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-// Récupération dynamique des stations via Overpass pour CH, BE, IT, ES
+// Récupération dynamique des stations via Overpass pour CH, BE, IT, ES (Méthode blindée)
 async function recupererStationsOverpassEurope(centerLat, centerLon, rayonKm) {
-    try {
-        const rayonMetres = Math.min(rayonKm * 1000, 30000);
-        const query = `[out:json][timeout:10];node["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out body;`;
-        const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+    const rayonMetres = Math.min(rayonKm * 1000, 30000);
 
-        const res = await fetch(url);
-        if (!res.ok) return [];
+    // nwr (Node, Way, Relation) + out center pour attraper les surfaces et leurs centres
+    const query = `[out:json][timeout:15];nwr["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out center;`;
+    const queryEncoded = encodeURIComponent(query);
 
-        const data = await res.json();
-        if (!data || !data.elements) return [];
+    // Miroirs Overpass
+    const endpoints = [
+        `https://overpass-api.de/api/interpreter?data=${queryEncoded}`,
+        `https://overpass.kumi.systems/api/interpreter?data=${queryEncoded}`,
+        `https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=${queryEncoded}`
+    ];
 
-        return data.elements.map(el => {
-            const tags = el.tags || {};
-            return {
-                n: tags.name || tags.brand || "Station Service",
-                a: tags["addr:street"] ? `${tags["addr:housenumber"] || ''} ${tags["addr:street"]}`.trim() : (tags.brand || "Station"),
-                v: tags["addr:city"] || "",
-                cp: tags["addr:postcode"] || "",
-                lt: parseFloat(el.lat),
-                ln: parseFloat(el.lon),
-                gz: null,
-                95: null,
-                e10: null,
-                98: null
-            };
-        });
-    } catch (e) {
-        console.warn("Échec récupération Overpass Europe :", e);
+    let data = null;
+
+    for (const url of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); 
+
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                data = await res.json();
+                if (data && data.elements) break; 
+            }
+        } catch (e) {
+            console.warn(`Serveur Overpass indisponible (${url}), tentative sur miroir suivant...`);
+        }
+    }
+
+    if (!data || !data.elements) {
+        console.error("❌ Impossible de récupérer les stations Europe via Overpass.");
         return [];
     }
+
+    return data.elements.map(el => {
+        const tags = el.tags || {};
+        
+        // Coordonnées pour Node (lat/lon) ou Way/Relation (center.lat/center.lon)
+        const lat = el.lat || (el.center ? el.center.lat : null);
+        const lon = el.lon || (el.center ? el.center.lon : null);
+
+        if (!lat || !lon) return null;
+
+        const marque = tags.brand || tags.operator || tags.name || "Station Service";
+        const rue = tags["addr:street"] ? `${tags["addr:housenumber"] || ''} ${tags["addr:street"]}`.trim() : "";
+
+        return {
+            n: marque,
+            a: rue || marque,
+            v: tags["addr:city"] || "",
+            cp: tags["addr:postcode"] || "",
+            lt: parseFloat(lat),
+            ln: parseFloat(lon),
+            gz: null,
+            95: null,
+            e10: null,
+            98: null
+        };
+    }).filter(st => st !== null);
 }
 
 async function recupererBrutMultiPays(centerLat, centerLon) {
@@ -393,10 +424,9 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
     // 3. FLUX AUTRES PAYS (Suisse, Belgique, Italie, Espagne) via OpenStreetMap
     stationsAutresEurope = await recupererStationsOverpassEurope(centerLat, centerLon, RAYON_KM);
 
-    // Fusion et dédoublonnage basique
+    // Fusion et dédoublonnage de sécurité
     const toutes = [...stationsFR, ...stationsDE, ...stationsAutresEurope];
     
-    // Filtre de proximité extrême pour éviter les doublons entre APIs
     stationsGlobales = toutes.filter((st, index, self) =>
         index === self.findIndex((t) => (
             Math.abs(t.lt - st.lt) < 0.0005 && Math.abs(t.ln - st.ln) < 0.0005
