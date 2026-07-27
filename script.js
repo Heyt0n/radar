@@ -11,7 +11,6 @@ let marqueursActifs = {};
 let marqueurPositionReelle = null;
 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
-const PROXY_CORS = "https://corsproxy.io/?"; 
 const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
 const DEF_LAT = 48.71;
@@ -260,6 +259,7 @@ function afficherFavoris() {
 
         document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
             if (!map) return;
+            dernierePosition = { lat: f.lat, lon: f.lon };
             map.setView([f.lat, f.lon], 14); 
             if (marqueursActifs[cleMarqueur]) {
                 marqueursActifs[cleMarqueur].openPopup();
@@ -280,6 +280,8 @@ function afficherFavoris() {
 // ============================================================================
 // 4. MOTEUR DE RECHERCHE ET REQUÊTES API (MULTI-PAYS)
 // ============================================================================
+
+// Recherche de ville corrigée avec verrouillage strict de la position cible
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
@@ -287,17 +289,24 @@ async function rechercherVille() {
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,be,ch,it,es&limit=1`);
         const data = await response.json();
+        
         if (data && data.length > 0) {
             const newLat = parseFloat(data[0].lat);
             const newLon = parseFloat(data[0].lon);
+
+            // 🎯 Met à jour la position globale pour que les sliders et rechargements restent calés ici
+            dernierePosition = { lat: newLat, lon: newLon };
+
             if (map) {
                 map.setView([newLat, newLon], 12);
-                fetchLiveStations(newLat, newLon);
+                await fetchLiveStations(newLat, newLon);
             }
         } else {
             alert("Localisation introuvable dans la zone couverte (FR, DE, CH, BE, IT, ES).");
         }
-    } catch (e) { console.error("Erreur Ville :", e); }
+    } catch (e) { 
+        console.error("Erreur Ville :", e); 
+    }
 }
 
 // Récupération dynamique des stations via Overpass pour CH, BE, IT, ES (Méthode blindée)
@@ -547,8 +556,11 @@ function initialiserEcouteursInterface() {
     document.getElementById('select-carburant')?.addEventListener('change', () => fetchLiveStations(dernierePosition.lat, dernierePosition.lon));
     document.getElementById('btn-search')?.addEventListener('click', rechercherVille);
     document.getElementById('search-ville')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') rechercherVille(); });
+    
+    // Bouton réinitialiser (Cible GPS)
     document.getElementById('btn-reset')?.addEventListener('click', () => {
         const input = document.getElementById('search-ville'); if (input) input.value = '';
+        dernierePosition = { lat: maPositionReelle.lat, lon: maPositionReelle.lon };
         if (map) {
             map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
             fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
@@ -567,6 +579,7 @@ function declencherGeolocalisation() {
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
                 maPositionReelle = { lat, lon };
+                dernierePosition = { lat, lon };
 
                 if (map) {
                     if (marqueurPositionReelle) {
