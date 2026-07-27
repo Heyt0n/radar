@@ -175,8 +175,13 @@ function extraireVraiNom(station) {
 }
 
 function formatPrix(valeur) {
-    if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return null;
-    return parseFloat(valeur);
+    if (valeur === undefined || valeur === null || valeur === "") return null;
+    if (typeof valeur === 'number') return isNaN(valeur) || valeur === 0 ? null : valeur;
+    
+    let str = String(valeur).replace(',', '.').trim();
+    let num = parseFloat(str);
+    
+    return isNaN(num) || num === 0 ? null : num;
 }
 
 // ==========================================
@@ -236,6 +241,7 @@ function afficherFavoris() {
 
         const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.nom)}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
         item.innerHTML = `
@@ -245,7 +251,7 @@ function afficherFavoris() {
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
             <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                <a href="https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
+                <a href="${urlGoogleMapsFav}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
                 <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
             </div>
         `;
@@ -295,41 +301,55 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-// Extraction Italie : Teste le miroir OpenData direct puis bascule sur Nominatim BoundingBox si besoin
 async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
-    // Si la recherche est hors de la boîte géographique italienne globale, on zappe
     if (centerLat < 35 || centerLat > 47 || centerLon < 6 || centerLon > 19) return [];
 
     try {
-        // Source A : API OpenData Prezzi Carburanti via Proxy (contourne la limitation limit=5)
         const urlDirect = `https://carburanti.mise.gov.it/api/search?zone=${centerLat},${centerLon}&radius=${rayonKm}`;
         const resIT = await fetch(PROXY_CORS + encodeURIComponent(urlDirect));
         
         if (resIT.ok) {
             const data = await resIT.json();
             const liste = data.results || data.items || data;
+            
             if (Array.isArray(liste) && liste.length > 0) {
-                return liste.map(st => ({
-                    n: st.name || st.bandiera || "Station Italie",
-                    a: st.address || st.indirizzo || "",
-                    v: st.city || st.comune || "",
-                    cp: "",
-                    lt: parseFloat(st.lat || st.latitude),
-                    ln: parseFloat(st.lon || st.longitude),
-                    gz: st.fuels?.find(f => f.name?.toLowerCase().includes('diesel') || f.name?.toLowerCase().includes('gasolio'))?.price || null,
-                    95: st.fuels?.find(f => f.name?.toLowerCase().includes('benzina'))?.price || null,
-                    e10: null,
-                    98: null
-                }));
+                return liste.map(st => {
+                    let gazole = null, sp95 = null, e10 = null, sp98 = null;
+                    const listeCarburants = st.fuels || st.prezzi || st.carburanti || [];
+                    
+                    if (Array.isArray(listeCarburants)) {
+                        listeCarburants.forEach(f => {
+                            let nomCarb = (f.name || f.descrizione || f.carburante || "").toLowerCase();
+                            let p = f.price || f.prezzo;
+
+                            if (nomCarb.includes('gasolio') || nomCarb.includes('diesel')) gazole = p;
+                            else if (nomCarb.includes('benzina') || nomCarb.includes('eurosuper')) sp95 = p;
+                            else if (nomCarb.includes('e10')) e10 = p;
+                            else if (nomCarb.includes('100') || nomCarb.includes('98') || nomCarb.includes('v-power')) sp98 = p;
+                        });
+                    }
+
+                    return {
+                        n: st.name || st.bandiera || st.nome || "Station Italie",
+                        a: st.address || st.indirizzo || "",
+                        v: st.city || st.comune || "",
+                        cp: st.cap || "",
+                        lt: parseFloat(st.lat || st.latitude),
+                        ln: parseFloat(st.lon || st.longitude),
+                        gz: gazole,
+                        95: sp95,
+                        e10: e10,
+                        98: sp98
+                    };
+                });
             }
         }
     } catch (e) {
         console.warn("⚠️ API directe Italie indisponible, tentative de secours...");
     }
 
-    // Source B : Secours via recherche Nominatim Bounding Box pour forcer l'affichage de toutes les stations de la zone
     try {
-        const delta = (rayonKm / 111); // Conversion approximative km -> degrés
+        const delta = (rayonKm / 111);
         const viewbox = `${centerLon - delta},${centerLat + delta},${centerLon + delta},${centerLat - delta}`;
         const urlNominatim = `https://nominatim.openstreetmap.org/search?format=json&q=fuel&viewbox=${viewbox}&bounded=1&limit=50`;
 
@@ -478,6 +498,9 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
+            
+            // Format intelligent Google Maps : affiche le NOM de la station au lieu des coordonnées
+            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nomAffiche + ' ' + (station.v || ''))}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
@@ -491,7 +514,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     </div>
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
-                        <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                        <a href="${urlGoogleMaps}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
                     </div>
                 </div>
             `);
