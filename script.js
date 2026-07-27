@@ -236,7 +236,7 @@ function afficherFavoris() {
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, "'");
+        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
@@ -296,14 +296,14 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-// Sous-fonction pour la récupération du flux italien
 async function recupererStationsItalie(centerLat, centerLon, rayonKm, typeCarburant) {
     try {
         let fuelParam = 'gasolio'; 
         if (typeCarburant === '95' || typeCarburant === 'e10') fuelParam = 'benzina';
         if (typeCarburant === '98') fuelParam = 'benzina_special';
 
-        const url = `https://prezzi-carburante.onrender.com/api/distributori?latitude=${centerLat}&longitude=${centerLon}&distance=${rayonKm}&fuel=${fuelParam}`;
+        // &limit=100 permet d'extraire toutes les stations sans bridage
+        const url = `https://prezzi-carburante.onrender.com/api/distributori?latitude=${centerLat}&longitude=${centerLon}&distance=${rayonKm}&fuel=${fuelParam}&limit=100`;
 
         const resIT = await fetch(url);
         if (!resIT.ok) return [];
@@ -361,13 +361,13 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. FLUX ALLEMAGNE (Tankerkönig API)
+    // 2. FLUX ALLEMAGNE (Tankerkönig API via CorsProxy)
     try {
-        console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
+        console.log("⚡ Interrogation API Tankerkönig Allemagne via Proxy...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
-        const resDE = await fetch(urlDE);
+        const resDE = await fetch(PROXY_CORS + encodeURIComponent(urlDE));
         if (resDE.ok) {
             const dataDE = await resDE.json();
             if (dataDE && dataDE.ok && dataDE.stations) {
@@ -392,7 +392,7 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
     // 3. FLUX ITALIE (API Miroir MIMIT)
     try {
         console.log("⚡ Interrogation API Miroir Italie Direct...");
-        const rayonSecuriseIT = Math.min(RAYON_KM, 25);
+        const rayonSecuriseIT = Math.min(RAYON_KM, 50);
         stationsTrouveesIT = await recupererStationsItalie(centerLat, centerLon, rayonSecuriseIT, carburantActif);
     } catch (err) {
         console.error("⚠️ Échec API Italie :", err);
@@ -574,4 +574,4 @@ function declencherGeolocalisation() {
 }
 
 window.basculerFavori = basculerFavori;
-window.toggleBurgerMenu = toggleBurgerMenu;
+window.toggleBurgerMenu = toggleBurgerMenu
