@@ -1,5 +1,5 @@
 // ============================================================================
-// 📡 RADAR CARBURANT - COEUR DE REQUÊTE ET ENGINE TACTIQUE UNIFIÉ (FR-DE-IT)
+// 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
 
 // --- 0. INITIALISATION ET ETAT GLOBAL ---
@@ -32,7 +32,6 @@ function toggleBurgerMenu() {
 
 // --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
-    // Synchronisation initiale du slider de rayon
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
     if (sliderRayon) {
@@ -40,7 +39,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
     }
 
-    // Gestion unifiée des écouteurs du menu burger
     const burgerBtn = document.querySelector('.burger-btn');
     const menuOverlay = document.getElementById('menuOverlay');
 
@@ -272,10 +270,11 @@ function afficherFavoris() {
         });
     });
 }
+// ============================================================================
+// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOCALISATION
+// ============================================================================
 
-// ============================================================================
-// 4. MOTEUR DE RECHERCHE ET REQUETES API MULTI-PAYS
-// ============================================================================
+// --- 4. REQUETES APIS MULTI-PAYS ET TRAITEMENT ---
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
@@ -302,8 +301,8 @@ async function recupererStationsItalie(centerLat, centerLon, rayonKm, typeCarbur
         if (typeCarburant === '95' || typeCarburant === 'e10') fuelParam = 'benzina';
         if (typeCarburant === '98') fuelParam = 'benzina_special';
 
-        // &limit=100 permet d'extraire toutes les stations sans bridage
-        const url = `https://prezzi-carburante.onrender.com/api/distributori?latitude=${centerLat}&longitude=${centerLon}&distance=${rayonKm}&fuel=${fuelParam}&limit=100`;
+        // URL structurée de manière explicite avec &limit=200 placé au tout début
+        const url = `https://prezzi-carburante.onrender.com/api/distributori?limit=200&latitude=${centerLat}&longitude=${centerLon}&distance=${rayonKm}&fuel=${fuelParam}`;
 
         const resIT = await fetch(url);
         if (!resIT.ok) return [];
@@ -340,14 +339,13 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
 
     const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
-    // 1. FLUX FRANCE (Cache local JSON)
+    // 1. FLUX FRANCE
     try {
         if (fluxFranceBrut.length === 0) {
-            console.log("🛰️ Premier chargement : Extraction du flux France (Lecture locale unique)...");
+            console.log("🛰️ Premier chargement : Extraction du flux France...");
             const resFR = await fetch('./stations_france.json');
-            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (Statut ${resFR.status})`);
+            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (${resFR.status})`);
             fluxFranceBrut = await resFR.json();
-            console.log(`✅ ${fluxFranceBrut.length} stations chargées dans le cache global.`);
         }
 
         fluxFranceBrut.forEach(station => {
@@ -361,9 +359,9 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. FLUX ALLEMAGNE (Tankerkönig API via CorsProxy)
+    // 2. FLUX ALLEMAGNE
     try {
-        console.log("⚡ Interrogation API Tankerkönig Allemagne via Proxy...");
+        console.log("⚡ Interrogation API Allemagne via Proxy...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
@@ -389,18 +387,17 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. FLUX ITALIE (API Miroir MIMIT)
+    // 3. FLUX ITALIE
     try {
-        console.log("⚡ Interrogation API Miroir Italie Direct...");
+        console.log("⚡ Interrogation API Italie...");
         const rayonSecuriseIT = Math.min(RAYON_KM, 50);
         stationsTrouveesIT = await recupererStationsItalie(centerLat, centerLon, rayonSecuriseIT, carburantActif);
     } catch (err) {
         console.error("⚠️ Échec API Italie :", err);
     }
 
-    // CONSOLIDATION MULTI-PAYS
     stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
-    console.log(`🎯 Multi-Pays consolidé : ${stationsGlobales.length} stations au total.`);
+    console.log(`🎯 Multi-Pays consolidé : ${stationsGlobales.length} stations.`);
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
@@ -574,4 +571,4 @@ function declencherGeolocalisation() {
 }
 
 window.basculerFavori = basculerFavori;
-window.toggleBurgerMenu = toggleBurgerMenu
+window.toggleBurgerMenu = toggleBurgerMenu;
