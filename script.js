@@ -12,7 +12,6 @@ let marqueurPositionReelle = null;
 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 const PROXY_CORS = "https://corsproxy.io/?"; 
-const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -164,6 +163,7 @@ function extraireVraiNom(station) {
     else if (adresseMinuscule.includes("bp ")) marque = "BP";
     else if (adresseMinuscule.includes("api") || adresseMinuscule.includes("ip")) marque = "Api-Ip";
     else if (adresseMinuscule.includes("eni") || adresseMinuscule.includes("agip")) marque = "Eni";
+    else if (adresseMinuscule.includes("q8")) marque = "Q8";
 
     let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
     let rueClean = adresseBrute;
@@ -271,7 +271,7 @@ function afficherFavoris() {
     });
 }
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOCALISATION
+// 📡 RADAR CARBURANT - PARTIE 2/2 : OVERPASS (IT), TANKERKÖNIG (DE) & GEOLOC
 // ============================================================================
 
 // --- 4. REQUETES APIS MULTI-PAYS ET TRAITEMENT ---
@@ -295,38 +295,40 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
-async function recupererStationsItalie(centerLat, centerLon, rayonKm, typeCarburant) {
+// Extrait toutes les stations-services via Overpass OSM (Sans limite bridée)
+async function recupererStationsItalieOverpass(centerLat, centerLon, rayonKm) {
     try {
-        let fuelParam = 'gasolio'; 
-        if (typeCarburant === '95' || typeCarburant === 'e10') fuelParam = 'benzina';
-        if (typeCarburant === '98') fuelParam = 'benzina_special';
+        const rayonMetres = rayonKm * 1000;
+        const queryOverpass = `[out:json][timeout:10];node["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out body;`;
+        const urlOverpass = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(queryOverpass)}`;
 
-        // URL structurée de manière explicite avec &limit=200 placé au tout début
-        const url = `https://prezzi-carburante.onrender.com/api/distributori?limit=200&latitude=${centerLat}&longitude=${centerLon}&distance=${rayonKm}&fuel=${fuelParam}`;
-
-        const resIT = await fetch(url);
+        const resIT = await fetch(urlOverpass);
         if (!resIT.ok) return [];
 
         const dataIT = await resIT.json();
-        if (!Array.isArray(dataIT)) return [];
+        if (!dataIT || !dataIT.elements) return [];
 
-        return dataIT.map(st => {
-            const prix = parseFloat(st.prezzo);
+        return dataIT.elements.map(el => {
+            const tags = el.tags || {};
+            const nomBrand = tags.brand || tags.operator || tags.name || "Station Italie";
+            const rue = tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "";
+            const ville = tags["addr:city"] || "";
+
             return {
-                n: st.gestore ? `Station ${st.gestore}` : "Station Italie",
-                a: st.indirizzo || "",
-                v: "",
-                cp: "",
-                lt: parseFloat(st.latitudine),
-                ln: parseFloat(st.longitudine),
-                gz: fuelParam === 'gasolio' ? prix : null,
-                95: fuelParam === 'benzina' ? prix : null,
-                e10: fuelParam === 'benzina' ? prix : null,
-                98: fuelParam === 'benzina_special' ? prix : null
+                n: nomBrand,
+                a: rue,
+                v: ville,
+                cp: tags["addr:postcode"] || "",
+                lt: parseFloat(el.lat),
+                ln: parseFloat(el.lon),
+                gz: null, 
+                95: null,
+                e10: null,
+                98: null
             };
         });
     } catch (err) {
-        console.warn("⚠️ Flux Italie indisponible :", err.message);
+        console.warn("⚠️ Flux Italie Overpass indisponible :", err.message);
         return [];
     }
 }
@@ -337,9 +339,7 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
     let stationsTrouveesIT = [];
     stationsGlobales = []; 
 
-    const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
-
-    // 1. FLUX FRANCE
+    // 1. FLUX FRANCE (Cache local JSON)
     try {
         if (fluxFranceBrut.length === 0) {
             console.log("🛰️ Premier chargement : Extraction du flux France...");
@@ -359,7 +359,7 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. FLUX ALLEMAGNE
+    // 2. FLUX ALLEMAGNE (Tankerkönig API via CorsProxy)
     try {
         console.log("⚡ Interrogation API Allemagne via Proxy...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
@@ -387,13 +387,12 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. FLUX ITALIE
+    // 3. FLUX ITALIE (Overpass API - Sans limite de stations)
     try {
-        console.log("⚡ Interrogation API Italie...");
-        const rayonSecuriseIT = Math.min(RAYON_KM, 50);
-        stationsTrouveesIT = await recupererStationsItalie(centerLat, centerLon, rayonSecuriseIT, carburantActif);
+        console.log("⚡ Interrogation Overpass API Italie...");
+        stationsTrouveesIT = await recupererStationsItalieOverpass(centerLat, centerLon, RAYON_KM);
     } catch (err) {
-        console.error("⚠️ Échec API Italie :", err);
+        console.error("⚠️ Échec API Italie Overpass :", err);
     }
 
     stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
@@ -452,7 +451,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
             const linePrix = (label, prix, code) => {
                 const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
-                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Rupture'}</b></div>`;
+                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Non renseigné'}</b></div>`;
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
