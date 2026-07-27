@@ -11,7 +11,6 @@ let marqueursActifs = {};
 let marqueurPositionReelle = null;
 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
-const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -56,24 +55,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-        const { data: { session }, error } = await _supabase.auth.getSession();
+        if (typeof _supabase !== 'undefined') {
+            const { data: { session }, error } = await _supabase.auth.getSession();
 
-        if (!session) {
-            if (localStorage.getItem("radar_session_active") !== "true") {
-                if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html")) {
-                    window.location.href = "connexion.html";
-                    return;
+            if (!session) {
+                if (localStorage.getItem("radar_session_active") !== "true") {
+                    if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html")) {
+                        window.location.href = "connexion.html";
+                        return;
+                    }
                 }
+                favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
+            } else {
+                currentUser = session.user;
+                const pseudo = currentUser.user_metadata?.display_name || currentUser.user_metadata?.pseudo || "Opérateur";
+
+                const nomOperateurBadge = document.getElementById("nom-operateur");
+                if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
+
+                await chargerFavorisSupabase();
             }
-            favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         } else {
-            currentUser = session.user;
-            const pseudo = currentUser.user_metadata.display_name || currentUser.user_metadata.pseudo || "Opérateur";
-
-            const nomOperateurBadge = document.getElementById("nom-operateur");
-            if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-
-            await chargerFavorisSupabase();
+            favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         }
     } catch (err) {
         console.error("Erreur session :", err);
@@ -88,7 +91,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function chargerFavorisSupabase() {
-    if (!currentUser) return;
+    if (!currentUser || typeof _supabase === 'undefined') return;
     try {
         const { data, error } = await _supabase.from('favoris').select('*');
         if (error) throw error;
@@ -152,7 +155,7 @@ function extraireVraiNom(station) {
     let ville = (station.v || "").trim();
     let adresseBrute = (station.a || "").trim();
     let marque = "Station";
-    let adresseMinuscule = adresseBrute.toLowerCase();
+    let adresseMinuscule = (adresseBrute + " " + nomBrut).toLowerCase();
 
     if (adresseMinuscule.includes("total")) marque = "Total";
     else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
@@ -169,6 +172,9 @@ function extraireVraiNom(station) {
     else if (adresseMinuscule.includes("cepsa")) marque = "Cepsa";
     else if (adresseMinuscule.includes("migrol") || adresseMinuscule.includes("migros")) marque = "Migrol";
     else if (adresseMinuscule.includes("coop")) marque = "Coop Pronto";
+    else if (adresseMinuscule.includes("socar")) marque = "Socar";
+    else if (adresseMinuscule.includes("agrola")) marque = "Agrola";
+    else if (adresseMinuscule.includes("tamoil")) marque = "Tamoil";
 
     let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
     let rueClean = adresseBrute;
@@ -190,7 +196,7 @@ function formatPrix(valeur) {
 async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
 
-    if (currentUser) {
+    if (currentUser && typeof _supabase !== 'undefined') {
         if (index === -1) {
             const { error } = await _supabase
                 .from('favoris')
@@ -229,10 +235,11 @@ function afficherFavoris() {
         const stationDataLive = stationsGlobales.find(s => Math.abs(parseFloat(s.lt) - f.lat) < 0.005 && Math.abs(parseFloat(s.ln) - f.lon) < 0.005) || 
                                 stationsGlobales.find(s => extraireVraiNom(s) === f.nom);
 
-        let affichagePrix = "Rupture";
+        let affichagePrix = "Station";
         if (stationDataLive) {
             let prix = formatPrix(stationDataLive[carburantActif]);
             if (prix) affichagePrix = `${prix.toFixed(3)} €`;
+            else affichagePrix = "En direct";
         }
 
         const item = document.createElement('div');
@@ -281,20 +288,25 @@ function afficherFavoris() {
 // 4. MOTEUR DE RECHERCHE ET REQUÊTES API (MULTI-PAYS)
 // ============================================================================
 
-// Recherche de ville corrigée avec verrouillage strict de la position cible
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
 
     try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,be,ch,it,es&limit=1`);
+        const query = encodeURIComponent(input.value.trim());
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&countrycodes=fr,de,be,ch,it,es&limit=1`;
+        
+        const response = await fetch(url, {
+            headers: { 'Accept-Language': 'fr' }
+        });
+        
+        if (!response.ok) throw new Error("Réponse réseau non valide");
         const data = await response.json();
         
         if (data && data.length > 0) {
             const newLat = parseFloat(data[0].lat);
             const newLon = parseFloat(data[0].lon);
 
-            // 🎯 Met à jour la position globale pour que les sliders et rechargements restent calés ici
             dernierePosition = { lat: newLat, lon: newLon };
 
             if (map) {
@@ -305,23 +317,19 @@ async function rechercherVille() {
             alert("Localisation introuvable dans la zone couverte (FR, DE, CH, BE, IT, ES).");
         }
     } catch (e) { 
-        console.error("Erreur Ville :", e); 
+        console.error("Erreur Recherche Ville :", e);
+        alert("Erreur lors de la recherche de la ville. Réessayez.");
     }
 }
 
-// Récupération dynamique des stations via Overpass pour CH, BE, IT, ES (Méthode blindée)
 async function recupererStationsOverpassEurope(centerLat, centerLon, rayonKm) {
     const rayonMetres = Math.min(rayonKm * 1000, 30000);
-
-    // nwr (Node, Way, Relation) + out center pour attraper les surfaces et leurs centres
-    const query = `[out:json][timeout:15];nwr["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out center;`;
+    const query = `[out:json][timeout:12];nwr["amenity"="fuel"](around:${rayonMetres},${centerLat},${centerLon});out center;`;
     const queryEncoded = encodeURIComponent(query);
 
-    // Miroirs Overpass
     const endpoints = [
         `https://overpass-api.de/api/interpreter?data=${queryEncoded}`,
-        `https://overpass.kumi.systems/api/interpreter?data=${queryEncoded}`,
-        `https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=${queryEncoded}`
+        `https://overpass.kumi.systems/api/interpreter?data=${queryEncoded}`
     ];
 
     let data = null;
@@ -329,7 +337,7 @@ async function recupererStationsOverpassEurope(centerLat, centerLon, rayonKm) {
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); 
+            const timeoutId = setTimeout(() => controller.abort(), 6000); 
 
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
@@ -339,19 +347,14 @@ async function recupererStationsOverpassEurope(centerLat, centerLon, rayonKm) {
                 if (data && data.elements) break; 
             }
         } catch (e) {
-            console.warn(`Serveur Overpass indisponible (${url}), tentative sur miroir suivant...`);
+            console.warn(`Serveur Overpass indisponible, tentative miroir suivant...`);
         }
     }
 
-    if (!data || !data.elements) {
-        console.error("❌ Impossible de récupérer les stations Europe via Overpass.");
-        return [];
-    }
+    if (!data || !data.elements) return [];
 
     return data.elements.map(el => {
         const tags = el.tags || {};
-        
-        // Coordonnées pour Node (lat/lon) ou Way/Relation (center.lat/center.lon)
         const lat = el.lat || (el.center ? el.center.lat : null);
         const lon = el.lon || (el.center ? el.center.lon : null);
 
@@ -381,15 +384,11 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
     let stationsAutresEurope = [];
     stationsGlobales = []; 
 
-    // 1. FLUX FRANCE (Cache local)
+    // 1. FLUX FRANCE
     try {
         if (fluxFranceBrut.length === 0) {
-            console.log("🛰️ Extraction du flux France...");
             const resFR = await fetch('./stations_france.json');
-            if (resFR.ok) {
-                fluxFranceBrut = await resFR.json();
-                console.log(`✅ ${fluxFranceBrut.length} stations France chargées.`);
-            }
+            if (resFR.ok) fluxFranceBrut = await resFR.json();
         }
 
         fluxFranceBrut.forEach(station => {
@@ -451,6 +450,7 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
+        // Nettoyage propre des marqueurs précédents
         map.eachLayer((layer) => { 
             if (layer instanceof L.Marker && layer !== marqueurPositionReelle) {
                 map.removeLayer(layer); 
@@ -495,7 +495,8 @@ async function fetchLiveStations(centerLat, centerLon) {
 
             const linePrix = (label, prix, code) => {
                 const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
-                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Non renseigné'}</b></div>`;
+                const textePrix = prix ? `${prix.toFixed(3)} €` : `<span style="color:#9ca3af; font-weight:normal;">Non disponible</span>`;
+                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${textePrix}</b></div>`;
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
