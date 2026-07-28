@@ -1,5 +1,6 @@
 // ============================================================================
 // 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
+// (FRANCE 🇫🇷, ALLEMAGNE 🇩🇪, LUXEMBOURG 🇱🇺)
 // ============================================================================
 
 // --- 0. INITIALISATION ET ETAT GLOBAL ---
@@ -12,6 +13,14 @@ let marqueurPositionReelle = null;
 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 const PROXY_CORS = "https://corsproxy.io/?"; 
+
+// Prix légaux du Luxembourg (Prix officiels uniques appliqués à toutes les stations LU)
+const PRIX_LUXEMBOURG = {
+    gz: 1.889,   // Diesel
+    95: 1.764,   // EuroSuper 95
+    e10: 1.764,  // Équivalent SP95
+    98: 1.903    // Ultimate / SP98
+};
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -29,7 +38,7 @@ function toggleBurgerMenu() {
     }
 }
 
-// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
+// --- 1. GESTION DU CYCLE DE VIE ---
 document.addEventListener("DOMContentLoaded", async () => {
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
@@ -97,14 +106,12 @@ async function chargerFavorisSupabase() {
             lon: parseFloat(f.longitude)
         }));
     } catch (err) {
-        console.error("Erreur récupération Cloud :", err.message);
+        console.error("Erreur Cloud :", err.message);
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 }
 
-// ==========================================
-// 2. CONFIGURATION DE LA CARTE LEAFLET
-// ==========================================
+// --- 2. CONFIGURATION CARTE LEAFLET ---
 var map = null;
 
 function initialiserCarteEtMoteur() {
@@ -153,17 +160,15 @@ function extraireVraiNom(station) {
     let adresseMinuscule = adresseBrute.toLowerCase();
 
     if (adresseMinuscule.includes("total")) marque = "Total";
+    else if (adresseMinuscule.includes("aral")) marque = "Aral";
+    else if (adresseMinuscule.includes("shell")) marque = "Shell";
+    else if (adresseMinuscule.includes("q8")) marque = "Q8";
+    else if (adresseMinuscule.includes("texaco")) marque = "Texaco";
     else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
     else if (adresseMinuscule.includes("carrefour")) marque = "Carrefour";
     else if (adresseMinuscule.includes("intermarche")) marque = "Intermarché";
-    else if (adresseMinuscule.includes("systeme u") || adresseMinuscule.includes("super u") || adresseMinuscule.includes("u utile")) marque = "Super U";
-    else if (adresseMinuscule.includes("auchan")) marque = "Auchan";
     else if (adresseMinuscule.includes("esso")) marque = "Esso";
-    else if (adresseMinuscule.includes("avanti")) marque = "Avanti";
-    else if (adresseMinuscule.includes("bp ")) marque = "BP";
-    else if (adresseMinuscule.includes("api") || adresseMinuscule.includes("ip")) marque = "Api-Ip";
-    else if (adresseMinuscule.includes("eni") || adresseMinuscule.includes("agip")) marque = "Eni";
-    else if (adresseMinuscule.includes("q8")) marque = "Q8";
+    else if (adresseMinuscule.includes("eni")) marque = "Eni";
 
     let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
     let rueClean = adresseBrute;
@@ -184,9 +189,7 @@ function formatPrix(valeur) {
     return isNaN(num) || num === 0 ? null : num;
 }
 
-// ==========================================
-// 3. GESTION DES FAVORIS
-// ==========================================
+// --- 3. FAVORIS ---
 async function basculerFavori(nom, lat, lon) {
     const latNum = parseFloat(lat);
     const lonNum = parseFloat(lon);
@@ -243,7 +246,7 @@ function afficherFavoris() {
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, ''');
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.nom)}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
@@ -277,12 +280,13 @@ function afficherFavoris() {
             e.stopPropagation();
             basculerFavori(nomSecuriseJS, f.lat, f.lon);
         });
-    });}
+    });
+}
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : REQUETES MULTI-PAYS, RENDU & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : REQUETES FR/DE/LU & RENDU CARTE
 // ============================================================================
 
-// --- RECHERCHE VILLE OPTIMISEE (TRI PAR IMPORTANCE) ---
+// --- RECHERCHE VILLE CIBLÉE (FR, DE, LU) ---
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
@@ -290,12 +294,10 @@ async function rechercherVille() {
     const terme = input.value.trim();
 
     try {
-        // Demande 10 résultats au lieu de 1 pour classer la grande ville avant les hameaux
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(terme)}&countrycodes=fr,de,it,be&limit=10`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(terme)}&countrycodes=fr,de,lu&limit=10`);
         const data = await response.json();
         
         if (data && data.length > 0) {
-            // Tri par note d'importance décroissante (ex: Milan Italie > Milan Normandie)
             data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
 
             const topResult = data[0];
@@ -308,56 +310,60 @@ async function rechercherVille() {
                     fetchLiveStations(newLat, newLon);
                 }
             } else {
-                alert("Coordonnées de ville invalides.");
+                alert("Coordonnées géographiques invalides.");
             }
         } else {
-            alert("Location introuvable.");
+            alert("Ville ou localité introuvable.");
         }
     } catch (e) { 
-        console.error("Erreur Ville :", e); 
+        console.error("Erreur Recherche Ville :", e); 
     }
 }
 
-// Extraction Overpass Italie avec contrôle strict des coordonnées NaN
-async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
+// --- EXTRACTION SPÉCIFIQUE LUXEMBOURG (OVERPASS OSM) ---
+async function recupererStationsLuxembourg(centerLat, centerLon, rayonKm) {
     let lat = parseFloat(centerLat);
     let lon = parseFloat(centerLon);
     let rad = parseFloat(rayonKm);
 
     if (isNaN(lat) || isNaN(lon) || isNaN(rad) || rad <= 0) return [];
-    if (lat < 35 || lat > 47 || lon < 6 || lon > 19) return [];
+    
+    // Filtre des coordonnées limites pour le Luxembourg
+    if (lat < 49.3 || lat > 50.2 || lon < 5.6 || lon > 6.6) return [];
 
     try {
         const rayonMetres = Math.round(rad * 1000);
         const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:${rayonMetres},${lat},${lon})[amenity=fuel];out;`;
         
-        const resIT = await fetch(overpassUrl);
-        if (resIT.ok) {
-            const data = await resIT.json();
+        const resLU = await fetch(overpassUrl);
+        if (resLU.ok) {
+            const data = await resLU.json();
             if (data && data.elements) {
                 return data.elements.map(st => {
                     const tags = st.tags || {};
                     return {
-                        n: tags.name || tags.brand || "Station Italie",
+                        n: tags.brand || tags.name || "Station Luxembourg",
                         a: tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "Adresse non renseignée",
-                        v: tags["addr:city"] || "",
+                        v: tags["addr:city"] || "Luxembourg",
                         cp: tags["addr:postcode"] || "",
                         lt: parseFloat(st.lat),
                         ln: parseFloat(st.lon),
-                        gz: null,
-                        95: null,
-                        e10: null,
-                        98: null
+                        // Application directe des prix d'État luxembourgeois
+                        gz: PRIX_LUXEMBOURG.gz,
+                        95: PRIX_LUXEMBOURG["95"],
+                        e10: PRIX_LUXEMBOURG.e10,
+                        98: PRIX_LUXEMBOURG["98"]
                     };
                 });
             }
         }
     } catch (e) {
-        console.warn("⚠️ Échec Overpass Italie :", e);
+        console.warn("⚠️ Échec Overpass Luxembourg :", e);
     }
     return [];
 }
 
+// --- MULTI-PAYS : FR, DE, LU ---
 async function recupererBrutMultiPays(centerLat, centerLon) {
     let lat = parseFloat(centerLat);
     let lon = parseFloat(centerLon);
@@ -365,14 +371,14 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
 
     let stationsTrouveesFR = [];
     let stationsTrouveesDE = [];
-    let stationsTrouveesIT = [];
+    let stationsTrouveesLU = [];
     stationsGlobales = []; 
 
-    // 1. FRANCE (Cache local JSON)
+    // 1. FRANCE (Cache JSON local)
     try {
         if (fluxFranceBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
-            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (${resFR.status})`);
+            if (!resFR.ok) throw new Error(`Chargement impossible (${resFR.status})`);
             fluxFranceBrut = await resFR.json();
         }
 
@@ -416,14 +422,14 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. ITALIE
+    // 3. LUXEMBOURG (Overpass OSM + Prix Officiels)
     try {
-        stationsTrouveesIT = await recupererStationsItalieUnrestricted(lat, lon, RAYON_KM);
+        stationsTrouveesLU = await recupererStationsLuxembourg(lat, lon, RAYON_KM);
     } catch (err) {
-        console.error("⚠️ Échec Flux Italie :", err);
+        console.error("⚠️ Échec Flux Luxembourg :", err);
     }
 
-    stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
+    stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesLU];
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
@@ -487,8 +493,6 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            
-            // Recherche Google Maps par Nom + Ville
             const rechercheGMap = `${nomAffiche} ${station.v || ''}`.trim();
             const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rechercheGMap)}`;
 
@@ -518,12 +522,10 @@ async function fetchLiveStations(centerLat, centerLon) {
         });
 
         afficherFavoris();
-    } catch (e) { console.error("Erreur rendering :", e); }
+    } catch (e) { console.error("Erreur affichage :", e); }
 }
 
-// ==========================================
-// 5. INTERFACE ET GEOLOCALISATION
-// ==========================================
+// --- CONTROLES INTERFACE & GEOLOCALISATION ---
 function initialiserEcouteursInterface() {
     afficherFavoris(); 
 
@@ -558,7 +560,7 @@ function initialiserEcouteursInterface() {
 }
 
 function initialiserEcouteursInterfaceOutils() {
-    console.log("Interface outils synchronisée.");
+    console.log("Interface outils chargée.");
 }
 
 function declencherGeolocalisation() {
