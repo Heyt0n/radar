@@ -2,7 +2,6 @@
 // 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
 
-// --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
 let fluxFranceBrut = [];      
 let stationsGlobales = [];    
@@ -29,7 +28,6 @@ function toggleBurgerMenu() {
     }
 }
 
-// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
@@ -102,9 +100,6 @@ async function chargerFavorisSupabase() {
     }
 }
 
-// ==========================================
-// 2. CONFIGURATION DE LA CARTE LEAFLET
-// ==========================================
 var map = null;
 
 function initialiserCarteEtMoteur() {
@@ -177,16 +172,11 @@ function extraireVraiNom(station) {
 function formatPrix(valeur) {
     if (valeur === undefined || valeur === null || valeur === "") return null;
     if (typeof valeur === 'number') return isNaN(valeur) || valeur === 0 ? null : valeur;
-    
     let str = String(valeur).replace(',', '.').trim();
     let num = parseFloat(str);
-    
     return isNaN(num) || num === 0 ? null : num;
 }
 
-// ==========================================
-// 3. GESTION DES FAVORIS
-// ==========================================
 async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
 
@@ -245,8 +235,7 @@ function afficherFavoris() {
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
         item.innerHTML = `
-            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
-                 id="fav-${cleMarqueur}">
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" id="fav-${cleMarqueur}">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomSecuriseHTML}">${nomSecuriseHTML}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
@@ -277,10 +266,9 @@ function afficherFavoris() {
     });
 }
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : REQUETES MULTI-PAYS, RENDU & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOC
 // ============================================================================
 
-// --- 4. REQUETES APIS MULTI-PAYS ET TRAITEMENT ---
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
@@ -301,78 +289,53 @@ async function rechercherVille() {
     } catch (e) { console.error("Erreur Ville :", e); }
 }
 
+// Extraction sans limite via HTTP POST sur Overpass API pour l'Italie
 async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
     if (centerLat < 35 || centerLat > 47 || centerLon < 6 || centerLon > 19) return [];
 
     try {
-        const urlDirect = `https://carburanti.mise.gov.it/api/search?zone=${centerLat},${centerLon}&radius=${rayonKm}`;
-        const resIT = await fetch(PROXY_CORS + encodeURIComponent(urlDirect));
+        const rayonMetres = Math.round(rayonKm * 1000);
         
-        if (resIT.ok) {
-            const data = await resIT.json();
-            const liste = data.results || data.items || data;
-            
-            if (Array.isArray(liste) && liste.length > 0) {
-                return liste.map(st => {
-                    let gazole = null, sp95 = null, e10 = null, sp98 = null;
-                    const listeCarburants = st.fuels || st.prezzi || st.carburanti || [];
-                    
-                    if (Array.isArray(listeCarburants)) {
-                        listeCarburants.forEach(f => {
-                            let nomCarb = (f.name || f.descrizione || f.carburante || "").toLowerCase();
-                            let p = f.price || f.prezzo;
+        // Format Overpass QL strict (noeuds + zones)
+        const query = `[out:json][timeout:25];nwr(around:${rayonMetres},${centerLat},${centerLon})["amenity"="fuel"];out center;`;
+        
+        // POST HTTP direct pour éviter tout blocage d'URL/GET
+        const response = await fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: "data=" + encodeURIComponent(query)
+        });
 
-                            if (nomCarb.includes('gasolio') || nomCarb.includes('diesel')) gazole = p;
-                            else if (nomCarb.includes('benzina') || nomCarb.includes('eurosuper')) sp95 = p;
-                            else if (nomCarb.includes('e10')) e10 = p;
-                            else if (nomCarb.includes('100') || nomCarb.includes('98') || nomCarb.includes('v-power')) sp98 = p;
-                        });
-                    }
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.elements) {
+                return data.elements.map(st => {
+                    const tags = st.tags || {};
+                    const lat = st.lat || (st.center ? st.center.lat : null);
+                    const lon = st.lon || (st.center ? st.center.lon : null);
+
+                    if (!lat || !lon) return null;
 
                     return {
-                        n: st.name || st.bandiera || st.nome || "Station Italie",
-                        a: st.address || st.indirizzo || "",
-                        v: st.city || st.comune || "",
-                        cp: st.cap || "",
-                        lt: parseFloat(st.lat || st.latitude),
-                        ln: parseFloat(st.lon || st.longitude),
-                        gz: gazole,
-                        95: sp95,
-                        e10: e10,
-                        98: sp98
+                        n: tags.name || tags.brand || "Station Italie",
+                        a: tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "Adresse non renseignée",
+                        v: tags["addr:city"] || "",
+                        cp: tags["addr:postcode"] || "",
+                        lt: parseFloat(lat),
+                        ln: parseFloat(lon),
+                        gz: null,
+                        95: null,
+                        e10: null,
+                        98: null
                     };
-                });
+                }).filter(st => st !== null);
             }
         }
     } catch (e) {
-        console.warn("⚠️ API directe Italie indisponible, tentative de secours...");
+        console.warn("⚠️ Échec Overpass Italie :", e);
     }
-
-    try {
-        const delta = (rayonKm / 111);
-        const viewbox = `${centerLon - delta},${centerLat + delta},${centerLon + delta},${centerLat - delta}`;
-        const urlNominatim = `https://nominatim.openstreetmap.org/search?format=json&q=fuel&viewbox=${viewbox}&bounded=1&limit=50`;
-
-        const resNom = await fetch(urlNominatim);
-        if (resNom.ok) {
-            const dataNom = await resNom.json();
-            return dataNom.map(st => ({
-                n: st.display_name.split(',')[0] || "Station Italie",
-                a: st.display_name,
-                v: "",
-                cp: "",
-                lt: parseFloat(st.lat),
-                ln: parseFloat(st.lon),
-                gz: null,
-                95: null,
-                e10: null,
-                98: null
-            }));
-        }
-    } catch (err) {
-        console.error("⚠️ Secours Italie échoué :", err);
-    }
-
     return [];
 }
 
@@ -382,10 +345,9 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
     let stationsTrouveesIT = [];
     stationsGlobales = []; 
 
-    // 1. FLUX FRANCE (Cache local JSON)
+    // 1. FRANCE
     try {
         if (fluxFranceBrut.length === 0) {
-            console.log("🛰️ Premier chargement : Extraction du flux France...");
             const resFR = await fetch('./stations_france.json');
             if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (${resFR.status})`);
             fluxFranceBrut = await resFR.json();
@@ -402,9 +364,8 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. FLUX ALLEMAGNE (Tankerkönig API via CorsProxy)
+    // 2. ALLEMAGNE
     try {
-        console.log("⚡ Interrogation API Allemagne via Proxy...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
@@ -430,16 +391,14 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. FLUX ITALIE
+    // 3. ITALIE (Extraction sans limite Overpass POST)
     try {
-        console.log("⚡ Interrogation Flux Italie...");
         stationsTrouveesIT = await recupererStationsItalieUnrestricted(centerLat, centerLon, RAYON_KM);
     } catch (err) {
         console.error("⚠️ Échec Flux Italie :", err);
     }
 
     stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
-    console.log(`🎯 Multi-Pays consolidé : ${stationsGlobales.length} stations.`);
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
@@ -498,8 +457,6 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            
-            // Format intelligent Google Maps : affiche le NOM de la station au lieu des coordonnées
             const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nomAffiche + ' ' + (station.v || ''))}`;
 
             marker.bindPopup(`
@@ -531,9 +488,6 @@ async function fetchLiveStations(centerLat, centerLon) {
     } catch (e) { console.error("Erreur rendering :", e); }
 }
 
-// ==========================================
-// 5. INTERFACE ET GEOLOCALISATION
-// ==========================================
 function initialiserEcouteursInterface() {
     afficherFavoris(); 
 
