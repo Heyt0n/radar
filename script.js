@@ -2,6 +2,7 @@
 // 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
 
+// --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
 let fluxFranceBrut = [];      
 let stationsGlobales = [];    
@@ -28,6 +29,7 @@ function toggleBurgerMenu() {
     }
 }
 
+// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
@@ -91,8 +93,8 @@ async function chargerFavorisSupabase() {
         favoris = data.map(f => ({
             id_cloud: f.id, 
             nom: f.nom_station,
-            lat: f.latitude,
-            lon: f.longitude
+            lat: parseFloat(f.latitude),
+            lon: parseFloat(f.longitude)
         }));
     } catch (err) {
         console.error("Erreur récupération Cloud :", err.message);
@@ -100,6 +102,9 @@ async function chargerFavorisSupabase() {
     }
 }
 
+// ==========================================
+// 2. CONFIGURATION DE LA CARTE LEAFLET
+// ==========================================
 var map = null;
 
 function initialiserCarteEtMoteur() {
@@ -172,19 +177,28 @@ function extraireVraiNom(station) {
 function formatPrix(valeur) {
     if (valeur === undefined || valeur === null || valeur === "") return null;
     if (typeof valeur === 'number') return isNaN(valeur) || valeur === 0 ? null : valeur;
+    
     let str = String(valeur).replace(',', '.').trim();
     let num = parseFloat(str);
+    
     return isNaN(num) || num === 0 ? null : num;
 }
 
+// ==========================================
+// 3. GESTION DES FAVORIS
+// ==========================================
 async function basculerFavori(nom, lat, lon) {
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+    if (isNaN(latNum) || isNaN(lonNum)) return;
+
     const index = favoris.findIndex(f => f.nom === nom);
 
     if (currentUser) {
         if (index === -1) {
             const { error } = await _supabase
                 .from('favoris')
-                .insert([{ user_id: currentUser.id, nom_station: nom, latitude: lat, longitude: lon }]);
+                .insert([{ user_id: currentUser.id, nom_station: nom, latitude: latNum, longitude: lonNum }]);
             if (error) { alert(`Erreur Cloud : ${error.message}`); return; }
         } else {
             const { error } = await _supabase
@@ -196,7 +210,7 @@ async function basculerFavori(nom, lat, lon) {
         }
         await chargerFavorisSupabase();
     } else {
-        if (index === -1) favoris.push({ nom, lat, lon });
+        if (index === -1) favoris.push({ nom, lat: latNum, lon: lonNum });
         else favoris.splice(index, 1);
         localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     }
@@ -229,7 +243,7 @@ function afficherFavoris() {
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
+        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.nom)}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
@@ -263,74 +277,79 @@ function afficherFavoris() {
             e.stopPropagation();
             basculerFavori(nomSecuriseJS, f.lat, f.lon);
         });
-    });
-}
+    });}
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : REQUETES MULTI-PAYS, RENDU & GEOLOC
 // ============================================================================
 
+// --- RECHERCHE VILLE OPTIMISEE (TRI PAR IMPORTANCE) ---
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
 
+    const terme = input.value.trim();
+
     try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,it,be&limit=1`);
+        // Demande 10 résultats au lieu de 1 pour classer la grande ville avant les hameaux
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(terme)}&countrycodes=fr,de,it,be&limit=10`);
         const data = await response.json();
+        
         if (data && data.length > 0) {
-            const newLat = parseFloat(data[0].lat);
-            const newLon = parseFloat(data[0].lon);
-            if (map) {
-                map.setView([newLat, newLon], 12);
-                fetchLiveStations(newLat, newLon);
+            // Tri par note d'importance décroissante (ex: Milan Italie > Milan Normandie)
+            data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
+
+            const topResult = data[0];
+            const newLat = parseFloat(topResult.lat);
+            const newLon = parseFloat(topResult.lon);
+
+            if (!isNaN(newLat) && !isNaN(newLon)) {
+                if (map) {
+                    map.setView([newLat, newLon], 12);
+                    fetchLiveStations(newLat, newLon);
+                }
+            } else {
+                alert("Coordonnées de ville invalides.");
             }
         } else {
             alert("Location introuvable.");
         }
-    } catch (e) { console.error("Erreur Ville :", e); }
+    } catch (e) { 
+        console.error("Erreur Ville :", e); 
+    }
 }
 
-// Extraction sans limite via HTTP POST sur Overpass API pour l'Italie
+// Extraction Overpass Italie avec contrôle strict des coordonnées NaN
 async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
-    if (centerLat < 35 || centerLat > 47 || centerLon < 6 || centerLon > 19) return [];
+    let lat = parseFloat(centerLat);
+    let lon = parseFloat(centerLon);
+    let rad = parseFloat(rayonKm);
+
+    if (isNaN(lat) || isNaN(lon) || isNaN(rad) || rad <= 0) return [];
+    if (lat < 35 || lat > 47 || lon < 6 || lon > 19) return [];
 
     try {
-        const rayonMetres = Math.round(rayonKm * 1000);
+        const rayonMetres = Math.round(rad * 1000);
+        const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:${rayonMetres},${lat},${lon})[amenity=fuel];out;`;
         
-        // Format Overpass QL strict (noeuds + zones)
-        const query = `[out:json][timeout:25];nwr(around:${rayonMetres},${centerLat},${centerLon})["amenity"="fuel"];out center;`;
-        
-        // POST HTTP direct pour éviter tout blocage d'URL/GET
-        const response = await fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: "data=" + encodeURIComponent(query)
-        });
-
-        if (response.ok) {
-            const data = await response.json();
+        const resIT = await fetch(overpassUrl);
+        if (resIT.ok) {
+            const data = await resIT.json();
             if (data && data.elements) {
                 return data.elements.map(st => {
                     const tags = st.tags || {};
-                    const lat = st.lat || (st.center ? st.center.lat : null);
-                    const lon = st.lon || (st.center ? st.center.lon : null);
-
-                    if (!lat || !lon) return null;
-
                     return {
                         n: tags.name || tags.brand || "Station Italie",
                         a: tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "Adresse non renseignée",
                         v: tags["addr:city"] || "",
                         cp: tags["addr:postcode"] || "",
-                        lt: parseFloat(lat),
-                        ln: parseFloat(lon),
+                        lt: parseFloat(st.lat),
+                        ln: parseFloat(st.lon),
                         gz: null,
                         95: null,
                         e10: null,
                         98: null
                     };
-                }).filter(st => st !== null);
+                });
             }
         }
     } catch (e) {
@@ -340,12 +359,16 @@ async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm
 }
 
 async function recupererBrutMultiPays(centerLat, centerLon) {
+    let lat = parseFloat(centerLat);
+    let lon = parseFloat(centerLon);
+    if (isNaN(lat) || isNaN(lon)) return;
+
     let stationsTrouveesFR = [];
     let stationsTrouveesDE = [];
     let stationsTrouveesIT = [];
     stationsGlobales = []; 
 
-    // 1. FRANCE
+    // 1. FRANCE (Cache local JSON)
     try {
         if (fluxFranceBrut.length === 0) {
             const resFR = await fetch('./stations_france.json');
@@ -354,8 +377,10 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         }
 
         fluxFranceBrut.forEach(station => {
-            if (station.lt && station.ln) {
-                if (getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
+            let stLat = parseFloat(station.lt);
+            let stLon = parseFloat(station.ln);
+            if (!isNaN(stLat) && !isNaN(stLon)) {
+                if (getDistance(lat, lon, stLat, stLon) <= RAYON_KM) {
                     stationsTrouveesFR.push(station);
                 }
             }
@@ -364,10 +389,10 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. ALLEMAGNE
+    // 2. ALLEMAGNE (Tankerkönig API)
     try {
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
-        const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
+        const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${lat}&lng=${lon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
         const resDE = await fetch(PROXY_CORS + encodeURIComponent(urlDE));
         if (resDE.ok) {
@@ -391,9 +416,9 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Échec API Allemagne :", err);
     }
 
-    // 3. ITALIE (Extraction sans limite Overpass POST)
+    // 3. ITALIE
     try {
-        stationsTrouveesIT = await recupererStationsItalieUnrestricted(centerLat, centerLon, RAYON_KM);
+        stationsTrouveesIT = await recupererStationsItalieUnrestricted(lat, lon, RAYON_KM);
     } catch (err) {
         console.error("⚠️ Échec Flux Italie :", err);
     }
@@ -402,10 +427,13 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
-    if (!map) return;
+    let latCenter = parseFloat(centerLat);
+    let lonCenter = parseFloat(centerLon);
+    if (!map || isNaN(latCenter) || isNaN(lonCenter)) return;
+
     try {
-        dernierePosition = { lat: centerLat, lon: centerLon };
-        await recupererBrutMultiPays(centerLat, centerLon);
+        dernierePosition = { lat: latCenter, lon: lonCenter };
+        await recupererBrutMultiPays(latCenter, lonCenter);
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
@@ -418,7 +446,9 @@ async function fetchLiveStations(centerLat, centerLon) {
 
         let prixMin = Infinity, prixMax = -Infinity;
         stationsGlobales.forEach(station => {
-            if (station.lt && station.ln && getDistance(centerLat, centerLon, station.lt, station.ln) <= RAYON_KM) {
+            let stLat = parseFloat(station.lt);
+            let stLon = parseFloat(station.ln);
+            if (!isNaN(stLat) && !isNaN(stLon) && getDistance(latCenter, lonCenter, stLat, stLon) <= RAYON_KM) {
                 let prix = formatPrix(station[carburantActif]);
                 if (prix) {
                     if (prix < prixMin) prixMin = prix;
@@ -432,7 +462,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             let lon = parseFloat(station.ln);
             if (isNaN(lat) || isNaN(lon)) return;
 
-            let distance = getDistance(centerLat, centerLon, lat, lon);
+            let distance = getDistance(latCenter, lonCenter, lat, lon);
             const estFavori = favoris.some(f => f.nom === nomAffiche);
 
             let prixCourant = formatPrix(station[carburantActif]);
@@ -457,7 +487,10 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nomAffiche + ' ' + (station.v || ''))}`;
+            
+            // Recherche Google Maps par Nom + Ville
+            const rechercheGMap = `${nomAffiche} ${station.v || ''}`.trim();
+            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rechercheGMap)}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
@@ -488,6 +521,9 @@ async function fetchLiveStations(centerLat, centerLon) {
     } catch (e) { console.error("Erreur rendering :", e); }
 }
 
+// ==========================================
+// 5. INTERFACE ET GEOLOCALISATION
+// ==========================================
 function initialiserEcouteursInterface() {
     afficherFavoris(); 
 
@@ -529,8 +565,10 @@ function declencherGeolocalisation() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
+                const lat = parseFloat(pos.coords.latitude);
+                const lon = parseFloat(pos.coords.longitude);
+                if (isNaN(lat) || isNaN(lon)) return;
+
                 maPositionReelle = { lat, lon };
 
                 if (map) {
