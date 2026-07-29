@@ -1,5 +1,5 @@
 // ============================================================================
-// 📡 RADAR CARBURANT - COEUR DE REQUÊTE ET ENGINE TACTIQUE UNIFIÉ
+// 📡 RADAR CARBURANT - PARTIE 1 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
 
 // --- 0. INITIALISATION ET ETAT GLOBAL ---
@@ -238,6 +238,8 @@ function afficherFavoris() {
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
+        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.nom + " " + f.lat + "," + f.lon)}`;
+
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
                  id="fav-${cleMarqueur}">
@@ -245,7 +247,7 @@ function afficherFavoris() {
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
             <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                <a href="https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
+                <a href="${urlGoogleMapsFav}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
                 <button id="del-${cleMarqueur}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px; padding: 0 4px;">✕</button>
             </div>
         `;
@@ -270,6 +272,9 @@ function afficherFavoris() {
         });
     });
 }
+// ============================================================================
+// 📡 RADAR CARBURANT - PARTIE 2 : MOTEUR DE RECHERCHE, API & GEOLOCALISATION
+// ============================================================================
 
 // ============================================================================
 // 4. MOTEUR DE RECHERCHE ET REQUETES API
@@ -409,6 +414,9 @@ async function fetchLiveStations(centerLat, centerLon) {
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
+            const queryGoogleMaps = encodeURIComponent(`${nomAffiche} ${station.v || ''} ${lat},${lon}`);
+            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${queryGoogleMaps}`;
+
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
                     <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold;">${nomAffiche}</h4>
@@ -421,7 +429,7 @@ async function fetchLiveStations(centerLat, centerLon) {
                     </div>
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
-                        <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lon}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                        <a href="${urlGoogleMaps}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
                     </div>
                 </div>
             `);
@@ -437,7 +445,6 @@ async function fetchLiveStations(centerLat, centerLon) {
         afficherFavoris();
     } catch (e) { console.error("Erreur rendering :", e); }
 }
-
 
 // ==========================================
 // 5. INTERFACE ET GEOLOCALISATION
