@@ -1,8 +1,7 @@
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 1 : CONFIGURATION, SESSION, CARTE & FAVORIS
+// 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
 
-// --- 0. INITIALISATION ET ETAT GLOBAL ---
 let currentUser = null;
 let fluxFranceBrut = [];      
 let stationsGlobales = [];    
@@ -12,7 +11,6 @@ let marqueurPositionReelle = null;
 
 const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
 const PROXY_CORS = "https://corsproxy.io/?"; 
-const URL_FRANCE_DIRECT = "https://donnees.roulez-eco.fr/opendata/instantane";
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -30,9 +28,7 @@ function toggleBurgerMenu() {
     }
 }
 
-// --- 1. GESTION DU CYCLE DE VIE & DES SESSIONS ---
 document.addEventListener("DOMContentLoaded", async () => {
-    // Synchronisation initiale du slider de rayon
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
     if (sliderRayon) {
@@ -40,7 +36,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
     }
 
-    // Gestion unifiée des écouteurs du menu burger
     const burgerBtn = document.querySelector('.burger-btn');
     const menuOverlay = document.getElementById('menuOverlay');
 
@@ -56,25 +51,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         menuOverlay.addEventListener('click', () => toggleBurgerMenu());
     }
 
+    // Gestion Auth / Supabase sécurisée
     try {
-        const { data: { session }, error } = await _supabase.auth.getSession();
+        if (typeof _supabase !== 'undefined') {
+            const { data: { session }, error } = await _supabase.auth.getSession();
 
-        if (!session) {
-            if (localStorage.getItem("radar_session_active") !== "true") {
-                if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html")) {
-                    window.location.href = "connexion.html";
-                    return;
+            if (!session) {
+                if (localStorage.getItem("radar_session_active") !== "true") {
+                    if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html") && !window.location.pathname.includes("connexion.html")) {
+                        window.location.href = "connexion.html";
+                        return;
+                    }
                 }
+                favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
+            } else {
+                currentUser = session.user;
+                const pseudo = currentUser.user_metadata?.display_name || currentUser.user_metadata?.pseudo || "Opérateur";
+
+                const nomOperateurBadge = document.getElementById("nom-operateur");
+                if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
+
+                await chargerFavorisSupabase();
             }
-            favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         } else {
-            currentUser = session.user;
-            const pseudo = currentUser.user_metadata.display_name || currentUser.user_metadata.pseudo || "Opérateur";
-
-            const nomOperateurBadge = document.getElementById("nom-operateur");
-            if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-
-            await chargerFavorisSupabase();
+            favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         }
     } catch (err) {
         console.error("Erreur session :", err);
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function chargerFavorisSupabase() {
-    if (!currentUser) return;
+    if (!currentUser || typeof _supabase === 'undefined') return;
     try {
         const { data, error } = await _supabase.from('favoris').select('*');
         if (error) throw error;
@@ -105,20 +105,21 @@ async function chargerFavorisSupabase() {
     }
 }
 
-// ==========================================
-// 2. CONFIGURATION DE LA CARTE LEAFLET
-// ==========================================
 var map = null;
 
 function initialiserCarteEtMoteur() {
-    map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
+    try {
+        map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© CARTO © OpenStreetMap'
-    }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© CARTO © OpenStreetMap'
+        }).addTo(map);
 
-    initialiserEcouteursInterface();
-    declencherGeolocalisation();
+        initialiserEcouteursInterface();
+        declencherGeolocalisation();
+    } catch (e) {
+        console.error("Erreur initialiserCarteEtMoteur :", e);
+    }
 }
 
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -136,7 +137,7 @@ function creerIconeMarqueur(couleur, estFavori, couleurBulle) {
     return L.divIcon({
         html: `
             <div style="position: relative; width: 25px; height: 41px;">
-                <div style="display: ${afficherBulle}; position: absolute; top: -6px; left: -8px; background: ${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;"></div>
+                <div style="display: ${afficherBulle}; position: absolute; top: -6px; left: -8px; background:${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;"></div>
                 <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; position: absolute; top: 0; left: 0; z-index: 10;">
                 ${estFavori ? `<div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;">⭐</div>` : ''}
             </div>
@@ -164,6 +165,9 @@ function extraireVraiNom(station) {
     else if (adresseMinuscule.includes("esso")) marque = "Esso";
     else if (adresseMinuscule.includes("avanti")) marque = "Avanti";
     else if (adresseMinuscule.includes("bp ")) marque = "BP";
+    else if (adresseMinuscule.includes("api") || adresseMinuscule.includes("ip")) marque = "Api-Ip";
+    else if (adresseMinuscule.includes("eni") || adresseMinuscule.includes("agip")) marque = "Eni";
+    else if (adresseMinuscule.includes("q8")) marque = "Q8";
 
     let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
     let rueClean = adresseBrute;
@@ -171,21 +175,21 @@ function extraireVraiNom(station) {
         rueClean = rueClean.substring(nomBase.length).trim();
         if (rueClean.startsWith("-")) rueClean = rueClean.substring(1).trim();
     }
-    return rueClean ? `${nomBase} - ${rueClean}` : (ville ? `${nomBase} - ${ville}` : nomBase);
+    return rueClean ? `${nomBase} -${rueClean}` : (ville ? `${nomBase} -${ville}` : nomBase);
 }
 
 function formatPrix(valeur) {
-    if (valeur === undefined || valeur === null || isNaN(valeur) || valeur === 0) return null;
-    return parseFloat(valeur);
+    if (valeur === undefined || valeur === null || valeur === "") return null;
+    if (typeof valeur === 'number') return isNaN(valeur) || valeur === 0 ? null : valeur;
+    let str = String(valeur).replace(',', '.').trim();
+    let num = parseFloat(str);
+    return isNaN(num) || num === 0 ? null : num;
 }
 
-// ==========================================
-// 3. GESTION DES FAVORIS
-// ==========================================
 async function basculerFavori(nom, lat, lon) {
     const index = favoris.findIndex(f => f.nom === nom);
 
-    if (currentUser) {
+    if (currentUser && typeof _supabase !== 'undefined') {
         if (index === -1) {
             const { error } = await _supabase
                 .from('favoris')
@@ -234,15 +238,15 @@ function afficherFavoris() {
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, "'");
+        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        
+        // Lien Google Maps direct vers les coordonnées GPS précises
+        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
-        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.nom + " " + f.lat + "," + f.lon)}`;
-
         item.innerHTML = `
-            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" 
-                 id="fav-${cleMarqueur}">
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" id="fav-${cleMarqueur}">
                 <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomSecuriseHTML}">${nomSecuriseHTML}</span>
                 <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
             </div>
@@ -273,43 +277,96 @@ function afficherFavoris() {
     });
 }
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2 : MOTEUR DE RECHERCHE, API & GEOLOCALISATION
+// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOC
 // ============================================================================
 
-// ============================================================================
-// 4. MOTEUR DE RECHERCHE ET REQUETES API
-// ============================================================================
 async function rechercherVille() {
     const input = document.getElementById('search-ville');
     if (!input || !input.value.trim()) return;
 
+    const termeRecherche = input.value.trim();
+
     try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value.trim())}&countrycodes=fr,de,be&limit=1`);
+        // Demande 10 résultats pour trier par pertinence (importance)
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termeRecherche)}&countrycodes=fr,de,it,be&limit=10`);
         const data = await response.json();
+        
         if (data && data.length > 0) {
-            const newLat = parseFloat(data[0].lat);
-            const newLon = parseFloat(data[0].lon);
-            if (map) {
-                map.setView([newLat, newLon], 12);
-                fetchLiveStations(newLat, newLon);
+            // Tri par importance décroissante : privilégie les métropoles (ex: Milan Italie > Milan Normandie)
+            data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
+
+            const meilleurResultat = data[0];
+            const newLat = parseFloat(meilleurResultat.lat);
+            const newLon = parseFloat(meilleurResultat.lon);
+
+            if (!isNaN(newLat) && !isNaN(newLon)) {
+                if (map) {
+                    map.setView([newLat, newLon], 12);
+                    fetchLiveStations(newLat, newLon);
+                }
+            } else {
+                alert("Coordonnées géographiques invalides.");
             }
         } else {
-            alert("Location introuvable.");
+            alert("Localisation introuvable.");
         }
-    } catch (e) { console.error("Erreur Ville :", e); }
+    } catch (e) { 
+        console.error("Erreur lors de la recherche :", e); 
+    }
 }
 
-async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
-    let stationsTrouveesFR = [];
-    stationsGlobales = []; 
+// Extraction Overpass API pour l'Italie (sans limite de résultat)
+async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
+    let lat = parseFloat(centerLat);
+    let lon = parseFloat(centerLon);
+    let rad = parseFloat(rayonKm);
+
+    if (isNaN(lat) || isNaN(lon) || isNaN(rad) || rad <= 0) return [];
+    if (lat < 35 || lat > 47 || lon < 6 || lon > 19) return [];
 
     try {
+        const rayonMetres = Math.round(rad * 1000);
+        const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:${rayonMetres},${lat},${lon})[amenity=fuel];out;`;
+        
+        const resIT = await fetch(overpassUrl);
+        if (resIT.ok) {
+            const data = await resIT.json();
+            if (data && data.elements) {
+                return data.elements.map(st => {
+                    const tags = st.tags || {};
+                    return {
+                        n: tags.name || tags.brand || "Station Italie",
+                        a: tags["addr:street"] ? `${tags["addr:street"]} ${tags["addr:housenumber"] || ""}` : "Adresse non renseignée",
+                        v: tags["addr:city"] || "",
+                        cp: tags["addr:postcode"] || "",
+                        lt: parseFloat(st.lat),
+                        ln: parseFloat(st.lon),
+                        gz: null,
+                        95: null,
+                        e10: null,
+                        98: null
+                    };
+                });
+            }
+        }
+    } catch (e) {
+        console.warn("⚠️ Échec Overpass Italie :", e);
+    }
+    return [];
+}
+
+async function recupererBrutMultiPays(centerLat, centerLon) {
+    let stationsTrouveesFR = [];
+    let stationsTrouveesDE = [];
+    let stationsTrouveesIT = [];
+    stationsGlobales = []; 
+
+    // 1. FRANCE
+    try {
         if (fluxFranceBrut.length === 0) {
-            console.log("🛰️ Premier chargement : Extraction du flux France (Lecture locale unique)...");
             const resFR = await fetch('./stations_france.json');
-            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (Statut ${resFR.status})`);
+            if (!resFR.ok) throw new Error(`Impossible de charger stations_france.json (${resFR.status})`);
             fluxFranceBrut = await resFR.json();
-            console.log(`✅ ${fluxFranceBrut.length} stations chargées dans le cache global.`);
         }
 
         fluxFranceBrut.forEach(station => {
@@ -323,45 +380,48 @@ async function recupererBrutFranceEtAllemagneDirect(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
+    // 2. ALLEMAGNE
     try {
-        console.log("⚡ Interrogation API Tankerkönig Allemagne Direct...");
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
         const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
-        const resDE = await fetch(urlDE);
-        if (!resDE.ok) throw new Error(`HTTP Error ${resDE.status}`);
-
-        const dataDE = await resDE.json();
-
-        if (dataDE && dataDE.ok && dataDE.stations) {
-            const allemagneNormalisee = dataDE.stations.map(st => ({
-                n: st.name || "Station Allemande",
-                a: st.street || st.name,
-                v: st.place || "",
-                cp: st.postCode || "",
-                lt: parseFloat(st.lat),
-                ln: parseFloat(st.lng),
-                gz: st.diesel && st.diesel > 0 ? st.diesel : null,
-                95: st.e5 && st.e5 > 0 ? st.e5 : null,
-                e10: st.e10 && st.e10 > 0 ? st.e10 : null,
-                98: null
-            }));
-
-            stationsGlobales = [...stationsTrouveesFR, ...allemagneNormalisee];
-        } else {
-            stationsGlobales = [...stationsTrouveesFR];
+        const resDE = await fetch(PROXY_CORS + encodeURIComponent(urlDE));
+        if (resDE.ok) {
+            const dataDE = await resDE.json();
+            if (dataDE && dataDE.ok && dataDE.stations) {
+                stationsTrouveesDE = dataDE.stations.map(st => ({
+                    n: st.name || "Station Allemande",
+                    a: st.street || st.name,
+                    v: st.place || "",
+                    cp: st.postCode || "",
+                    lt: parseFloat(st.lat),
+                    ln: parseFloat(st.lng),
+                    gz: st.diesel && st.diesel > 0 ? st.diesel : null,
+                    95: st.e5 && st.e5 > 0 ? st.e5 : null,
+                    e10: st.e10 && st.e10 > 0 ? st.e10 : null,
+                    98: null
+                }));
+            }
         }
     } catch (err) {
-        console.error("⚠️ Échec API Allemagne (Utilisation du flux FR uniquement) :", err);
-        stationsGlobales = [...stationsTrouveesFR]; 
+        console.error("⚠️ Échec API Allemagne :", err);
     }
+
+    // 3. ITALIE
+    try {
+        stationsTrouveesIT = await recupererStationsItalieUnrestricted(centerLat, centerLon, RAYON_KM);
+    } catch (err) {
+        console.error("⚠️ Échec Flux Italie :", err);
+    }
+
+    stationsGlobales = [...stationsTrouveesFR, ...stationsTrouveesDE, ...stationsTrouveesIT];
 }
 
 async function fetchLiveStations(centerLat, centerLon) {
     if (!map) return;
     try {
         dernierePosition = { lat: centerLat, lon: centerLon };
-        await recupererBrutFranceEtAllemagneDirect(centerLat, centerLon);
+        await recupererBrutMultiPays(centerLat, centerLon);
 
         const carburantActif = document.getElementById('select-carburant')?.value || 'gz';
 
@@ -409,13 +469,13 @@ async function fetchLiveStations(centerLat, centerLon) {
 
             const linePrix = (label, prix, code) => {
                 const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
-                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Rupture'}</b></div>`;
+                return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Non renseigné'}</b></div>`;
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-
-            const queryGoogleMaps = encodeURIComponent(`${nomAffiche} ${station.v || ''} ${lat},${lon}`);
-            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${queryGoogleMaps}`;
+            
+            // Lien Google Maps direct vers les coordonnées GPS de la station
+            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
@@ -446,9 +506,6 @@ async function fetchLiveStations(centerLat, centerLon) {
     } catch (e) { console.error("Erreur rendering :", e); }
 }
 
-// ==========================================
-// 5. INTERFACE ET GEOLOCALISATION
-// ==========================================
 function initialiserEcouteursInterface() {
     afficherFavoris(); 
 
