@@ -36,17 +36,20 @@
 
         body { display: flex; flex-direction: column; }
 
+        /* Correction de la barre supérieure pour iOS (Safe Area) */
         header {
-            background-color: var(--bg-panneau); padding: 0 20px;
-            border-bottom: 1px solid #1f2937; display: flex;
-            justify-content: space-between; align-items: center;
-            z-index: 100; height: 50px; flex-shrink: 0;
+            background-color: var(--bg-panneau); 
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-top: env(safe-area-inset-top, 0px);
+            border-bottom: 1px solid #1f2937; 
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            z-index: 1000; /* Toujours au-dessus de Leaflet */
+            min-height: calc(50px + env(safe-area-inset-top, 0px));
+            flex-shrink: 0;
         }
-/* On ajoute un padding en haut égal à la hauteur de l'encoche/Dynamic Island */
-header, .navbar, .top-bar, .burger-btn {
-    padding-top: env(safe-area-inset-top, 20px);
-}
-
 
         header h1 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
 
@@ -64,12 +67,13 @@ header, .navbar, .top-bar, .burger-btn {
             box-shadow: -5px 0 25px rgba(0,0,0,0.5); z-index: 2000;
             transition: right 0.3s ease-in-out; padding: 24px; display: flex;
             flex-direction: column; gap: 12px;
+            padding-top: calc(24px + env(safe-area-inset-top, 0px));
         }
 
         .burger-menu.open { right: 0; }
 
         .menu-user-header {
-            padding-top: 40px; padding-bottom: 16px;
+            padding-top: 10px; padding-bottom: 16px;
             border-bottom: 1px solid #1f2937; margin-bottom: 12px;
         }
         .menu-user-status {
@@ -81,7 +85,7 @@ header, .navbar, .top-bar, .burger-btn {
 
         .menu-overlay {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.6); z-index: 999; backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.6); z-index: 1500; backdrop-filter: blur(2px);
         }
         .menu-overlay.active { display: block; }
 
@@ -93,7 +97,7 @@ header, .navbar, .top-bar, .burger-btn {
         .menu-link:hover { color: #fff; background-color: #252f41; }
         .menu-link.active { background: var(--accent-bleu); border-color: var(--accent-bleu); color: #fff; }
 
-        .app-container { display: flex; flex: 1; width: 100%; height: calc(100vh - 50px); flex-direction: row; overflow: hidden; }
+        .app-container { display: flex; flex: 1; width: 100%; height: calc(100vh - 50px - env(safe-area-inset-top, 0px)); flex-direction: row; overflow: hidden; }
 
         #sidebar {
             width: 320px; background-color: var(--bg-panneau); padding: 15px;
@@ -101,7 +105,7 @@ header, .navbar, .top-bar, .burger-btn {
             -webkit-overflow-scrolling: touch; border-right: 1px solid #1f2937; z-index: 5; flex-shrink: 0;
         }
 
-        .widget { background: rgba(31, 41, 55, 0.5); border: 1px solid #374151; border-radius: 12px; padding: 14px; }
+        .widget { background: rgba(31, 41, 55, 0.5); border: 1px solid #374151; border-radius: 12px; padding: 14px; position: relative; }
         .widget-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texte-secondaire); margin-bottom: 8px; font-weight: 600; }
 
         #select-carburant { background: #1f2937; color: white; border: 1px solid #374151; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -117,8 +121,24 @@ header, .navbar, .top-bar, .burger-btn {
         .range-slider { width: 100%; -webkit-appearance: none; background: #1f2937; height: 6px; border-radius: 3px; outline: none; cursor: pointer; }
         .range-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-bleu); cursor: pointer; }
 
+        /* Styles pour le module de recherche et suggestions déroulantes */
+        .search-box-container { position: relative; width: 100%; margin-bottom: 8px; }
+        .suggestions-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #1f2937; border: 1px solid #374151; border-radius: 8px;
+            max-height: 180px; overflow-y: auto; z-index: 1000;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; margin-top: 4px;
+        }
+        .suggestion-item {
+            padding: 10px 12px; font-size: 12px; color: var(--texte-principal);
+            cursor: pointer; border-bottom: 1px solid #2d3748; transition: background 0.2s;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: var(--accent-bleu); color: #fff; }
+
         #map-container { flex: 1; height: 100%; position: relative; }
-        #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; }
 
         @media (max-width: 768px) {
             body { position: fixed; width: 100%; }
@@ -162,9 +182,13 @@ header, .navbar, .top-bar, .burger-btn {
 
             <div class="widget">
                 <div class="widget-title">Cible / Localisation</div>
-                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                    <input type="text" id="search-ville" placeholder="Ex: Paris, Marseille..." style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
-                    <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+                
+                <div class="search-box-container">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="search-ville" placeholder="Saisir une ville..." autocomplete="off" style="flex: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 8px; border-radius: 6px; font-size: 13px;">
+                        <button id="btn-search" style="background: var(--accent-bleu); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">🔍</button>
+                    </div>
+                    <div id="suggestions-ville" class="suggestions-dropdown"></div>
                 </div>
 
                 <div class="range-container">
