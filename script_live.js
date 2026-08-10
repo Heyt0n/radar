@@ -236,7 +236,7 @@ function afficherFavoris() {
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
+        const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, "'");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         
         const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}`;
@@ -275,7 +275,7 @@ function afficherFavoris() {
 }
 
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, AUTOCOMPLÉTION & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : AUTOCOMPLÉTION, APIS MULTI-PAYS & GEOLOC
 // ============================================================================
 
 let debounceTimerSearch = null;
@@ -297,42 +297,62 @@ function initialiserAutocompletionVille() {
 
         debounceTimerSearch = setTimeout(async () => {
             try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr,de,it,be&limit=6`);
+                // Demande des détails d'adresse pour extraire le code postal et le nom de ville propre
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}&countrycodes=fr,de,it,be&limit=8`);
                 const data = await res.json();
 
                 containerSuggestions.innerHTML = '';
 
                 if (data && data.length > 0) {
-                    data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
+                    // Filtrage des doublons (Nom + Code Postal identiques)
+                    const vus = new Set();
+                    const suggestionsPropres = [];
 
                     data.forEach(item => {
+                        const addr = item.address || {};
+                        const nomVille = addr.city || addr.town || addr.village || addr.municipality || item.display_name.split(',')[0].trim();
+                        const cp = addr.postcode ? addr.postcode.trim() : '';
+
+                        const libelleAffiche = cp ? `${nomVille} (${cp})` : nomVille;
+                        const cleUnique = libelleAffiche.toLowerCase();
+
+                        if (!vus.has(cleUnique)) {
+                            vus.add(cleUnique);
+                            suggestionsPropres.push({
+                                label: libelleAffiche,
+                                nomSimple: nomVille,
+                                lat: parseFloat(item.lat),
+                                lon: parseFloat(item.lon)
+                            });
+                        }
+                    });
+
+                    suggestionsPropres.forEach(item => {
                         const div = document.createElement('div');
                         div.className = 'suggestion-item';
-                        div.textContent = item.display_name;
+                        div.textContent = item.label;
 
                         div.addEventListener('click', () => {
-                            input.value = item.display_name.split(',')[0]; 
+                            input.value = item.label; 
                             containerSuggestions.style.display = 'none';
 
-                            const lat = parseFloat(item.lat);
-                            const lon = parseFloat(item.lon);
-
-                            if (!isNaN(lat) && !isNaN(lon) && map) {
-                                map.setView([lat, lon], 12);
-                                fetchLiveStations(lat, lon);
+                            if (!isNaN(item.lat) && !isNaN(item.lon) && map) {
+                                map.setView([item.lat, item.lon], 12);
+                                fetchLiveStations(item.lat, item.lon);
                             }
                         });
 
                         containerSuggestions.appendChild(div);
                     });
-                    containerSuggestions.style.display = 'block';
+
+                    containerSuggestions.style.display = suggestionsPropres.length > 0 ? 'block' : 'none';
                 } else {
                     containerSuggestions.style.display = 'none';
                 }
             } catch (err) {
                 console.error("Erreur autocomplétion :", err);
             }
-        }, 300);
+        }, 250);
     });
 
     document.addEventListener('click', (e) => {
