@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         menuOverlay.addEventListener('click', () => toggleBurgerMenu());
     }
 
-    // Gestion Auth / Supabase sécurisée
+    // Gestion Auth / Supabase
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session }, error } = await _supabase.auth.getSession();
@@ -83,8 +83,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (document.getElementById('map')) {
         initialiserCarteEtMoteur();
-    } else {
-        initialiserEcouteursInterfaceOutils();
     }
 });
 
@@ -175,7 +173,7 @@ function extraireVraiNom(station) {
         rueClean = rueClean.substring(nomBase.length).trim();
         if (rueClean.startsWith("-")) rueClean = rueClean.substring(1).trim();
     }
-    return rueClean ? `${nomBase} -${rueClean}` : (ville ? `${nomBase} -${ville}` : nomBase);
+    return rueClean ? `${nomBase} - ${rueClean}` : (ville ? `${nomBase} - ${ville}` : nomBase);
 }
 
 function formatPrix(valeur) {
@@ -241,7 +239,6 @@ function afficherFavoris() {
         const nomSecuriseHTML = f.nom.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         
-        // Lien Google Maps direct vers les coordonnées GPS précises
         const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
@@ -276,46 +273,109 @@ function afficherFavoris() {
         });
     });
 }
+
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, RENDU & GEOLOC
+// 📡 RADAR CARBURANT - PARTIE 2/2 : APIS MULTI-PAYS, AUTOCOMPLÉTION & GEOLOC
 // ============================================================================
 
-async function rechercherVille() {
+let debounceTimerSearch = null;
+
+function initialiserAutocompletionVille() {
     const input = document.getElementById('search-ville');
-    if (!input || !input.value.trim()) return;
+    const containerSuggestions = document.getElementById('suggestions-ville');
+    if (!input || !containerSuggestions) return;
 
-    const termeRecherche = input.value.trim();
+    input.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        clearTimeout(debounceTimerSearch);
 
-    try {
-        // Demande 10 résultats pour trier par pertinence (importance)
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termeRecherche)}&countrycodes=fr,de,it,be&limit=10`);
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-            // Tri par importance décroissante : privilégie les métropoles (ex: Milan Italie > Milan Normandie)
-            data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
-
-            const meilleurResultat = data[0];
-            const newLat = parseFloat(meilleurResultat.lat);
-            const newLon = parseFloat(meilleurResultat.lon);
-
-            if (!isNaN(newLat) && !isNaN(newLon)) {
-                if (map) {
-                    map.setView([newLat, newLon], 12);
-                    fetchLiveStations(newLat, newLon);
-                }
-            } else {
-                alert("Coordonnées géographiques invalides.");
-            }
-        } else {
-            alert("Localisation introuvable.");
+        if (query.length < 2) {
+            containerSuggestions.style.display = 'none';
+            containerSuggestions.innerHTML = '';
+            return;
         }
-    } catch (e) { 
-        console.error("Erreur lors de la recherche :", e); 
-    }
+
+        debounceTimerSearch = setTimeout(async () => {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr,de,it,be&limit=6`);
+                const data = await res.json();
+
+                containerSuggestions.innerHTML = '';
+
+                if (data && data.length > 0) {
+                    data.sort((a, b) => (parseFloat(b.importance) || 0) - (parseFloat(a.importance) || 0));
+
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'suggestion-item';
+                        div.textContent = item.display_name;
+
+                        div.addEventListener('click', () => {
+                            input.value = item.display_name.split(',')[0]; 
+                            containerSuggestions.style.display = 'none';
+
+                            const lat = parseFloat(item.lat);
+                            const lon = parseFloat(item.lon);
+
+                            if (!isNaN(lat) && !isNaN(lon) && map) {
+                                map.setView([lat, lon], 12);
+                                fetchLiveStations(lat, lon);
+                            }
+                        });
+
+                        containerSuggestions.appendChild(div);
+                    });
+                    containerSuggestions.style.display = 'block';
+                } else {
+                    containerSuggestions.style.display = 'none';
+                }
+            } catch (err) {
+                console.error("Erreur autocomplétion :", err);
+            }
+        }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !containerSuggestions.contains(e.target)) {
+            containerSuggestions.style.display = 'none';
+        }
+    });
 }
 
-// Extraction Overpass API pour l'Italie (sans limite de résultat)
+function initialiserEcouteursInterface() {
+    afficherFavoris(); 
+    initialiserAutocompletionVille();
+
+    const sliderRayon = document.getElementById('user-rayon');
+    const affichageRayon = document.getElementById('valeur-rayon');
+
+    if (sliderRayon) {
+        let antiMitrailleuseTimeout;
+
+        sliderRayon.addEventListener('input', (e) => {
+            RAYON_KM = Number(e.target.value);
+            if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
+            localStorage.setItem('radar_rayon', RAYON_KM);
+
+            clearTimeout(antiMitrailleuseTimeout);
+            antiMitrailleuseTimeout = setTimeout(() => {
+                fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+            }, 250);
+        });
+    }
+
+    document.getElementById('select-carburant')?.addEventListener('change', () => fetchLiveStations(dernierePosition.lat, dernierePosition.lon));
+    
+    document.getElementById('btn-reset')?.addEventListener('click', () => {
+        const input = document.getElementById('search-ville'); 
+        if (input) input.value = '';
+        if (map) {
+            map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
+            fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
+        }
+    });
+}
+
 async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm) {
     let lat = parseFloat(centerLat);
     let lon = parseFloat(centerLon);
@@ -341,10 +401,7 @@ async function recupererStationsItalieUnrestricted(centerLat, centerLon, rayonKm
                         cp: tags["addr:postcode"] || "",
                         lt: parseFloat(st.lat),
                         ln: parseFloat(st.lon),
-                        gz: null,
-                        95: null,
-                        e10: null,
-                        98: null
+                        gz: null, 95: null, e10: null, 98: null
                     };
                 });
             }
@@ -443,12 +500,12 @@ async function fetchLiveStations(centerLat, centerLon) {
             }
         });
 
-        const dessinerMarqueurStation = (station, nomAffiche) => {
+        stationsGlobales.forEach(station => {
             let lat = parseFloat(station.lt);
             let lon = parseFloat(station.ln);
             if (isNaN(lat) || isNaN(lon)) return;
 
-            let distance = getDistance(centerLat, centerLon, lat, lon);
+            let nomAffiche = extraireVraiNom(station);
             const estFavori = favoris.some(f => f.nom === nomAffiche);
 
             let prixCourant = formatPrix(station[carburantActif]);
@@ -473,119 +530,54 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            
-            // Lien Google Maps direct vers les coordonnées GPS de la station
             const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
-                    <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:12px; font-weight:bold;">${nomAffiche}</h4>
-                    <p style="margin:0 0 10px 0; font-size:11px; color:#3b82f6; font-weight:bold;">📍 À ${distance.toFixed(1)} km</p>
-                    <div style="font-size:13px; font-family:monospace; margin-bottom:12px;">
+                    <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:13px;">${nomAffiche}</h4>
+                    <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af;">${station.a || ''} ${station.v || ''}</p>
+                    <div style="font-size:12px; font-family:'JetBrains Mono', monospace; margin-bottom:10px;">
                         ${linePrix('Gazole', formatPrix(station.gz), 'gz')}
                         ${linePrix('SP95-E10', formatPrix(station.e10), 'e10')}
-                        ${linePrix('SP95', formatPrix(station["95"]), '95')}
-                        ${linePrix('SP98', formatPrix(station["98"]), '98')}
+                        ${linePrix('SP95', formatPrix(station['95']), '95')}
+                        ${linePrix('SP98', formatPrix(station['98']), '98')}
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon});" style="width:100%; background:${estFavori ? "#ef4444" : "#22c55e"}; color:white; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; cursor:pointer;">${estFavori ? "❌ Supprimer" : "⭐ Épingler"}</button>
-                        <a href="${urlGoogleMaps}" target="_blank" style="width:100%; background:var(--accent-bleu); color:white; text-align:center; text-decoration:none; padding:8px; border-radius:6px; font-weight:bold; font-size:11px; box-sizing:border-box;">🧭 Itinéraire Google Maps</a>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="basculerFavori('${nomSecuriseJS}', ${lat}, ${lon})" style="flex:1; background:${estFavori ? '#ef4444' : '#22c55e'}; color:white; border:none; padding:6px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:11px;">
+                            ${estFavori ? 'Retirer' : '⭐ Favori'}
+                        </button>
+                        <a href="${urlGoogleMaps}" target="_blank" style="background:#3b82f6; color:white; text-decoration:none; padding:6px 10px; border-radius:6px; font-weight:bold; font-size:11px; display:flex; align-items:center;">🗺️ Y aller</a>
                     </div>
                 </div>
             `);
-        };
-
-        stationsGlobales.forEach(station => {
-            if (station.lt && station.ln) {
-                let vraiNomStation = extraireVraiNom(station);
-                dessinerMarqueurStation(station, vraiNomStation);
-            }
         });
 
         afficherFavoris();
-    } catch (e) { console.error("Erreur rendering :", e); }
-}
-
-function initialiserEcouteursInterface() {
-    afficherFavoris(); 
-
-    const sliderRayon = document.getElementById('user-rayon');
-    const affichageRayon = document.getElementById('valeur-rayon');
-
-    if (sliderRayon) {
-        let antiMitrailleuseTimeout;
-
-        sliderRayon.addEventListener('input', (e) => {
-            RAYON_KM = Number(e.target.value);
-            if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
-            localStorage.setItem('radar_rayon', RAYON_KM);
-
-            clearTimeout(antiMitrailleuseTimeout);
-            antiMitrailleuseTimeout = setTimeout(() => {
-                fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
-            }, 250);
-        });
+    } catch (e) {
+        console.error("Erreur fetchLiveStations :", e);
     }
-
-    document.getElementById('select-carburant')?.addEventListener('change', () => fetchLiveStations(dernierePosition.lat, dernierePosition.lon));
-    document.getElementById('btn-search')?.addEventListener('click', rechercherVille);
-    document.getElementById('search-ville')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') rechercherVille(); });
-    document.getElementById('btn-reset')?.addEventListener('click', () => {
-        const input = document.getElementById('search-ville'); if (input) input.value = '';
-        if (map) {
-            map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
-            fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
-        }
-    });
-}
-
-function initialiserEcouteursInterfaceOutils() {
-    console.log("Interface outils synchronisée.");
 }
 
 function declencherGeolocalisation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                maPositionReelle = { lat, lon };
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            maPositionReelle = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            dernierePosition = { ...maPositionReelle };
 
-                if (map) {
-                    if (marqueurPositionReelle) {
-                        marqueurPositionReelle.setLatLng([lat, lon]);
-                    } else {
-                        const iconeMoi = L.divIcon({
-                            html: `
-                                <div style="position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">
-                                    <div style="position: absolute; width: 100%; height: 100%; background: #3b82f6; opacity: 0.25; border-radius: 50%; animation: pulse 2s infinite;"></div>
-                                    <div style="width: 14px; height: 14px; background: #2563eb; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0,0,0,0.5); z-index:100;"></div>
-                                </div>
-                                <style>
-                                    @keyframes pulse {
-                                        0% { transform: scale(0.6); opacity: 0.6; }
-                                        100% { transform: scale(1.8); opacity: 0; }
-                                    }
-                                </style>
-                            `,
-                            className: 'pion-operateur-live',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
-                        });
+            if (map) {
+                if (marqueurPositionReelle) map.removeLayer(marqueurPositionReelle);
+                marqueurPositionReelle = L.circleMarker([maPositionReelle.lat, maPositionReelle.lon], {
+                    radius: 8, fillColor: "#3b82f6", color: "#ffffff", weight: 2, opacity: 1, fillOpacity: 0.9
+                }).addTo(map).bindPopup("<b>Ma Position Actuelle</b>");
 
-                        marqueurPositionReelle = L.marker([lat, lon], { icon: iconeMoi, zIndexOffset: 1000 }).addTo(map);
-                        marqueurPositionReelle.bindPopup("<b style='color:#1f2937;'>📍 Votre Position Actuelle</b>");
-                    }
-
-                    map.setView([lat, lon], 11);
-                    fetchLiveStations(lat, lon);
-                }
-            },
-            () => { if (map) fetchLiveStations(DEF_LAT, DEF_LON); },
-            { enableHighAccuracy: true }
-        );
-    } else { if (map) fetchLiveStations(DEF_LAT, DEF_LON); }
+                map.setView([maPositionReelle.lat, maPositionReelle.lon], 11);
+                fetchLiveStations(maPositionReelle.lat, maPositionReelle.lon);
+            }
+        }, (err) => {
+            console.warn("Géolocalisation refusée/impossible, position par défaut.");
+            fetchLiveStations(DEF_LAT, DEF_LON);
+        }, { enableHighAccuracy: true, timeout: 10000 });
+    } else {
+        fetchLiveStations(DEF_LAT, DEF_LON);
+    }
 }
-
-window.basculerFavori = basculerFavori;
-window.toggleBurgerMenu = toggleBurgerMenu;
