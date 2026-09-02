@@ -106,9 +106,9 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-      L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap'
+    L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors, © CARTO'
 }).addTo(map);
 
         initialiserEcouteursInterface();
