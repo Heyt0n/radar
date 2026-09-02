@@ -4,14 +4,15 @@
 let modeInscription = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
-    
     // 1. VÉRIFICATION DE LA SESSION EXISTANTE
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
                 localStorage.setItem("radar_session_active", "true");
-                window.location.href = "index.html";
+                // ON A RETIRÉ LA REDIRECTION window.location.href = "index.html"
+                // On s'assure simplement que le modal reste masqué si on est déjà connecté
+                fermerModalConnexion();
                 return;
             }
         }
@@ -25,7 +26,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const authSubtitle = document.getElementById("auth-subtitle");
     const groupPseudo = document.getElementById("group-pseudo");
     const btnSubmit = document.getElementById("btn-submit");
-    const btnSkip = document.getElementById("btn-skip");
     const toggleText = document.getElementById("toggle-text");
 
     // 2. BASCULEMENT CONNEXION <=> INSCRIPTION
@@ -33,7 +33,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         toggleText.addEventListener("click", (e) => {
             if (e.target && e.target.id === "toggle-link") {
                 modeInscription = !modeInscription;
-
                 if (modeInscription) {
                     authTitle.textContent = "Inscription";
                     authSubtitle.textContent = "Créez votre profil d'opérateur en ligne";
@@ -57,7 +56,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (authForm) {
         authForm.addEventListener("submit", async (e) => {
             e.preventDefault();
-
             const email = document.getElementById("input-email").value.trim();
             const password = document.getElementById("input-password").value;
 
@@ -66,7 +64,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 btnSubmit.textContent = "Création du profil...";
                 btnSubmit.disabled = true;
 
-                // --- MODE INSCRIPTION ---
                 const { data, error } = await _supabase.auth.signUp({
                     email: email,
                     password: password,
@@ -76,7 +73,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 });
 
                 btnSubmit.disabled = false;
-
                 if (error) {
                     alert(`Erreur d'inscription : ${error.message}`);
                     btnSubmit.textContent = "Créer mon compte";
@@ -85,11 +81,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 localStorage.setItem("radar_pseudo", pseudo);
                 alert("Compte créé avec succès ! Tu peux maintenant te connecter.");
-                
-                // On bascule automatiquement sur l'affichage Connexion
                 document.getElementById("toggle-link").click();
                 btnSubmit.textContent = "Se connecter";
-                return; // STOP ICI : On ne tente pas la connexion directe
+                return;
             }
 
             // --- MODE CONNEXION ---
@@ -109,14 +103,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
-            // Succès de la connexion
             const userPseudo = signInData.user.user_metadata?.display_name || "Opérateur";
             localStorage.setItem("radar_pseudo", userPseudo);
             localStorage.setItem("radar_session_active", "true");
-            
-           fermerModalConnexion();
+
+            // Une fois connecté via le modal, on ferme simplement l'overlay et on recharge les fonctions de la page active
+            fermerModalConnexion();
+            window.location.reload(); 
         });
     }
+});
+
 function ouvrirModalConnexion() {
     const modal = document.getElementById("modal-auth-overlay");
     if (modal) modal.classList.remove("hidden");
@@ -126,4 +123,3 @@ function fermerModalConnexion() {
     const modal = document.getElementById("modal-auth-overlay");
     if (modal) modal.classList.add("hidden");
 }
-});
