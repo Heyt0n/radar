@@ -106,9 +106,9 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+      L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
     maxZoom: 20,
-    attribution: '© OpenStreetMap France | OpenStreetMap contributors'
+    attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap'
 }).addTo(map);
 
         initialiserEcouteursInterface();
