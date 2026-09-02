@@ -94,10 +94,7 @@ async function traiterSessionUtilisateur(session) {
     if (!session) {
         currentUser = null;
         if (localStorage.getItem("radar_session_active") !== "true") {
-            const path = window.location.pathname;
-            if (!path.includes("outils.html") && !path.includes("compte.html") && !path.includes("connexion.html")) {
-                window.location.href = "connexion.html";
-                return;
+            const path = window.location.pathname
             }
         }
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
