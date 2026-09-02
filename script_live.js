@@ -129,7 +129,7 @@ function initialiserCarteEtMoteur() {
         const styleDark = document.createElement('style');
         styleDark.innerHTML = `
             .leaflet-tile-pane {
-                filter: invert(0.3) hue-rotate(180deg) saturate(0.5) brightness(0.9) contrast(1.5);
+                filter: invert(0.3) saturate(0.5) brightness(0.9) contrast(1.5);
             }
         `;
         document.head.appendChild(styleDark);
