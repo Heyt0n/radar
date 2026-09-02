@@ -106,22 +106,35 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        // 1. Utiliser le fond sombre natif CartoDB (Nette, textes fins, frontières claires)
-        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // Tuiles OpenStreetMap ultra-stables avec fallback
+        const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            subdomains: 'abcd',
-            attribution: '© OpenStreetMap contributors © CARTO',
-            detectRetina: true // Assure une netteté maximale sur mobile/écrans HD
+            attribution: '© OpenStreetMap contributors',
+            crossOrigin: true
         }).addTo(map);
 
-        // 2. Optionnel : Si tu veux juste ajuster le contraste sans déformer le texte
+        // Injection du style CSS sombre optimisé (sans déformer ni faire flouter)
         const styleDark = document.createElement('style');
         styleDark.innerHTML = `
             .leaflet-tile-pane {
-                filter: contrast(1.1) brightness(0.95);
+                /*
+                  Explication de ce combo :
+                  - invert(1) : Passe le fond blanc en noir
+                  - hue-rotate(180deg) : Conserve la teinte naturelle des éléments
+                  - brightness(0.85) : Noir profond sans éteindre les lignes
+                  - contrast(1.4) : Fait ressortir les frontières sans empâter les textes
+                */
+                filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.4);
             }
         `;
         document.head.appendChild(styleDark);
+
+        initialiserEcouteursInterface();
+        declencherGeolocalisation();
+    } catch (e) {
+        console.error("Erreur initialiserCarteEtMoteur :", e);
+    }
+}
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
