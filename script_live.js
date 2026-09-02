@@ -1,5 +1,5 @@
 // ============================================================================
-// 📡 RADAR CARBURANT - SCRIPT COMPLET CORRIGÉ
+// 📡 RADAR CARBURANT - SCRIPT JS CORRIGÉ (AUTH JS NATIVE SANS REDICTION HTML)
 // ============================================================================
 
 let currentUser = null;
@@ -27,7 +27,7 @@ function toggleBurgerMenu() {
 }
 
 // ----------------------------------------------------------------------------
-// INITIALISATION DE L'APPLICATION (CORRIGÉE)
+// INITIALISATION DE L'APPLICATION
 // ----------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
     // 1. Initialisation du rayon
@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         menuOverlay.addEventListener('click', () => toggleBurgerMenu());
     }
 
-    // 3. Gestion Auth / Supabase & Logs
+    // 3. Gestion Authentification JS Supabase
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
@@ -84,16 +84,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
+// ----------------------------------------------------------------------------
+// TRAITEMENT DE LA SESSION (SANS REDIRECTION HTML OBSTACULE)
+// ----------------------------------------------------------------------------
 async function traiterSessionUtilisateur(session) {
     if (!session) {
         currentUser = null;
-        if (localStorage.getItem("radar_session_active") !== "true") {
-            const path = window.location.pathname;
-            if (!path.includes("outils.html") && !path.includes("compte.html") && !path.includes("connexion.html")) {
-                window.location.href = "connexion.html";
-                return;
-            }
-        }
+        // On conserve la liste locale des favoris en mode invité / non connecté
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     } else {
         currentUser = session.user;
@@ -299,7 +296,7 @@ function afficherFavoris() {
         const nomHTML = echapperHTML(f.nom);
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         
-        const urlGoogleMapsFav = `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lon}`;
+        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
         item.innerHTML = `
@@ -610,7 +607,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            const urlGoogleMaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
