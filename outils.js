@@ -15,6 +15,43 @@ function toggleBurgerMenu() {
 // ============================================================================
 // INITIALISATION
 // ============================================================================
+
+document.addEventListener("DOMContentLoaded", async () => {
+    
+    // 1. Contrôle strict de l'accès
+    const estConnecte = await verifierSessionOuvrirModal();
+    
+    if (!estConnecte) {
+        // STOP : Aucun fetch, aucune carte ne se charge
+        return; 
+    }
+
+    // 2. Lancement des fonctions tactiques de ta page
+    initialiserApplication();
+});
+
+async function verifierSessionOuvrirModal() {
+    if (typeof _supabase === 'undefined') {
+        ouvrirModalConnexion();
+        return false;
+    }
+
+    const { data: { session } } = await _supabase.auth.getSession();
+    
+    if (!session) {
+        ouvrirModalConnexion();
+        return false;
+    }
+
+    return true;
+}
+
+function initialiserApplication() {
+    // Mets ici ton code de chargement de carte, de fetch, etc.
+    initialiserCarteTrajet();
+    executerCalculTrajet();
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////
 document.addEventListener("DOMContentLoaded", async () => {
     // Écouteurs pour le menu burger
     const burgerBtn = document.getElementById('burgerBtn');
