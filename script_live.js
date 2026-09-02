@@ -106,9 +106,10 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap © CARTO'
-}).addTo(map);
+        // ✅ Tuiles CartoDB Voyager libres d'accès
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO'
+        }).addTo(map);
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
@@ -452,16 +453,18 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. ALLEMAGNE (Sécurisé via Supabase Edge Function)
+    // 2. ALLEMAGNE (Edge Function : prix-allemagne)
     try {
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
 
         if (typeof _supabase !== 'undefined') {
-            const { data: dataDE, error } = await _supabase.functions.invoke('get-german-stations', {
+            const { data: dataDE, error } = await _supabase.functions.invoke('prix-allemagne', {
                 body: { lat: centerLat, lon: centerLon, rad: rayonSecuriseDE }
             });
 
-            if (!error && dataDE && dataDE.ok && dataDE.stations) {
+            if (error) {
+                console.error("❌ Erreur retournée par Supabase Edge Function (prix-allemagne) :", error);
+            } else if (dataDE && dataDE.ok && dataDE.stations) {
                 stationsTrouveesDE = dataDE.stations.map(st => ({
                     n: st.name || "Station Allemande",
                     a: st.street || st.name,
