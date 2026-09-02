@@ -106,25 +106,31 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-// 1. Charger la carte standard OpenStreetMap
-const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap contributors'
-}).addTo(map);
+        // 1. Charger la carte standard OpenStreetMap
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-// 2. Appliquer le filtre sombre en CSS pur
-const mapContainer = map.getContainer();
-mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au chargement
+        // 2. Appliquer le filtre sombre en CSS pur
+        const mapContainer = map.getContainer();
+        if (mapContainer) mapContainer.style.background = '#111827';
 
-// Injecter le style sombre sur les tuiles Leaflet
-const styleDark = document.createElement('style');
-styleDark.innerHTML = 
-    .leaflet-tile-pane {
-        filter: brightness(0.3) invert(1) contrast(1.95) hue-rotate(180deg) saturate(0) grayscale(0.8);
+        // Injecter le style sombre sur les tuiles Leaflet
+        const styleDark = document.createElement('style');
+        styleDark.innerHTML = `
+            .leaflet-tile-pane {
+                filter: brightness(0.35) invert(1) contrast(1.8) grayscale(1);
+            }
+        `;
+        document.head.appendChild(styleDark);
+
+        initialiserEcouteursInterface();
+        declencherGeolocalisation();
+    } catch (e) {
+        console.error("Erreur initialiserCarteEtMoteur :", e);
     }
-;
-document.head.appendChild(styleDark);
-
+}
     
 
 
