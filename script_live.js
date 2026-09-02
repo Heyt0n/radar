@@ -107,11 +107,11 @@ function initialiserCarteEtMoteur() {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
         // 1. Charger la carte standard OpenStreetMap
-        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '© OpenStreetMap France | OpenStreetMap contributors'
+}).addTo(map);
+        
         // 2. Appliquer le filtre sombre en CSS pur
         const mapContainer = map.getContainer();
         if (mapContainer) mapContainer.style.background = '#111827';
