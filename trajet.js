@@ -1,13 +1,18 @@
+// ============================================================================
+// 📡 RADAR CARBURANT - MODULE TRAJET (ITINÉRAIRE MULTI-PAYS)
+// ============================================================================
+
 let mapTrajet = null;
 let fluxFranceTrajetBrut = [];
 let stationsSurTrajet = [];
 let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
-let listeFavorisIds = []; // Stockera les noms ou identifiants uniques des favoris synchronisés
+let favorisTrajet = [];
 
-// Configuration de l'API Allemagne
-const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
+const DEF_LAT = 48.71;
+const DEF_LON = 7.82;
+let dernierePositionRouteCentrale = { lat: DEF_LAT, lon: DEF_LON };
 
 function toggleBurgerMenu() {
     const menu = document.getElementById('burgerMenu');
@@ -30,18 +35,39 @@ function toggleVoletFiltres() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    const burgerBtn = document.querySelector('.burger-btn');
+    const menuOverlay = document.getElementById('menuOverlay');
+
+    if (burgerBtn) {
+        burgerBtn.addEventListener('click', () => toggleBurgerMenu());
+        burgerBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleBurgerMenu();
+        }, { passive: false });
+    }
+
+    if (menuOverlay) {
+        menuOverlay.addEventListener('click', () => toggleBurgerMenu());
+    }
+
+    // Gestion Auth / Supabase
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session && session.user) {
-                const pseudo = session.user.user_metadata.display_name || "Opérateur";
+                const pseudo = session.user.user_metadata?.display_name || session.user.user_metadata?.pseudo || "Opérateur";
                 const nomOperateurBadge = document.getElementById("nom-operateur");
                 if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-                await chargerFavorisUtilisateur();
+                await chargerFavorisSupabaseTrajet();
+            } else {
+                favorisTrajet = JSON.parse(localStorage.getItem('radar_favoris')) || [];
             }
+        } else {
+            favorisTrajet = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         }
     } catch (err) {
-        console.error("Erreur synchro session menu trajet :", err);
+        console.error("Erreur synchro session trajet :", err);
+        favorisTrajet = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 
     initialiserCarteTrajet();
@@ -50,73 +76,92 @@ document.addEventListener("DOMContentLoaded", async () => {
     initialiserEcouteursGPS();
 });
 
-// Lecture depuis la table 'favoris'
-async function chargerFavorisUtilisateur() {
+async function chargerFavorisSupabaseTrajet() {
+    if (typeof _supabase === 'undefined') return;
     try {
-        const { data, error } = await _supabase
-            .from('favoris')
-            .select('nom_station');
-        if (data) {
-            listeFavorisIds = data.map(f => f.nom_station);
-        }
-    } catch(e) { 
-        console.error("Erreur récupération favoris trajet :", e); 
+        const { data, error } = await _supabase.from('favoris').select('*');
+        if (error) throw error;
+        favorisTrajet = data.map(f => ({
+            id_cloud: f.id,
+            nom: f.nom_station,
+            lat: f.latitude,
+            lon: f.longitude
+        }));
+    } catch (err) {
+        console.error("Erreur récupération favoris Supabase :", err.message);
+        favorisTrajet = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 }
 
-// Écriture/Suppression dans la table 'favoris'
-async function basculerFavoriSupabase(nomStation, lat, lon) {
-    try {
+async function basculerFavoriTrajet(nom, lat, lon) {
+    let currentUser = null;
+    if (typeof _supabase !== 'undefined') {
         const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) {
-            alert("Veuillez vous connecter pour gérer vos favoris.");
-            return;
-        }
+        if (session) currentUser = session.user;
+    }
 
-        const index = listeFavorisIds.indexOf(nomStation);
+    const index = favorisTrajet.findIndex(f => f.nom === nom);
 
-        if (index !== -1) {
+    if (currentUser && typeof _supabase !== 'undefined') {
+        if (index === -1) {
             const { error } = await _supabase
                 .from('favoris')
-                .delete()
-                .eq('user_id', session.user.id)
-                .eq('nom_station', nomStation);
-
-            if (!error) listeFavorisIds.splice(index, 1);
+                .insert([{ user_id: currentUser.id, nom_station: nom, latitude: lat, longitude: lon }]);
+            if (error) { alert(`Erreur Cloud : ${error.message}`); return; }
         } else {
             const { error } = await _supabase
                 .from('favoris')
-                .insert([{ 
-                    user_id: session.user.id, 
-                    nom_station: nomStation, 
-                    latitude: parseFloat(lat), 
-                    longitude: parseFloat(lon) 
-                }]);
-
-            if (!error) listeFavorisIds.push(nomStation);
+                .delete()
+                .eq('user_id', currentUser.id)
+                .eq('nom_station', nom);
+            if (error) { alert(`Erreur Cloud : ${error.message}`); return; }
         }
-
-        rafraichirAffichageStationsTrajet();
-    } catch(err) {
-        console.error("Erreur bascule favori trajet :", err);
+        await chargerFavorisSupabaseTrajet();
+    } else {
+        if (index === -1) favorisTrajet.push({ nom, lat, lon });
+        else favorisTrajet.splice(index, 1);
+        localStorage.setItem('radar_favoris', JSON.stringify(favorisTrajet));
     }
+
+    rafraichirAffichageStationsTrajet();
 }
 
 function initialiserCarteTrajet() {
     const el = document.getElementById('map-trajet');
     if (!el) return;
-    mapTrajet = L.map('map-trajet', { zoomControl: false }).setView([48.71, 7.82], 9);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© CARTO © OpenStreetMap'
+
+    if (mapTrajet !== null) {
+        mapTrajet.remove();
+        mapTrajet = null;
+    }
+
+    mapTrajet = L.map('map-trajet', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 9);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
     }).addTo(mapTrajet);
+
+    // Application exacte du filtre CSS sombre de ton fichier principal
+    if (!document.getElementById('style-carte-trajet-sombre')) {
+        const styleDark = document.createElement('style');
+        styleDark.id = 'style-carte-trajet-sombre';
+        styleDark.innerHTML = `
+            #map-trajet .leaflet-tile-pane {
+                filter: invert(0.3) saturate(0.8) brightness(0.9) contrast(1.8);
+            }
+        `;
+        document.head.appendChild(styleDark);
+    }
 }
 
 function initialiserEcouteursTrajet() {
     document.getElementById('btn-calculer-trajet')?.addEventListener('click', () => {
         executerCalculTrajet();
         if (window.innerWidth <= 768) {
-            document.getElementById('options-trajet').classList.add('masque-mobile');
-            document.getElementById('indicateur-filtre-fleche').textContent = '▼';
+            document.getElementById('options-trajet')?.classList.add('masque-mobile');
+            const ind = document.getElementById('indicateur-filtre-fleche');
+            if (ind) ind.textContent = '▼';
         }
     });
 
@@ -126,7 +171,7 @@ function initialiserEcouteursTrajet() {
 
     document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
         DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
-        if (routePolyline) filtrerEtAfficherStationsUnifie(dernierePositionRouteCentrale);
+        if (routePolyline) filtrerEtAfficherStationsUnifie();
     });
 
     document.getElementById('select-affichage-trajet')?.addEventListener('change', () => {
@@ -149,7 +194,6 @@ function initialiserAutocompletionSurMesure() {
 
     if (inputDep) {
         inputDep.addEventListener('input', (e) => {
-            // Si l'utilisateur tape manuellement, on détruit la liaison GPS précédente
             inputDep.removeAttribute('data-lat');
             inputDep.removeAttribute('data-lon');
             gererSuggestionsHTML(e.target.value, 'box-suggestions-depart', inputDep);
@@ -169,7 +213,7 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
     const box = document.getElementById(idBox);
     if (!box) return;
 
-    if (valeur.trim().length < 3) {
+    if (valeur.trim().length < 2) {
         box.innerHTML = "";
         box.style.display = 'none';
         return;
@@ -178,11 +222,11 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
     clearTimeout(timeoutSuggestion);
     timeoutSuggestion = setTimeout(async () => {
         try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(valeur)}&countrycodes=fr,de&limit=5&addressdetails=1`);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(valeur)}&countrycodes=fr,de,it,be&limit=5`);
             const data = await res.json();
             box.innerHTML = "";
 
-            if(!data || data.length === 0) {
+            if (!data || data.length === 0) {
                 box.style.display = 'none';
                 return;
             }
@@ -190,13 +234,16 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
             data.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
-                const villeNom = item.display_name.split(',')[0];
-                const codePostal = item.address?.postcode || '';
+                const addr = item.address || {};
+                const villeNom = addr.city || addr.town || addr.village || addr.municipality || item.display_name.split(',')[0].trim();
+                const codePostal = addr.postcode ? addr.postcode.trim() : '';
                 const affichage = codePostal ? `${villeNom} (${codePostal})` : villeNom;
 
                 div.textContent = affichage;
                 div.addEventListener('click', () => {
                     inputElement.value = affichage;
+                    inputElement.setAttribute('data-lat', item.lat);
+                    inputElement.setAttribute('data-lon', item.lon);
                     box.innerHTML = "";
                     box.style.display = 'none';
                 });
@@ -204,11 +251,11 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
             });
             box.style.display = 'block';
         } catch (e) { console.error(e); }
-    }, 300);
+    }, 250);
 }
 
 // ============================================================================
-// LOGIQUE GÉOLOCALISATION EN DIRECT (GPS)
+// GÉOLOCALISATION GPS TACTIQUE
 // ============================================================================
 function obtenirPositionGPS() {
     return new Promise((resolve, reject) => {
@@ -217,20 +264,15 @@ function obtenirPositionGPS() {
             return;
         }
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                resolve({
-                    lat: position.coords.latitude,
-                    lon: position.coords.longitude
-                });
-            },
+            (position) => resolve({ lat: position.coords.latitude, lon: position.coords.longitude }),
             (error) => {
                 let msg = "Impossible de récupérer votre position GPS.";
-                if (error.code === error.PERMISSION_DENIED) msg = "Accès GPS refusé. Veuillez l'activer.";
-                else if (error.code === error.POSITION_UNAVAILABLE) msg = "Signal GPS indisponible (tunnel ou zone isolée).";
-                else if (error.code === error.TIMEOUT) msg = "Délai d'attente GPS dépassé.";
+                if (error.code === error.PERMISSION_DENIED) msg = "Accès GPS refusé.";
+                else if (error.code === error.POSITION_UNAVAILABLE) msg = "Signal GPS indisponible.";
+                else if (error.code === error.TIMEOUT) msg = "Délai GPS dépassé.";
                 reject(new Error(msg));
             },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     });
 }
@@ -243,12 +285,9 @@ async function convertirGPSEnAdresse(lat, lon) {
         if (!response.ok) throw new Error();
         const data = await response.json();
         if (data && data.address) {
-            // Priorité : Nom de la route (autoroute, nationale), sinon ville
             const route = data.address.road || data.address.pedestrian;
             const ville = data.address.city || data.address.town || data.address.village || "";
-            if (route) {
-                return route + (ville ? ` (${ville})` : "");
-            }
+            if (route) return route + (ville ? ` (${ville})` : "");
             return ville || "Ma Position GPS";
         }
         return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
@@ -268,14 +307,11 @@ async function appliquerMaPosition(inputId, btnElement) {
 
     try {
         const coords = await obtenirPositionGPS();
-        
-        // Enregistrement des coordonnées directement sur l'input
         inputElement.setAttribute('data-lat', coords.lat);
         inputElement.setAttribute('data-lon', coords.lon);
 
-        // Traduction textuelle
-        const adresseCalculat = await convertirGPSEnAdresse(coords.lat, coords.lon);
-        inputElement.value = adresseCalculat;
+        const adresseCalculee = await convertirGPSEnAdresse(coords.lat, coords.lon);
+        inputElement.value = adresseCalculee;
         btnElement.textContent = "✅";
     } catch (err) {
         console.error(err);
@@ -299,22 +335,22 @@ function initialiserEcouteursGPS() {
         btnGeoDep.addEventListener('touchend', (e) => {
             e.preventDefault();
             appliquerMaPosition('trajet-depart', btnGeoDep);
-        });
+        }, { passive: false });
     }
     if (btnGeoArr) {
         btnGeoArr.addEventListener('click', () => appliquerMaPosition('trajet-arrivee', btnGeoArr));
         btnGeoArr.addEventListener('touchend', (e) => {
             e.preventDefault();
             appliquerMaPosition('trajet-arrivee', btnGeoArr);
-        });
+        }, { passive: false });
     }
 }
 
 // ============================================================================
-// ALGORITHME DE CALCUL D'ITINÉRAIRE ET DE FILTRAGE
+// CALCUL D'ITINÉRAIRE & DÉTECTION MULTI-PAYS
 // ============================================================================
 function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -324,22 +360,20 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
-    const pas = Math.max(1, Math.floor(pointsRoute.length / 150)); 
+    const pas = Math.max(1, Math.floor(pointsRoute.length / 150));
     for (let i = 0; i < pointsRoute.length; i += pas) {
         if (getDistance(stationLat, stationLon, pointsRoute[i][0], pointsRoute[i][1]) <= DISTANCE_MAX_ROUTE_KM) return true;
     }
     return false;
 }
 
-let dernierePositionRouteCentrale = null; // Sauvegarde du centre pour recalculer le rayon à la volée
-
 async function executerCalculTrajet() {
     const inputDep = document.getElementById('trajet-depart');
     const inputArr = document.getElementById('trajet-arrivee');
     const statut = document.getElementById('trajet-statut');
 
-    const departText = inputDep.value.trim();
-    const arriveeText = inputArr.value.trim();
+    const departText = inputDep ? inputDep.value.trim() : "";
+    const arriveeText = inputArr ? inputArr.value.trim() : "";
 
     if (!departText || !arriveeText) {
         alert("Veuillez renseigner un départ et une arrivée.");
@@ -352,7 +386,6 @@ async function executerCalculTrajet() {
             statut.style.color = "#eab308";
         }
 
-        // Récupération des coordonnées : Priorité à l'attribut data-* (géolocalisation), sinon Nominatim
         let coordsDep = null;
         if (inputDep.getAttribute('data-lat') && inputDep.getAttribute('data-lon')) {
             coordsDep = [parseFloat(inputDep.getAttribute('data-lat')), parseFloat(inputDep.getAttribute('data-lon'))];
@@ -409,25 +442,30 @@ async function executerCalculTrajet() {
         mapTrajet.invalidateSize();
         mapTrajet.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
 
-        if (statut) statut.textContent = "🛰️ Analyse frontalière...";
+        if (statut) statut.textContent = "🛰️ Analyse multi-pays...";
 
+        // 1. France
         if (fluxFranceTrajetBrut.length === 0) {
-            const resFR = await fetch('./stations_france.json');
-            fluxFranceTrajetBrut = await resFR.json();
+            try {
+                const resFR = await fetch('./stations_france.json');
+                if (resFR.ok) fluxFranceTrajetBrut = await resFR.json();
+            } catch(e) { console.error("Erreur flux France trajet :", e); }
         }
 
+        // 2. Allemagne (via Supabase Edge Function: prix-allemagne)
         let allemagneNormalisee = [];
         try {
-            const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${dernierePositionRouteCentrale.lat}&lng=${dernierePositionRouteCentrale.lon}&rad=25&type=all&apikey=${API_KEY_ALLEMAGNE}`;
-            const resDE = await fetch(urlDE);
-            if (resDE.ok) {
-                const dataDE = await resDE.json();
-                if (dataDE && dataDE.ok && dataDE.stations) {
+            if (typeof _supabase !== 'undefined') {
+                const { data: dataDE, error } = await _supabase.functions.invoke('prix-allemagne', {
+                    body: { lat: dernierePositionRouteCentrale.lat, lon: dernierePositionRouteCentrale.lon, rad: 25 }
+                });
+
+                if (!error && dataDE && dataDE.ok && dataDE.stations) {
                     allemagneNormalisee = dataDE.stations.map(st => ({
-                        id: `${st.lat}_${st.lng}`,
                         n: st.name || "Station Allemande",
                         a: st.street || st.name,
                         v: st.place || "",
+                        cp: st.postCode || "",
                         lt: parseFloat(st.lat),
                         ln: parseFloat(st.lng),
                         gz: st.diesel && st.diesel > 0 ? st.diesel : null,
@@ -437,7 +475,7 @@ async function executerCalculTrajet() {
                     }));
                 }
             }
-        } catch(e) { console.error("API Allemande injoignable :", e); }
+        } catch(e) { console.error("API Allemande trajet injoignable :", e); }
 
         fluxGlobalUnifie = [...fluxFranceTrajetBrut, ...allemagneNormalisee];
         filtrerEtAfficherStationsUnifie();
@@ -452,7 +490,7 @@ async function executerCalculTrajet() {
 
 async function obtenirCoordonnees(nomVille) {
     const requeteClean = nomVille.split('(')[0].trim();
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(requeteClean)}&countrycodes=fr,de&limit=1`);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(requeteClean)}&countrycodes=fr,de,it,be&limit=1`);
     const data = await res.json();
     return (data && data.length > 0) ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
 }
@@ -461,6 +499,8 @@ let fluxGlobalUnifie = [];
 
 function filtrerEtAfficherStationsUnifie() {
     const statut = document.getElementById('trajet-statut');
+    if (!routePolyline) return;
+
     const pointsRouteLeaflet = routePolyline.getLatLngs().map(latlng => [latlng.lat, latlng.lng]);
 
     stationsSurTrajet = fluxGlobalUnifie.filter(station => {
@@ -469,24 +509,64 @@ function filtrerEtAfficherStationsUnifie() {
     });
 
     if (statut) {
-        statut.textContent = `🎯 ${stationsSurTrajet.length} détectées.`;
+        statut.textContent = `🎯 ${stationsSurTrajet.length} détectée(s).`;
         statut.style.color = "#22c55e";
     }
     rafraichirAffichageStationsTrajet();
 }
 
 function formatPrix(valeur) {
-    let p = parseFloat(valeur);
-    return (p && p > 0) ? `${p.toFixed(3)} €` : "Rupture";
+    if (valeur === undefined || valeur === null || valeur === "") return null;
+    if (typeof valeur === 'number') return isNaN(valeur) || valeur === 0 ? null : valeur;
+    let str = String(valeur).replace(',', '.').trim();
+    let num = parseFloat(str);
+    return isNaN(num) || num === 0 ? null : num;
 }
 
 function extraireVraiNom(station) {
-    let nomBrut = (station.n || "Station").trim();
+    let nomBrut = (station.n || "").trim();
+    let ville = (station.v || "").trim();
     let adresseBrute = (station.a || "").trim();
-    if (adresseBrute && nomBrut === "Station") {
-        return `Station - ${adresseBrute}`;
+    let marque = "Station";
+    let adresseMinuscule = adresseBrute.toLowerCase();
+
+    if (adresseMinuscule.includes("total")) marque = "Total";
+    else if (adresseMinuscule.includes("leclerc")) marque = "E.Leclerc";
+    else if (adresseMinuscule.includes("carrefour")) marque = "Carrefour";
+    else if (adresseMinuscule.includes("intermarche")) marque = "Intermarché";
+    else if (adresseMinuscule.includes("systeme u") || adresseMinuscule.includes("super u") || adresseMinuscule.includes("u utile")) marque = "Super U";
+    else if (adresseMinuscule.includes("auchan")) marque = "Auchan";
+    else if (adresseMinuscule.includes("esso")) marque = "Esso";
+    else if (adresseMinuscule.includes("avanti")) marque = "Avanti";
+    else if (adresseMinuscule.includes("bp ")) marque = "BP";
+    else if (adresseMinuscule.includes("api") || adresseMinuscule.includes("ip")) marque = "Api-Ip";
+    else if (adresseMinuscule.includes("eni") || adresseMinuscule.includes("agip")) marque = "Eni";
+    else if (adresseMinuscule.includes("q8")) marque = "Q8";
+
+    let nomBase = (!nomBrut || nomBrut.toLowerCase() === "station" || nomBrut.length < 3) ? marque : nomBrut;
+    let rueClean = adresseBrute;
+    if (rueClean.toLowerCase().startsWith(nomBase.toLowerCase())) {
+        rueClean = rueClean.substring(nomBase.length).trim();
+        if (rueClean.startsWith("-")) rueClean = rueClean.substring(1).trim();
     }
-    return nomBrut;
+    return rueClean ? `${nomBase} - ${rueClean}` : (ville ? `${nomBase} - ${ville}` : nomBase);
+}
+
+function creerIconeMarqueurTrajet(couleur, estFavori, couleurBulle) {
+    const afficherBulle = couleurBulle ? 'block' : 'none';
+    return L.divIcon({
+        html: `
+            <div style="position: relative; width: 25px; height: 41px;">
+                <div style="display: ${afficherBulle}; position: absolute; top: -6px; left: -8px; background:${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;"></div>
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleur}.png" style="width: 25px; height: 41px; display: block; position: absolute; top: 0; left: 0; z-index: 10;">
+                ${estFavori ? `<div style="position: absolute; top: -6px; right: -8px; background: #f97316; color: white; font-size: 10px; padding: 2px; border-radius: 50%; border: 1px solid #111827; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 20;">⭐</div>` : ''}
+            </div>
+        `,
+        className: 'custom-hybrid-pin',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34]
+    });
 }
 
 function rafraichirAffichageStationsTrajet() {
@@ -502,16 +582,16 @@ function rafraichirAffichageStationsTrajet() {
 
     let prixMin = Infinity, prixMax = -Infinity;
     stationsSurTrajet.forEach(s => {
-        let p = parseFloat(s[carburantActif]);
-        if (p && p > 0) {
+        let p = formatPrix(s[carburantActif]);
+        if (p) {
             if (p < prixMin) prixMin = p;
             if (p > prixMax) prixMax = p;
         }
     });
 
     let stationsAffichables = [...stationsSurTrajet].sort((a, b) => {
-        let prixA = parseFloat(a[carburantActif]) || Infinity;
-        let prixB = parseFloat(b[carburantActif]) || Infinity;
+        let prixA = formatPrix(a[carburantActif]) || Infinity;
+        let prixB = formatPrix(b[carburantActif]) || Infinity;
         return prixA - prixB;
     });
 
@@ -519,76 +599,63 @@ function rafraichirAffichageStationsTrajet() {
     else if (modeAffichage === 'top20') stationsAffichables = stationsAffichables.slice(0, 20);
 
     if (stationsAffichables.length === 0) {
-        conteneurListe.innerHTML = `<p style="font-size:11px; color:var(--texte-secondaire); text-align:center;">Aucune station.</p>`;
+        conteneurListe.innerHTML = `<p style="font-size:11px; color:var(--texte-secondaire); text-align:center;">Aucune station détectée.</p>`;
         return;
     }
 
     stationsAffichables.forEach(station => {
         let lat = parseFloat(station.lt);
         let lon = parseFloat(station.ln);
-        let prixIndex = parseFloat(station[carburantActif]);
-        let affichagePrixIndex = formatPrix(prixIndex);
+        let prixIndex = formatPrix(station[carburantActif]);
+        let affichagePrixIndex = prixIndex ? `${prixIndex.toFixed(3)} €` : "Rupture";
 
         let nomStation = extraireVraiNom(station);
         let adresse = (station.a || "").trim();
 
         let couleurMarker = 'blue';
-        let couleurBulle = null;
         if (prixIndex && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
             if (prixIndex === prixMin) couleurMarker = 'green';
             else if (prixIndex === prixMax) couleurMarker = 'red';
-            let score = (prixIndex - prixMin) / (prixMax - prixMin);
-            couleurBulle = `hsl(${(1 - score) * 120}, 100%, 50%)`;
         }
 
-        const iconeHTML = L.divIcon({
-            html: `
-                <div style="position: relative; width: 25px; height: 41px;">
-                    ${couleurBulle ? `<div style="position: absolute; top: -6px; left: -8px; background: ${couleurBulle}; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #111827; z-index: 20;"></div>` : ''}
-                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${couleurMarker}.png" style="width: 25px; height: 41px; display: block;">
-                </div>
-            `,
-            className: 'custom-hybrid-pin',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34]
-        });
+        let couleurBulle = null;
+        if (prixIndex && prixMin !== Infinity && prixMax !== -Infinity && prixMin !== prixMax) {
+            let score = (prixIndex - prixMin) / (prixMax - prixMin);
+            couleurBulle = `hsl(${(1 - Math.max(0, Math.min(1, score))) * 120}, 100%, 50%)`;
+        }
 
-        const estFav = listeFavorisIds.includes(nomStation);
+        const estFav = favorisTrajet.some(f => f.nom === nomStation);
         const nomSecuriseJS = nomStation.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+
+        const iconeHTML = creerIconeMarqueurTrajet(couleurMarker, estFav, couleurBulle);
+
+        const linePrixPopup = (label, prix, code) => {
+            const style = (carburantActif === code) ? 'background:#374151; padding:2px 5px; border-radius:4px; font-weight:bold; color:#22c55e;' : '';
+            return `<div style="display:flex; justify-content:space-between; margin-bottom:5px; ${style}"><span>${label} :</span><b>${prix ? prix.toFixed(3) + ' €' : 'Non renseigné'}</b></div>`;
+        };
 
         const popupContent = `
-            <div class="popup-station-title">${nomStation}</div>
-            <div style="font-size:10px; color:#9ca3af; margin-bottom:6px; line-height:1.2;">📍 ${adresse}</div>
-            
-            <div class="popup-carburant-ligne ${carburantActif === 'gz' ? 'actif' : ''}">
-                <span>Gazole :</span><b>${formatPrix(station['gz'])}</b>
-            </div>
-            <div class="popup-carburant-ligne ${carburantActif === 'e10' ? 'actif' : ''}">
-                <span>SP95-E10 :</span><b>${formatPrix(station['e10'])}</b>
-            </div>
-            <div class="popup-carburant-ligne ${carburantActif === '95' ? 'actif' : ''}">
-                <span>SP95 :</span><b>${formatPrix(station['95'])}</b>
-            </div>
-            <div class="popup-carburant-ligne ${carburantActif === '98' ? 'actif' : ''}">
-                <span>SP98 :</span><b>${formatPrix(station['98'])}</b>
-            </div>
-
-            <div class="popup-btn-actions">
-                <button class="popup-btn popup-btn-fav ${estFav ? 'deja-fav' : ''}" onclick="basculerFavoriSupabase('${nomSecuriseJS}', '${lat}', '${lon}')">
-                    ⭐ ${estFav ? 'Enlever' : 'Favori'}
-                </button>
-                <a class="popup-btn popup-btn-maps" href="http://maps.google.com/?q=${lat},${lon}" target="_blank">
-                    🗺️ Itinéraire
-                </a>
+            <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
+                <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:13px;">${nomStation}</h4>
+                <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af;">${adresse} ${station.v || ''}</p>
+                <div style="font-size:12px; font-family:'JetBrains Mono', monospace; margin-bottom:10px;">
+                    ${linePrixPopup('Gazole', formatPrix(station.gz), 'gz')}
+                    ${linePrixPopup('SP95-E10', formatPrix(station.e10), 'e10')}
+                    ${linePrixPopup('SP95', formatPrix(station['95']), '95')}
+                    ${linePrixPopup('SP98', formatPrix(station['98']), '98')}
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button onclick="basculerFavoriTrajet('${nomSecuriseJS}', ${lat}, ${lon})" style="flex:1; background:${estFav ? '#ef4444' : '#22c55e'}; color:white; border:none; padding:6px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:11px;">
+                        ${estFav ? 'Retirer' : '⭐ Favori'}
+                    </button>
+                    <a href="${urlGoogleMaps}" target="_blank" style="background:#3b82f6; color:white; text-decoration:none; padding:6px 10px; border-radius:6px; font-weight:bold; font-size:11px; display:flex; align-items:center;">🗺️ Y aller</a>
+                </div>
             </div>
         `;
 
         const marker = L.marker([lat, lon], { icon: iconeHTML }).addTo(mapTrajet);
-        marker.bindPopup(popupContent, {
-            autoPan: true,
-            autoPanPadding: L.point(15, 60)
-        });
+        marker.bindPopup(popupContent, { autoPan: true, autoPanPadding: L.point(15, 60) });
         marqueursStationsTrajet.push(marker);
 
         const item = document.createElement('div');
@@ -619,4 +686,4 @@ function rafraichirAffichageStationsTrajet() {
 
 window.toggleBurgerMenu = toggleBurgerMenu;
 window.toggleVoletFiltres = toggleVoletFiltres;
-window.basculerFavoriSupabase = basculerFavoriSupabase
+window.basculerFavoriTrajet = basculerFavoriTrajet;
