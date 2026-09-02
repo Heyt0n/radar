@@ -108,7 +108,9 @@ function initialiserCarteEtMoteur() {
 // 1. Charger la carte standard OpenStreetMap
 const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '© OpenStreetMap contributors'
+    attribution: '© OpenStreetMap contributors',
+    // Forcer le téléchargement de tuiles nettes sur écrans HD
+    detectRetina: true
 }).addTo(map);
 
 // 2. Appliquer le filtre sombre en CSS pur
@@ -119,12 +121,22 @@ mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au char
 const styleDark = document.createElement('style');
 styleDark.innerHTML = `
     .leaflet-tile-pane {
-        /* brightness haut = fond très noir | contrast haut = routes tranchantes */
-        filter: invert(1) brightness(0.85) contrast(2.2) grayscale(1);
+        /* 
+           - invert(1) : Passe en fond sombre
+           - brightness(0.92) : Rend le fond très sombre/noir
+           - contrast(2.8) : Découpe brutalement les textes et frontières
+           - grayscale(1) : Supprime la bave de couleur sur la typographie
+        */
+        filter: invert(1) brightness(0.92) contrast(2.8) grayscale(1);
+        
+        /* Anti-flou natif du navigateur sur le texte et les lignes */
         image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        image-rendering: pixelated;
     }
 `;
 document.head.appendChild(styleDark);
+
 
 
         initialiserEcouteursInterface();
