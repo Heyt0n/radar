@@ -1,24 +1,5 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    // Vérifier si l'utilisateur est connecté via Supabase
-    if (typeof _supabase !== 'undefined') {
-        const { data: { session } } = await _supabase.auth.getSession();
-
-        if (session) {
-            console.log("Opérateur connecté :", session.user.email);
-            // Charge ici les données réservées aux membres connectés
-            // Ex: chargerHistorique();
-        } else {
-            console.log("Utilisateur en mode invité / non connecté");
-            // Optionnel : Désactiver certains boutons si la personne est en mode invité
-        }
-    }
-});
-
-
-
-
 // ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
+// 📡 RADAR CARBURANT - SCRIPT COMPLET CORRIGÉ
 // ============================================================================
 
 let currentUser = null;
@@ -45,7 +26,11 @@ function toggleBurgerMenu() {
     }
 }
 
+// ----------------------------------------------------------------------------
+// INITIALISATION DE L'APPLICATION (CORRIGÉE)
+// ----------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
+    // 1. Initialisation du rayon
     const sliderRayon = document.getElementById('user-rayon');
     const affichageRayon = document.getElementById('valeur-rayon');
     if (sliderRayon) {
@@ -53,6 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (affichageRayon) affichageRayon.textContent = `${RAYON_KM} km`;
     }
 
+    // 2. Initialisation du Menu Burger
     const burgerBtn = document.querySelector('.burger-btn');
     const menuOverlay = document.getElementById('menuOverlay');
 
@@ -68,10 +54,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         menuOverlay.addEventListener('click', () => toggleBurgerMenu());
     }
 
-    // Gestion Auth / Supabase
+    // 3. Gestion Auth / Supabase & Logs
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
+            
+            if (session) {
+                console.log("Opérateur connecté :", session.user.email);
+            } else {
+                console.log("Utilisateur en mode invité / non connecté");
+            }
+
             await traiterSessionUtilisateur(session);
 
             _supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -85,11 +78,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 
+    // 4. Lancement de la carte Leaflet
     if (document.getElementById('map')) {
         initialiserCarteEtMoteur();
     }
 });
 
+async function traiterSessionUtilisateur(session) {
+    if (!session) {
+        currentUser = null;
+        if (localStorage.getItem("radar_session_active") !== "true") {
+            const path = window.location.pathname;
+            if (!path.includes("outils.html") && !path.includes("compte.html") && !path.includes("connexion.html")) {
+                window.location.href = "connexion.html";
+                return;
+            }
         }
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     } else {
@@ -330,10 +333,6 @@ function afficherFavoris() {
         });
     });
 }
-
-// ============================================================================
-// 📡 RADAR CARBURANT - PARTIE 2/2 : AUTOCOMPLÉTION, APIS MULTI-PAYS & GEOLOC
-// ============================================================================
 
 let debounceTimerSearch = null;
 
