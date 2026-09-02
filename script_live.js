@@ -106,9 +106,9 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© CARTO © OpenStreetMap'
-        }).addTo(map);
+        L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap © CARTO'
+}).addTo(map);
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
