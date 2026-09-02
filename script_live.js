@@ -125,8 +125,7 @@ styleDark.innerHTML = `
 `;
 document.head.appendChild(styleDark);
     }
-`;
-document.head.appendChild(styleDark);
+
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
