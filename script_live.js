@@ -119,7 +119,9 @@ mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au char
 const styleDark = document.createElement('style');
 styleDark.innerHTML = `
     .leaflet-tile-pane {
-        filter: brightness(1.6) invert(1) contrast(2) saturate(1.5);
+        /* brightness haut = fond très noir | contrast haut = routes tranchantes */
+        filter: invert(1) brightness(0.85) contrast(2.2) grayscale(1);
+        image-rendering: -webkit-optimize-contrast;
     }
 `;
 document.head.appendChild(styleDark);
