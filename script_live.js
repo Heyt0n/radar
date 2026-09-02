@@ -119,9 +119,12 @@ mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au char
 // Injecter le style sombre sur les tuiles Leaflet
 const styleDark = document.createElement('style');
 styleDark.innerHTML = `
+    // Exemple pour un fond noir/gris anthracite très sobre
+styleDark.innerHTML = `
     .leaflet-tile-pane {
-        filter: brightness(0.3) invert(1) contrast(2.5) hue-rotate(190deg) saturate(0) grayscale(0.8);
+        filter: brightness(0.35) invert(1) contrast(2.8) grayscale(1);
     }
+`;
 `;
 document.head.appendChild(styleDark);
     
