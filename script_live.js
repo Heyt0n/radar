@@ -119,13 +119,13 @@ function initialiserCarteEtMoteur() {
         // Initialisation de la carte
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        // Tuile OpenStreetMap standard et ultra-compatible
+        // Tuile OpenStreetMap standard
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Appliquer un filtre sombre propre sans altérer le texte
+        // Appliquer un filtre sombre
         const styleDark = document.createElement('style');
         styleDark.innerHTML = `
             .leaflet-tile-pane {
@@ -144,30 +144,6 @@ function initialiserCarteEtMoteur() {
 
     } catch (e) {
         console.error("Erreur lors de l'initialisation de la carte :", e);
-    }
-}
-
-        initialiserEcouteursInterface();
-        declencherGeolocalisation();
-    } catch (e) {
-        console.error("Erreur initialiserCarteEtMoteur :", e);
-    }
-}
-
-        initialiserEcouteursInterface();
-        declencherGeolocalisation();
-    } catch (e) {
-        console.error("Erreur initialiserCarteEtMoteur :", e);
-    }
-}
-
-
-
-
-        initialiserEcouteursInterface();
-        declencherGeolocalisation();
-    } catch (e) {
-        console.error("Erreur initialiserCarteEtMoteur :", e);
     }
 }
 
