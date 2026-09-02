@@ -105,37 +105,31 @@ var map = null;
 function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
-// 1. Charger la carte standard OpenStreetMap
-const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap contributors',
-    // Forcer le téléchargement de tuiles nettes sur écrans HD
-    detectRetina: true
-}).addTo(map);
 
-// 2. Appliquer le filtre sombre en CSS pur
-const mapContainer = map.getContainer();
-mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au chargement
+        // 1. Utiliser le fond sombre natif CartoDB (Nette, textes fins, frontières claires)
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd',
+            attribution: '© OpenStreetMap contributors © CARTO',
+            detectRetina: true // Assure une netteté maximale sur mobile/écrans HD
+        }).addTo(map);
 
-// Injecter le style sombre sur les tuiles Leaflet
-const styleDark = document.createElement('style');
-styleDark.innerHTML = `
-    .leaflet-tile-pane {
-        /* 
-           - invert(1) : Passe en fond sombre
-           - brightness(0.92) : Rend le fond très sombre/noir
-           - contrast(2.8) : Découpe brutalement les textes et frontières
-           - grayscale(1) : Supprime la bave de couleur sur la typographie
-        */
-        filter: invert(1) brightness(0.92) contrast(2.8) grayscale(1);
-        
-        /* Anti-flou natif du navigateur sur le texte et les lignes */
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: crisp-edges;
-        image-rendering: pixelated;
+        // 2. Optionnel : Si tu veux juste ajuster le contraste sans déformer le texte
+        const styleDark = document.createElement('style');
+        styleDark.innerHTML = `
+            .leaflet-tile-pane {
+                filter: contrast(1.1) brightness(0.95);
+            }
+        `;
+        document.head.appendChild(styleDark);
+
+        initialiserEcouteursInterface();
+        declencherGeolocalisation();
+    } catch (e) {
+        console.error("Erreur initialiserCarteEtMoteur :", e);
     }
-`;
-document.head.appendChild(styleDark);
+}
+
 
 
 
