@@ -124,7 +124,7 @@ styleDark.innerHTML = `
     }
 `;
 document.head.appendChild(styleDark);
-    }
+    
 
 
         initialiserEcouteursInterface();
