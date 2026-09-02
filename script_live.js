@@ -3,11 +3,12 @@
 // ============================================================================
 
 let currentUser = null;
-let fluxFranceBrut = [];      
+let fluxFranceBrut = [];     
 let stationsGlobales = [];    
 let favoris = []; 
 let marqueursActifs = {}; 
 let marqueurPositionReelle = null;
+let map = null;
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -51,25 +52,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Gestion Auth / Supabase
     try {
         if (typeof _supabase !== 'undefined') {
-            const { data: { session }, error } = await _supabase.auth.getSession();
+            const { data: { session } } = await _supabase.auth.getSession();
+            await traiterSessionUtilisateur(session);
 
-            if (!session) {
-                if (localStorage.getItem("radar_session_active") !== "true") {
-                    if (!window.location.pathname.includes("outils.html") && !window.location.pathname.includes("compte.html") && !window.location.pathname.includes("connexion.html")) {
-                        window.location.href = "connexion.html";
-                        return;
-                    }
-                }
-                favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
-            } else {
-                currentUser = session.user;
-                const pseudo = currentUser.user_metadata?.display_name || currentUser.user_metadata?.pseudo || "Opérateur";
-
-                const nomOperateurBadge = document.getElementById("nom-operateur");
-                if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
-
-                await chargerFavorisSupabase();
-            }
+            _supabase.auth.onAuthStateChange(async (_event, session) => {
+                await traiterSessionUtilisateur(session);
+            });
         } else {
             favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
         }
@@ -83,24 +71,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
+async function traiterSessionUtilisateur(session) {
+    if (!session) {
+        currentUser = null;
+        if (localStorage.getItem("radar_session_active") !== "true") {
+            const path = window.location.pathname;
+            if (!path.includes("outils.html") && !path.includes("compte.html") && !path.includes("connexion.html")) {
+                window.location.href = "connexion.html";
+                return;
+            }
+        }
+        favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
+    } else {
+        currentUser = session.user;
+        const pseudo = currentUser.user_metadata?.display_name || currentUser.user_metadata?.pseudo || "Opérateur";
+
+        const nomOperateurBadge = document.getElementById("nom-operateur");
+        if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
+
+        await chargerFavorisSupabase();
+    }
+    afficherFavoris();
+}
+
 async function chargerFavorisSupabase() {
     if (!currentUser || typeof _supabase === 'undefined') return;
     try {
-        const { data, error } = await _supabase.from('favoris').select('*');
+        const { data, error } = await _supabase.from('favoris').select('*').eq('user_id', currentUser.id);
         if (error) throw error;
         favoris = data.map(f => ({
             id_cloud: f.id, 
             nom: f.nom_station,
-            lat: f.latitude,
-            lon: f.longitude
+            lat: parseFloat(f.latitude),
+            lon: parseFloat(f.longitude)
         }));
     } catch (err) {
         console.error("Erreur récupération Cloud :", err.message);
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     }
 }
-
-let map = null; // S'assurer que la variable est déclarée au niveau global
 
 function initialiserCarteEtMoteur() {
     try {
@@ -110,22 +119,18 @@ function initialiserCarteEtMoteur() {
             return;
         }
 
-        // Si la carte existe déjà, on la détruit correctement pour éviter le crash Leaflet
         if (map !== null) {
             map.remove();
             map = null;
         }
 
-        // Initialisation de la carte
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        // Tuile OpenStreetMap standard
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Appliquer un filtre sombre
         const styleDark = document.createElement('style');
         styleDark.innerHTML = `
             .leaflet-tile-pane {
@@ -134,7 +139,6 @@ function initialiserCarteEtMoteur() {
         `;
         document.head.appendChild(styleDark);
 
-        // Suite des scripts
         if (typeof initialiserEcouteursInterface === 'function') {
             initialiserEcouteursInterface();
         }
@@ -211,8 +215,18 @@ function formatPrix(valeur) {
     return isNaN(num) || num === 0 ? null : num;
 }
 
+function echapperHTML(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 async function basculerFavori(nom, lat, lon) {
-    const index = favoris.findIndex(f => f.nom === nom);
+    const index = favoris.findIndex(f => f.nom === nom || (Math.abs(f.lat - lat) < 0.0001 && Math.abs(f.lon - lon) < 0.0001));
 
     if (currentUser && typeof _supabase !== 'undefined') {
         if (index === -1) {
@@ -225,7 +239,8 @@ async function basculerFavori(nom, lat, lon) {
                 .from('favoris')
                 .delete()
                 .eq('user_id', currentUser.id)
-                .eq('nom_station', nom);
+                .eq('latitude', lat)
+                .eq('longitude', lon);
             if (error) { alert(`Erreur Cloud : ${error.message}`); return; }
         }
         await chargerFavorisSupabase();
@@ -234,6 +249,8 @@ async function basculerFavori(nom, lat, lon) {
         else favoris.splice(index, 1);
         localStorage.setItem('radar_favoris', JSON.stringify(favoris));
     }
+
+    afficherFavoris();
     if (map) fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
 }
 
@@ -242,7 +259,7 @@ function afficherFavoris() {
     if (!conteneur) return;
 
     if (favoris.length === 0) {
-        conteneur.innerHTML = `<p style="font-size: 11px; color: var(--texte-secondaire); text-align: center; font-style: italic;">Aucune station en favori.</p>`;
+        conteneur.innerHTML = `<p style="font-size: 11px; color: var(--texte-secondaire, #9ca3af); text-align: center; font-style: italic;">Aucune station en favori.</p>`;
         return;
     }
 
@@ -262,17 +279,20 @@ function afficherFavoris() {
         const item = document.createElement('div');
         item.className = 'favori-item';
         item.style.marginBottom = '8px';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
 
-        const nomSecuriseHTML = f.nom.replace(/"/g, '"').replace(/'/g, "'");
+        const nomHTML = echapperHTML(f.nom);
         const nomSecuriseJS = f.nom.replace(/'/g, "\\'").replace(/"/g, '\\"');
         
-        const urlGoogleMapsFav = `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lon}`;
+        const urlGoogleMapsFav = `https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lon}`;
         const cleMarqueur = `${f.lat}_${f.lon}`;
 
         item.innerHTML = `
             <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; padding-right: 8px; min-width: 0; cursor: pointer;" id="fav-${cleMarqueur}">
-                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomSecuriseHTML}">${nomSecuriseHTML}</span>
-                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert); flex-shrink: 0;">${affichagePrix}</b>
+                <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex: 1; font-size:11px; padding-right: 5px;" title="${nomHTML}">${nomHTML}</span>
+                <b style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--accent-vert, #22c55e); flex-shrink: 0;">${affichagePrix}</b>
             </div>
             <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
                 <a href="${urlGoogleMapsFav}" target="_blank" style="text-decoration:none; font-size:14px; cursor:pointer;" title="Ouvrir dans Google Maps">🗺️</a>
@@ -282,7 +302,7 @@ function afficherFavoris() {
 
         conteneur.appendChild(item);
 
-        document.getElementById(`fav-${cleMarqueur}`).addEventListener('click', () => {
+        document.getElementById(`fav-${cleMarqueur}`)?.addEventListener('click', () => {
             if (!map) return;
             map.setView([f.lat, f.lon], 14); 
             if (marqueursActifs[cleMarqueur]) {
@@ -294,7 +314,7 @@ function afficherFavoris() {
             }
         });
 
-        document.getElementById(`del-${cleMarqueur}`).addEventListener('click', (e) => {
+        document.getElementById(`del-${cleMarqueur}`)?.addEventListener('click', (e) => {
             e.stopPropagation();
             basculerFavori(nomSecuriseJS, f.lat, f.lon);
         });
@@ -409,7 +429,10 @@ function initialiserEcouteursInterface() {
         });
     }
 
-    document.getElementById('select-carburant')?.addEventListener('change', () => fetchLiveStations(dernierePosition.lat, dernierePosition.lon));
+    document.getElementById('select-carburant')?.addEventListener('change', () => {
+        fetchLiveStations(dernierePosition.lat, dernierePosition.lon);
+        afficherFavoris();
+    });
     
     document.getElementById('btn-reset')?.addEventListener('click', () => {
         const input = document.getElementById('search-ville'); 
@@ -482,7 +505,7 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. ALLEMAGNE (Edge Function : prix-allemagne)
+    // 2. ALLEMAGNE
     try {
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
 
@@ -554,7 +577,7 @@ async function fetchLiveStations(centerLat, centerLon) {
             if (isNaN(lat) || isNaN(lon)) return;
 
             let nomAffiche = extraireVraiNom(station);
-            const estFavori = favoris.some(f => f.nom === nomAffiche);
+            const estFavori = favoris.some(f => f.nom === nomAffiche || (Math.abs(f.lat - lat) < 0.0001 && Math.abs(f.lon - lon) < 0.0001));
 
             let prixCourant = formatPrix(station[carburantActif]);
             let couleurMarker = 'blue'; 
@@ -578,12 +601,12 @@ async function fetchLiveStations(centerLat, centerLon) {
             };
 
             const nomSecuriseJS = nomAffiche.replace(/'/g, "\\'").replace(/"/g, '\\"');
-            const urlGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+            const urlGoogleMaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
             marker.bindPopup(`
                 <div style="background:#1f2937; color:white; padding:12px; border-radius:12px; min-width:240px;">
-                    <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:13px;">${nomAffiche}</h4>
-                    <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af;">${station.a || ''} ${station.v || ''}</p>
+                    <h4 style="margin:0 0 2px 0; color:#eab308; text-transform:uppercase; font-size:13px;">${echapperHTML(nomAffiche)}</h4>
+                    <p style="margin:0 0 8px 0; font-size:11px; color:#9ca3af;">${echapperHTML(station.a || '')} ${echapperHTML(station.v || '')}</p>
                     <div style="font-size:12px; font-family:'JetBrains Mono', monospace; margin-bottom:10px;">
                         ${linePrix('Gazole', formatPrix(station.gz), 'gz')}
                         ${linePrix('SP95-E10', formatPrix(station.e10), 'e10')}
