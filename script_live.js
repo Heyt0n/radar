@@ -106,7 +106,7 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
- // 1. Charger la carte standard OpenStreetMap
+// 1. Charger la carte standard OpenStreetMap
 const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© OpenStreetMap contributors'
@@ -118,15 +118,13 @@ mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au char
 
 // Injecter le style sombre sur les tuiles Leaflet
 const styleDark = document.createElement('style');
-styleDark.innerHTML = `
-    // Exemple pour un fond noir/gris anthracite très sobre
-styleDark.innerHTML = `
+styleDark.innerHTML = 
     .leaflet-tile-pane {
-        filter: brightness(0.35) invert(1) contrast(2.8) grayscale(1);
+        filter: brightness(0.3) invert(1) contrast(1.95) hue-rotate(180deg) saturate(0) grayscale(0.8);
     }
-`;
-`;
+;
 document.head.appendChild(styleDark);
+
     
 
 
