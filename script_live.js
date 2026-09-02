@@ -90,12 +90,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-async function traiterSessionUtilisateur(session) {
-    if (!session) {
-        currentUser = null;
-        if (localStorage.getItem("radar_session_active") !== "true") {
-            const path = window.location.pathname
-            }
         }
         favoris = JSON.parse(localStorage.getItem('radar_favoris')) || [];
     } else {
