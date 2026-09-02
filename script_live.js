@@ -9,9 +9,6 @@ let favoris = [];
 let marqueursActifs = {}; 
 let marqueurPositionReelle = null;
 
-const API_KEY_ALLEMAGNE = "d78ad147-929f-48ec-9e96-b45d0256f48b"; 
-const PROXY_CORS = "https://corsproxy.io/?"; 
-
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
 
@@ -297,14 +294,12 @@ function initialiserAutocompletionVille() {
 
         debounceTimerSearch = setTimeout(async () => {
             try {
-                // Demande des détails d'adresse pour extraire le code postal et le nom de ville propre
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}&countrycodes=fr,de,it,be&limit=8`);
                 const data = await res.json();
 
                 containerSuggestions.innerHTML = '';
 
                 if (data && data.length > 0) {
-                    // Filtrage des doublons (Nom + Code Postal identiques)
                     const vus = new Set();
                     const suggestionsPropres = [];
 
@@ -457,15 +452,16 @@ async function recupererBrutMultiPays(centerLat, centerLon) {
         console.error("⚠️ Flux France indisponible :", err.message);
     }
 
-    // 2. ALLEMAGNE
+    // 2. ALLEMAGNE (Sécurisé via Supabase Edge Function)
     try {
         const rayonSecuriseDE = Math.min(RAYON_KM, 25);
-        const urlDE = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${centerLat}&lng=${centerLon}&rad=${rayonSecuriseDE}&type=all&apikey=${API_KEY_ALLEMAGNE}`;
 
-        const resDE = await fetch(PROXY_CORS + encodeURIComponent(urlDE));
-        if (resDE.ok) {
-            const dataDE = await resDE.json();
-            if (dataDE && dataDE.ok && dataDE.stations) {
+        if (typeof _supabase !== 'undefined') {
+            const { data: dataDE, error } = await _supabase.functions.invoke('get-german-stations', {
+                body: { lat: centerLat, lon: centerLon, rad: rayonSecuriseDE }
+            });
+
+            if (!error && dataDE && dataDE.ok && dataDE.stations) {
                 stationsTrouveesDE = dataDE.stations.map(st => ({
                     n: st.name || "Station Allemande",
                     a: st.street || st.name,
