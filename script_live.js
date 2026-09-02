@@ -1,3 +1,22 @@
+document.addEventListener("DOMContentLoaded", async () => {
+    // Vérifier si l'utilisateur est connecté via Supabase
+    if (typeof _supabase !== 'undefined') {
+        const { data: { session } } = await _supabase.auth.getSession();
+
+        if (session) {
+            console.log("Opérateur connecté :", session.user.email);
+            // Charge ici les données réservées aux membres connectés
+            // Ex: chargerHistorique();
+        } else {
+            console.log("Utilisateur en mode invité / non connecté");
+            // Optionnel : Désactiver certains boutons si la personne est en mode invité
+        }
+    }
+});
+
+
+
+
 // ============================================================================
 // 📡 RADAR CARBURANT - PARTIE 1/2 : CONFIGURATION, SESSION, CARTE & FAVORIS
 // ============================================================================
