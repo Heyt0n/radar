@@ -106,10 +106,24 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-    L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+ // 1. Charger la carte standard OpenStreetMap
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '© OpenStreetMap contributors, © CARTO'
+    attribution: '© OpenStreetMap contributors'
 }).addTo(map);
+
+// 2. Appliquer le filtre sombre en CSS pur
+const mapContainer = map.getContainer();
+mapContainer.style.background = '#111827'; // Fond pour éviter le blanc au chargement
+
+// Injecter le style sombre sur les tuiles Leaflet
+const styleDark = document.createElement('style');
+styleDark.innerHTML = `
+    .leaflet-tile-pane {
+        filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3);
+    }
+`;
+document.head.appendChild(styleDark);
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
