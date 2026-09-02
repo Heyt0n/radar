@@ -100,34 +100,52 @@ async function chargerFavorisSupabase() {
     }
 }
 
-var map = null;
+let map = null; // S'assurer que la variable est déclarée au niveau global
 
 function initialiserCarteEtMoteur() {
     try {
+        const mapElement = document.getElementById('map');
+        if (!mapElement) {
+            console.error("L'élément HTML avec id='map' est introuvable !");
+            return;
+        }
+
+        // Si la carte existe déjà, on la détruit correctement pour éviter le crash Leaflet
+        if (map !== null) {
+            map.remove();
+            map = null;
+        }
+
+        // Initialisation de la carte
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        // Tuiles OpenStreetMap ultra-stables avec fallback
-        const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Tuile OpenStreetMap standard et ultra-compatible
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap contributors',
-            crossOrigin: true
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Injection du style CSS sombre optimisé (sans déformer ni faire flouter)
+        // Appliquer un filtre sombre propre sans altérer le texte
         const styleDark = document.createElement('style');
         styleDark.innerHTML = `
             .leaflet-tile-pane {
-                /*
-                  Explication de ce combo :
-                  - invert(1) : Passe le fond blanc en noir
-                  - hue-rotate(180deg) : Conserve la teinte naturelle des éléments
-                  - brightness(0.85) : Noir profond sans éteindre les lignes
-                  - contrast(1.4) : Fait ressortir les frontières sans empâter les textes
-                */
-                filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.4);
+                filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.3);
             }
         `;
         document.head.appendChild(styleDark);
+
+        // Suite des scripts
+        if (typeof initialiserEcouteursInterface === 'function') {
+            initialiserEcouteursInterface();
+        }
+        if (typeof declencherGeolocalisation === 'function') {
+            declencherGeolocalisation();
+        }
+
+    } catch (e) {
+        console.error("Erreur lors de l'initialisation de la carte :", e);
+    }
+}
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
