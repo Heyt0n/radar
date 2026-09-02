@@ -106,10 +106,10 @@ function initialiserCarteEtMoteur() {
     try {
         map = L.map('map', { zoomControl: false }).setView([DEF_LAT, DEF_LON], 11);
 
-        // ✅ Tuiles CartoDB Voyager libres d'accès
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap © CARTO'
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '© OpenStreetMap France | OpenStreetMap contributors'
+}).addTo(map);
 
         initialiserEcouteursInterface();
         declencherGeolocalisation();
