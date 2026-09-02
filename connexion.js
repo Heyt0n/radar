@@ -114,16 +114,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             localStorage.setItem("radar_pseudo", userPseudo);
             localStorage.setItem("radar_session_active", "true");
             
-            window.location.href = "index.html";
+           fermerModalConnexion();
         });
     }
+function ouvrirModalConnexion() {
+    const modal = document.getElementById("modal-auth-overlay");
+    if (modal) modal.classList.remove("hidden");
+}
 
-    // 4. MODE INVITÉ
-    if (btnSkip) {
-        btnSkip.addEventListener("click", () => {
-            localStorage.setItem("radar_session_active", "true");
-            localStorage.setItem("radar_pseudo", "Invité");
-            window.location.href = "index.html";
-        });
-    }
+function fermerModalConnexion() {
+    const modal = document.getElementById("modal-auth-overlay");
+    if (modal) modal.classList.add("hidden");
+}
 });
