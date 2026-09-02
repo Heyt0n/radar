@@ -13,62 +13,30 @@ function toggleBurgerMenu() {
 }
 
 // ============================================================================
-// INITIALISATION
+// INITIALISATION & SÉCURITÉ
 // ============================================================================
-
 document.addEventListener("DOMContentLoaded", async () => {
-    
-    // 1. Contrôle strict de l'accès
+    // 1. Contrôle d'accès Supabase
     const estConnecte = await verifierSessionOuvrirModal();
-    
     if (!estConnecte) {
-        // STOP : Aucun fetch, aucune carte ne se charge
-        return; 
+        return; // Stoppe si non connecté (le modal s'ouvre)
     }
 
-    // 2. Lancement des fonctions tactiques de ta page
-    initialiserApplication();
-});
-
-async function verifierSessionOuvrirModal() {
-    if (typeof _supabase === 'undefined') {
-        ouvrirModalConnexion();
-        return false;
-    }
-
-    const { data: { session } } = await _supabase.auth.getSession();
-    
-    if (!session) {
-        ouvrirModalConnexion();
-        return false;
-    }
-
-    return true;
-}
-
-function initialiserApplication() {
-    // Mets ici ton code de chargement de carte, de fetch, etc.
-    initialiserCarteTrajet();
-    executerCalculTrajet();
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////
-document.addEventListener("DOMContentLoaded", async () => {
-    // Écouteurs pour le menu burger
+    // 2. Initialisation des événements UI
     const burgerBtn = document.getElementById('burgerBtn');
     const menuOverlay = document.getElementById('menuOverlay');
-
     if (burgerBtn) {
         burgerBtn.addEventListener('click', toggleBurgerMenu);
         burgerBtn.addEventListener('touchend', (e) => { e.preventDefault(); toggleBurgerMenu(); }, { passive: false });
     }
     if (menuOverlay) menuOverlay.addEventListener('click', toggleBurgerMenu);
 
-    // Synchronisation de la session utilisateur Supabase
+    // 3. Affichage du pseudo dans le menu
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session && session.user) {
-                const pseudo = session.user.user_metadata.display_name || "Opérateur";
+                const pseudo = session.user.user_metadata?.display_name || "Opérateur";
                 const badge = document.getElementById("nom-operateur");
                 if (badge) badge.textContent = pseudo;
             }
@@ -77,10 +45,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error("Erreur session menu outils :", e);
     }
 
-    // Lancement simultané du Brief Macro et du flux d'Actualités
+    // 4. Lancement des données de la page Outils
     chargerBriefDuSoir();
     chargerActualitesCarburant();
 });
+
+async function verifierSessionOuvrirModal() {
+    if (typeof _supabase === 'undefined') {
+        ouvrirModalConnexion();
+        return false;
+    }
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session) {
+        ouvrirModalConnexion();
+        return false;
+    }
+    return true;
+}
+
+function ouvrirModalConnexion() {
+    const modal = document.getElementById("modal-auth-overlay");
+    if (modal) modal.classList.remove("hidden");
+}
+
+function fermerModalConnexion() {
+    const modal = document.getElementById("modal-auth-overlay");
+    if (modal) modal.classList.add("hidden");
+}
 
 // ============================================================================
 // MODULE BRIEF MACRO & JAUGE DYNAMIQUE (GOOGLE SHEETS CSV)
@@ -93,10 +84,9 @@ async function chargerBriefDuSoir() {
     const jaugeMessage = document.getElementById('jauge-message');
 
     try {
-        console.log("Brief : Tentative de connexion au flux Google Sheets...");
+        console.log("Brief : Connexion au flux Google Sheets...");
         const response = await fetch(GOOGLE_SHEETS_COMMENTAIRE_URL);
         if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-
         const csvText = await response.text();
 
         Papa.parse(csvText, {
@@ -104,11 +94,9 @@ async function chargerBriefDuSoir() {
             skipEmptyLines: true,
             complete: (results) => {
                 const lignes = results.data;
-
                 if (lignes && lignes.length > 0) {
                     const dernierBrief = lignes[lignes.length - 1];
-
-                    const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || dernierBrief["Commentaire "] || "Aucun brief disponible pour le moment.";
+                    const tonTexte = dernierBrief.Commentaire || dernierBrief.commentaire || dernierBrief["Commentaire "] || "Aucun brief disponible.";
                     const dateTxt = dernierBrief.Date || dernierBrief.date || "Dernière Note";
 
                     if (elementHtml) elementHtml.innerText = tonTexte;
@@ -116,8 +104,7 @@ async function chargerBriefDuSoir() {
 
                     let valJauge = parseInt(dernierBrief.Jauge || dernierBrief.jauge || dernierBrief.Score || dernierBrief.score || 0);
                     if (isNaN(valJauge)) valJauge = 0;
-                    if (valJauge < 0) valJauge = 0;
-                    if (valJauge > 100) valJauge = 100;
+                    valJauge = Math.max(0, Math.min(100, valJauge));
 
                     let couleur = "#22c55e"; // Vert
                     let message = "🎯 ACHETER — Prix bas / Moment opportun";
@@ -142,21 +129,19 @@ async function chargerBriefDuSoir() {
                         jaugeMessage.textContent = message;
                         jaugeMessage.style.color = couleur;
                     }
-
-                    console.log("🛰️ Brief & Jauge injectés avec succès :", valJauge, tonTexte);
                 } else {
-                    if (elementHtml) elementHtml.innerText = "Aucun commentaire publié pour le moment.";
+                    if (elementHtml) elementHtml.innerText = "Aucun commentaire disponible.";
                 }
             }
         });
     } catch (e) {
         console.error("Erreur technique brief macro :", e);
-        if (elementHtml) elementHtml.innerText = "Impossible de charger le brief macro actuel.";
+        if (elementHtml) elementHtml.innerText = "Impossible de charger le brief macro actuellement.";
     }
 }
 
 // ============================================================================
-// MODULE ACTUALITÉS CARBURANT (FLUX RSS EN DIRECT)
+// MODULE ACTUALITÉS CARBURANT (FLUX RSS)
 // ============================================================================
 async function chargerActualitesCarburant() {
     const container = document.getElementById('news-container');
@@ -170,7 +155,6 @@ async function chargerActualitesCarburant() {
     try {
         const response = await fetch(apiUrl);
         if (!response.ok) throw new Error("Erreur serveur d'actualités.");
-
         const data = await response.json();
 
         if (data.status !== 'ok' || !data.items || data.items.length === 0) {
@@ -179,12 +163,10 @@ async function chargerActualitesCarburant() {
         }
 
         container.innerHTML = "";
-
         data.items.slice(0, 12).forEach(item => {
             const dateArticle = new Date(item.pubDate).toLocaleDateString('fr-FR', {
                 day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
             });
-
             const sourceMatch = item.title.match(/ - ([^-]+)$/);
             const sourceNom = sourceMatch ? sourceMatch[1] : "Presse";
             const titrePropre = item.title.replace(/ - [^-]+$/, '');
@@ -207,7 +189,6 @@ async function chargerActualitesCarburant() {
         if (updateLabel) {
             updateLabel.textContent = `Mis à jour : ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
         }
-
     } catch (err) {
         console.error("Erreur actualités :", err);
         container.innerHTML = `<p style="font-size:12px; color:var(--texte-secondaire); grid-column:1/-1; text-align:center;">Échec du chargement du flux d'actualités.</p>`;
@@ -218,40 +199,29 @@ async function chargerActualitesCarburant() {
 // CALCULATEUR DE RENTABILITÉ RÉELLE DU DÉTOUR
 // ============================================================================
 function calculerRentabiliteDetour() {
-    console.log("👉 Calcul de rentabilité déclenché");
-
     const elVolume = document.getElementById("calc-volume");
     const elConso = document.getElementById("calc-conso");
     const elDiffPrix = document.getElementById("calc-diff-prix");
     const elDetour = document.getElementById("calc-detour");
     const resultBox = document.getElementById("calc-result");
 
-    if (!resultBox) {
-        alert("Erreur : zone de résultat introuvable.");
-        return;
-    }
+    if (!resultBox) return;
 
-    const volumePlein = parseFloat(elVolume ? elVolume.value : 0) || 0;
-    const consoMoyenne = parseFloat(elConso ? elConso.value : 0) || 0;
-    const diffPrix = parseFloat(elDiffPrix ? elDiffPrix.value : 0) || 0;
-    const kmDetour = parseFloat(elDetour ? elDetour.value : 0) || 0;
+    const volumePlein = parseFloat(elVolume?.value || 0);
+    const consoMoyenne = parseFloat(elConso?.value || 0);
+    const diffPrix = parseFloat(elDiffPrix?.value || 0);
+    const kmDetour = parseFloat(elDetour?.value || 0);
 
     if (volumePlein <= 0 || consoMoyenne <= 0) {
         alert("Veuillez remplir des valeurs de volume et de consommation valides.");
         return;
     }
 
-    // 1. Gain brut à la pompe
     const gainBrut = volumePlein * diffPrix;
-
-    // 2. Carburant brûlé sur le détour (Aller-Retour)
     const litresBrules = (kmDetour * consoMoyenne) / 100;
-    const coutDetour = litresBrules * 1.80; // Base d'estimation à 1,80€/L
-
-    // 3. Gain Net Réel
+    const coutDetour = litresBrules * 1.80; // Base estimée à 1,80€/L
     const gainNet = gainBrut - coutDetour;
 
-    // Affichage
     resultBox.classList.remove("hidden");
     resultBox.className = "result-box";
 
@@ -264,7 +234,8 @@ function calculerRentabiliteDetour() {
             👉 <strong>Gain net réel : +${gainNet.toFixed(2)} €</strong>
         `;
     } else {
-        resultBox.classList.add("non-rentable");
+        resultBox.classList.add("rentable");
+        resultBox.classList.replace("rentable", "non-rentable");
         resultBox.innerHTML = `
             <strong>⚠️ DÉTOUR NON RENTABLE !</strong><br>
             • Économie brute à la pompe : <strong>+${gainBrut.toFixed(2)} €</strong><br>
