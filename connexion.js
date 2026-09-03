@@ -127,9 +127,44 @@ function injecterStylesCSS() {
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
+        /* Conteneur avec bouton Oeil */
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-wrapper input {
+            padding-right: 2.8rem; /* Espace pour ne pas superposer le texte avec l'icône */
+        }
+
+        .toggle-password-btn {
+            position: absolute;
+            right: 0.8rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .toggle-password-btn:hover {
+            color: #3b82f6;
+        }
+
+        .toggle-password-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
         .forgot-password-container {
             text-align: right;
-            margin-top: -0.6rem;
+            margin-top: 0.4rem;
             margin-bottom: 1.2rem;
         }
 
@@ -207,7 +242,19 @@ function creerEtAfficherModal() {
                   
                   <div class="input-group">
                     <label for="input-password">MOT DE PASSE</label>
-                    <input type="password" id="input-password" required placeholder="••••••••">
+                    <div class="password-wrapper">
+                      <input type="password" id="input-password" required placeholder="••••••••">
+                      <button type="button" id="btn-toggle-password" class="toggle-password-btn" aria-label="Afficher le mot de passe">
+                        <!-- Icône Oeil Ouvert (par défaut) -->
+                        <svg id="eye-icon-open" viewBox="0 0 24 24">
+                          <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        <!-- Icône Oeil Barré (masquée au départ) -->
+                        <svg id="eye-icon-closed" class="hidden" viewBox="0 0 24 24">
+                          <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.17c0-1.66-1.34-3-3-3l-.17.02z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   <div id="forgot-password-box" class="forgot-password-container">
@@ -233,6 +280,25 @@ function creerEtAfficherModal() {
 
 function attacherEvenementsModal() {
     let modeInscription = false;
+
+    // Basculer la visibilité du mot de passe
+    const btnTogglePassword = document.getElementById("btn-toggle-password");
+    if (btnTogglePassword) {
+        btnTogglePassword.onclick = () => {
+            const passwordInput = document.getElementById("input-password");
+            const eyeOpen = document.getElementById("eye-icon-open");
+            const eyeClosed = document.getElementById("eye-icon-closed");
+
+            if (passwordInput && eyeOpen && eyeClosed) {
+                const estMasque = passwordInput.type === "password";
+                passwordInput.type = estMasque ? "text" : "password";
+
+                // Basculer l'affichage des icônes SVG
+                eyeOpen.classList.toggle("hidden", estMasque);
+                eyeClosed.classList.toggle("hidden", !estMasque);
+            }
+        };
+    }
 
     // Mot de passe oublié
     const btnForgot = document.getElementById("btn-forgot-password");
