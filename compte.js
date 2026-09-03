@@ -113,8 +113,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (error) throw error;
 
                 localStorage.setItem("radar_session_active", "false");
-                alert("Déconnexion réussie. Fermeture de la session tactique.");
-                window.location.href = "connexion.html"; 
+                alert("Déconnexion réussie.");
+                window.location.href = "index.html"; 
             } catch (err) {
                 console.error("Erreur lors de la déconnexion :", err.message);
                 alert("Erreur système lors de la déconnexion : " + err.message);
