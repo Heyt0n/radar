@@ -156,29 +156,53 @@ function initialiserCarteTrajet() {
     }
 }
 
+// ============================================================================
+// ÉCOUTEURS D'ÉVÉNEMENTS SÉCURISÉS & DIAGNOSTIC
+// ============================================================================
 function initialiserEcouteursTrajet() {
-    document.getElementById('btn-calculer-trajet')?.addEventListener('click', () => {
-        executerCalculTrajet();
-        if (window.innerWidth <= 768) {
-            document.getElementById('options-trajet')?.classList.add('masque-mobile');
-            const ind = document.getElementById('indicateur-filtre-fleche');
-            if (ind) ind.textContent = '▼';
-        }
-    });
+    const btnCalcul = document.getElementById('btn-calculer-trajet');
+    const selectCarburant = document.getElementById('select-carburant-trajet');
+    const selectRayon = document.getElementById('select-rayon-trajet');
+    const selectAffichage = document.getElementById('select-affichage-trajet');
 
-    document.getElementById('select-carburant-trajet')?.addEventListener('change', () => {
-        if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
-    });
+    // Écouteur pour le bouton de calcul
+    if (btnCalcul) {
+        btnCalcul.addEventListener('click', () => {
+            console.log("▶️ Clic sur Calculer l'itinéraire");
+            executerCalculTrajet();
 
-    document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
-        DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value, 10);
-        if (routePolyline) filtrerEtAfficherStationsUnifie();
-    });
+            // Retrait automatique du volet sur mobile après lancement du calcul
+            if (window.innerWidth <= 768) {
+                const optTrajet = document.getElementById('options-trajet');
+                const indFleche = document.getElementById('indicateur-filtre-fleche');
+                if (optTrajet) optTrajet.classList.add('masque-mobile');
+                if (indFleche) indFleche.textContent = '▼';
+            }
+        });
+    } else {
+        console.warn("⚠️ Attention : 'btn-calculer-trajet' est introuvable dans le DOM.");
+    }
 
-    document.getElementById('select-affichage-trajet')?.addEventListener('change', () => {
-        if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
-    });
+    if (selectCarburant) {
+        selectCarburant.addEventListener('change', () => {
+            if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
+        });
+    }
 
+    if (selectRayon) {
+        selectRayon.addEventListener('change', (e) => {
+            DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value, 10);
+            if (routePolyline) filtrerEtAfficherStationsUnifie();
+        });
+    }
+
+    if (selectAffichage) {
+        selectAffichage.addEventListener('change', () => {
+            if (stationsSurTrajet.length > 0) rafraichirAffichageStationsTrajet();
+        });
+    }
+
+    // Fermeture des boîtes de suggestions lors d'un clic extérieur
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.wrapper-input')) {
             const boxDep = document.getElementById('box-suggestions-depart');
@@ -362,7 +386,6 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
-    // Échantillonnage adaptatif pour maintenir une précision constante
     const pas = Math.max(1, Math.floor(pointsRoute.length / 300));
     for (let i = 0; i < pointsRoute.length; i += pas) {
         if (getDistance(stationLat, stationLon, pointsRoute[i][0], pointsRoute[i][1]) <= DISTANCE_MAX_ROUTE_KM) return true;
@@ -689,6 +712,7 @@ function rafraichirAffichageStationsTrajet() {
     conteneurListe.appendChild(fragment);
 }
 
+// Exportation globale des fonctions nécessaires aux écouteurs inline
 window.toggleBurgerMenu = toggleBurgerMenu;
 window.toggleVoletFiltres = toggleVoletFiltres;
 window.basculerFavoriTrajet = basculerFavoriTrajet;
