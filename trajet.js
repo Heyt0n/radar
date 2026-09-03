@@ -4,11 +4,13 @@
 
 let mapTrajet = null;
 let fluxFranceTrajetBrut = [];
+let fluxGlobalUnifie = [];
 let stationsSurTrajet = [];
 let routePolyline = null;
 let marqueursStationsTrajet = [];
 let DISTANCE_MAX_ROUTE_KM = 10;
 let favorisTrajet = [];
+let timeoutSuggestion = null;
 
 const DEF_LAT = 48.71;
 const DEF_LON = 7.82;
@@ -39,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const menuOverlay = document.getElementById('menuOverlay');
 
     if (burgerBtn) {
-        burgerBtn.addEventListener('click', () => toggleBurgerMenu());
+        burgerBtn.addEventListener('click', toggleBurgerMenu);
         burgerBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             toggleBurgerMenu();
@@ -47,14 +49,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (menuOverlay) {
-        menuOverlay.addEventListener('click', () => toggleBurgerMenu());
+        menuOverlay.addEventListener('click', toggleBurgerMenu);
     }
 
-    // Gestion Auth / Supabase
+    // Synchronisation Session & Favoris
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
-            if (session && session.user) {
+            if (session?.user) {
                 const pseudo = session.user.user_metadata?.display_name || session.user.user_metadata?.pseudo || "Opérateur";
                 const nomOperateurBadge = document.getElementById("nom-operateur");
                 if (nomOperateurBadge) nomOperateurBadge.textContent = pseudo;
@@ -142,7 +144,6 @@ function initialiserCarteTrajet() {
         attribution: '© OpenStreetMap'
     }).addTo(mapTrajet);
 
-    // Application exacte du filtre CSS sombre de ton fichier principal
     if (!document.getElementById('style-carte-trajet-sombre')) {
         const styleDark = document.createElement('style');
         styleDark.id = 'style-carte-trajet-sombre';
@@ -170,7 +171,7 @@ function initialiserEcouteursTrajet() {
     });
 
     document.getElementById('select-rayon-trajet')?.addEventListener('change', (e) => {
-        DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value);
+        DISTANCE_MAX_ROUTE_KM = parseInt(e.target.value, 10);
         if (routePolyline) filtrerEtAfficherStationsUnifie();
     });
 
@@ -208,7 +209,6 @@ function initialiserAutocompletionSurMesure() {
     }
 }
 
-let timeoutSuggestion;
 function gererSuggestionsHTML(valeur, idBox, inputElement) {
     const box = document.getElementById(idBox);
     if (!box) return;
@@ -231,6 +231,7 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
                 return;
             }
 
+            const fragment = document.createDocumentFragment();
             data.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
@@ -247,15 +248,16 @@ function gererSuggestionsHTML(valeur, idBox, inputElement) {
                     box.innerHTML = "";
                     box.style.display = 'none';
                 });
-                box.appendChild(div);
+                fragment.appendChild(div);
             });
+            box.appendChild(fragment);
             box.style.display = 'block';
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Erreur Autocomplétion :", e); }
     }, 250);
 }
 
 // ============================================================================
-// GÉOLOCALISATION GPS TACTIQUE
+// GÉOLOCALISATION GPS
 // ============================================================================
 function obtenirPositionGPS() {
     return new Promise((resolve, reject) => {
@@ -284,7 +286,7 @@ async function convertirGPSEnAdresse(lat, lon) {
         });
         if (!response.ok) throw new Error();
         const data = await response.json();
-        if (data && data.address) {
+        if (data?.address) {
             const route = data.address.road || data.address.pedestrian;
             const ville = data.address.city || data.address.town || data.address.village || "";
             if (route) return route + (ville ? ` (${ville})` : "");
@@ -303,7 +305,7 @@ async function appliquerMaPosition(inputId, btnElement) {
     const originalText = btnElement.textContent;
     btnElement.textContent = "⏳";
     btnElement.style.opacity = "0.7";
-    inputElement.value = "Calcul GPS tactique...";
+    inputElement.value = "Calcul GPS...";
 
     try {
         const coords = await obtenirPositionGPS();
@@ -353,14 +355,15 @@ function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 function estProcheDeLaRoute(stationLat, stationLon, pointsRoute) {
-    const pas = Math.max(1, Math.floor(pointsRoute.length / 150));
+    // Échantillonnage adaptatif pour maintenir une précision constante
+    const pas = Math.max(1, Math.floor(pointsRoute.length / 300));
     for (let i = 0; i < pointsRoute.length; i += pas) {
         if (getDistance(stationLat, stationLon, pointsRoute[i][0], pointsRoute[i][1]) <= DISTANCE_MAX_ROUTE_KM) return true;
     }
@@ -414,14 +417,14 @@ async function executerCalculTrajet() {
         };
 
         if (statut) statut.textContent = "🗺️ Tracé de la route...";
-        let urlOSRM = `https://router.project-osrm.org/route/v1/driving/${coordsDep[1]},${coordsDep[0]};${coordsArr[1]},${coordsArr[0]}?overview=full&geometries=geojson`;
+        const urlOSRM = `https://router.project-osrm.org/route/v1/driving/${coordsDep[1]},${coordsDep[0]};${coordsArr[1]},${coordsArr[0]}?overview=full&geometries=geojson`;
+        
         let resRoute;
-
         try {
             resRoute = await fetch(urlOSRM);
-            if (!resRoute.ok) throw new Error();
-        } catch(e) {
-            resRoute = await fetch(`https://corsproxy.io/?${encodeURIComponent(urlOSRM)}`);
+            if (!resRoute.ok) throw new Error("Erreur OSRM direct");
+        } catch (e) {
+            resRoute = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(urlOSRM)}`);
         }
 
         const dataRoute = await resRoute.json();
@@ -444,15 +447,15 @@ async function executerCalculTrajet() {
 
         if (statut) statut.textContent = "🛰️ Analyse multi-pays...";
 
-        // 1. France
+        // 1. Charger France
         if (fluxFranceTrajetBrut.length === 0) {
             try {
                 const resFR = await fetch('./stations_france.json');
                 if (resFR.ok) fluxFranceTrajetBrut = await resFR.json();
-            } catch(e) { console.error("Erreur flux France trajet :", e); }
+            } catch (e) { console.error("Erreur flux France trajet :", e); }
         }
 
-        // 2. Allemagne (via Supabase Edge Function: prix-allemagne)
+        // 2. Charger Allemagne (Supabase Edge Function)
         let allemagneNormalisee = [];
         try {
             if (typeof _supabase !== 'undefined') {
@@ -460,7 +463,7 @@ async function executerCalculTrajet() {
                     body: { lat: dernierePositionRouteCentrale.lat, lon: dernierePositionRouteCentrale.lon, rad: 25 }
                 });
 
-                if (!error && dataDE && dataDE.ok && dataDE.stations) {
+                if (!error && dataDE?.ok && dataDE?.stations) {
                     allemagneNormalisee = dataDE.stations.map(st => ({
                         n: st.name || "Station Allemande",
                         a: st.street || st.name,
@@ -475,14 +478,14 @@ async function executerCalculTrajet() {
                     }));
                 }
             }
-        } catch(e) { console.error("API Allemande trajet injoignable :", e); }
+        } catch (e) { console.error("API Allemande trajet injoignable :", e); }
 
         fluxGlobalUnifie = [...fluxFranceTrajetBrut, ...allemagneNormalisee];
         filtrerEtAfficherStationsUnifie();
     } catch (err) {
         console.error(err);
         if (statut) {
-            statut.textContent = "❌ Erreur.";
+            statut.textContent = "❌ Erreur de calcul.";
             statut.style.color = "#ef4444";
         }
     }
@@ -494,8 +497,6 @@ async function obtenirCoordonnees(nomVille) {
     const data = await res.json();
     return (data && data.length > 0) ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
 }
-
-let fluxGlobalUnifie = [];
 
 function filtrerEtAfficherStationsUnifie() {
     const statut = document.getElementById('trajet-statut');
@@ -603,6 +604,8 @@ function rafraichirAffichageStationsTrajet() {
         return;
     }
 
+    const fragment = document.createDocumentFragment();
+
     stationsAffichables.forEach(station => {
         let lat = parseFloat(station.lt);
         let lon = parseFloat(station.ln);
@@ -680,8 +683,10 @@ function rafraichirAffichageStationsTrajet() {
             mapTrajet.setView([lat, lon], 14);
             marker.openPopup();
         });
-        conteneurListe.appendChild(item);
+        fragment.appendChild(item);
     });
+
+    conteneurListe.appendChild(fragment);
 }
 
 window.toggleBurgerMenu = toggleBurgerMenu;
