@@ -6,7 +6,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 1. Injecter les styles CSS responsive
     injecterStylesCSS();
 
-    // 2. Vérifier la session Supabase
+    // 2. Vérifier si un lien de réinitialisation de mot de passe a été cliqué
+    if (typeof _supabase !== 'undefined') {
+        _supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                const nouveauMdp = prompt("Veuillez saisir votre nouveau mot de passe :");
+                if (nouveauMdp && nouveauMdp.trim().length >= 6) {
+                    const { error } = await _supabase.auth.updateUser({ password: nouveauMdp.trim() });
+                    if (error) {
+                        alert("Erreur lors de la mise à jour : " + error.message);
+                    } else {
+                        alert("Votre mot de passe a été mis à jour avec succès ! Vous pouvez maintenant vous connecter.");
+                        window.location.reload();
+                    }
+                } else if (nouveauMdp !== null) {
+                    alert("Le mot de passe doit contenir au moins 6 caractères.");
+                }
+            }
+        });
+    }
+
+    // 3. Vérifier la session Supabase
     try {
         if (typeof _supabase !== 'undefined') {
             const { data: { session } } = await _supabase.auth.getSession();
@@ -19,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.warn("Vérification session ignorée :", e);
     }
 
-    // 3. Non connecté : on injecte la boîte de connexion
+    // 4. Non connecté : on injecte la boîte de connexion
     creerEtAfficherModal();
 });
 
@@ -107,6 +127,25 @@ function injecterStylesCSS() {
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
+        .forgot-password-container {
+            text-align: right;
+            margin-top: -0.6rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .forgot-password-link {
+            color: #94a3b8;
+            font-size: 0.78rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .forgot-password-link:hover {
+            color: #3b82f6;
+            text-decoration: underline;
+        }
+
         .btn-primary {
             width: 100%;
             padding: 0.85rem;
@@ -125,27 +164,6 @@ function injecterStylesCSS() {
 
         .btn-primary:hover { background-color: #2563eb; }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .btn-secondary {
-            width: 100%;
-            padding: 0.85rem;
-            background-color: transparent;
-            border: 1px solid #283548;
-            border-radius: 8px;
-            color: #94a3b8;
-            font-weight: 600;
-            font-size: 0.85rem;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            margin-top: 0.75rem;
-            text-transform: uppercase;
-            transition: background-color 0.2s, color 0.2s;
-        }
-
-        .btn-secondary:hover {
-            background-color: #161f30;
-            color: #ffffff;
-        }
 
         .auth-footer {
             margin-top: 1.5rem;
@@ -167,7 +185,6 @@ function injecterStylesCSS() {
 }
 
 function creerEtAfficherModal() {
-    // Si la modal existe déjà dans le DOM HTML, on s'assure juste qu'elle est visible
     let overlay = document.getElementById("modal-auth-overlay");
     
     if (!overlay) {
@@ -192,9 +209,12 @@ function creerEtAfficherModal() {
                     <label for="input-password">MOT DE PASSE</label>
                     <input type="password" id="input-password" required placeholder="••••••••">
                   </div>
+
+                  <div id="forgot-password-box" class="forgot-password-container">
+                    <span id="btn-forgot-password" class="forgot-password-link">Mot de passe oublié ?</span>
+                  </div>
                   
                   <button type="submit" id="btn-submit" class="btn-primary">SE CONNECTER</button>
-                  <button type="button" id="btn-guest" class="btn-secondary">PASSER L'ÉTAPE (INVITÉ)</button>
                 </form>
                 
                 <p id="toggle-text" class="auth-footer">
@@ -214,12 +234,30 @@ function creerEtAfficherModal() {
 function attacherEvenementsModal() {
     let modeInscription = false;
 
-    // Bouton Invité
-    const btnGuest = document.getElementById("btn-guest");
-    if (btnGuest) {
-        btnGuest.onclick = () => {
-            const overlay = document.getElementById("modal-auth-overlay");
-            if (overlay) overlay.classList.add("hidden");
+    // Mot de passe oublié
+    const btnForgot = document.getElementById("btn-forgot-password");
+    if (btnForgot) {
+        btnForgot.onclick = async () => {
+            const emailInput = document.getElementById("input-email");
+            let email = emailInput ? emailInput.value.trim() : "";
+
+            if (!email) {
+                email = prompt("Veuillez saisir votre adresse e-mail pour recevoir le lien de réinitialisation :");
+            }
+
+            if (!email || !email.trim()) return;
+
+            try {
+                const { error } = await _supabase.auth.resetPasswordForEmail(email.trim(), {
+                    redirectTo: window.location.origin + window.location.pathname
+                });
+
+                if (error) throw error;
+
+                alert("📩 Un e-mail de réinitialisation vient de vous être envoyé. Vérifiez votre boîte de réception !");
+            } catch (err) {
+                alert("Erreur lors de l'envoi : " + (err.message || "Impossible de traiter la demande."));
+            }
         };
     }
 
@@ -233,12 +271,15 @@ function attacherEvenementsModal() {
                 const authSubtitle = document.getElementById("auth-subtitle");
                 const groupPseudo = document.getElementById("group-pseudo");
                 const btnSubmit = document.getElementById("btn-submit");
+                const forgotBox = document.getElementById("forgot-password-box");
 
                 if (modeInscription) {
                     if (authTitle) authTitle.textContent = "INSCRIPTION";
                     if (authSubtitle) authSubtitle.textContent = "Créez votre profil d'opérateur";
                     if (btnSubmit) btnSubmit.textContent = "CRÉER MON COMPTE";
                     if (groupPseudo) groupPseudo.classList.remove("hidden");
+                    if (forgotBox) forgotBox.classList.add("hidden");
+                    
                     const inputPseudo = document.getElementById("input-pseudo");
                     if (inputPseudo) inputPseudo.required = true;
                     toggleText.innerHTML = `Déjà un compte ? <span id="toggle-link">Se connecter</span>`;
@@ -247,6 +288,8 @@ function attacherEvenementsModal() {
                     if (authSubtitle) authSubtitle.textContent = "Accédez à votre terminal de ciblage";
                     if (btnSubmit) btnSubmit.textContent = "SE CONNECTER";
                     if (groupPseudo) groupPseudo.classList.add("hidden");
+                    if (forgotBox) forgotBox.classList.remove("hidden");
+                    
                     const inputPseudo = document.getElementById("input-pseudo");
                     if (inputPseudo) inputPseudo.required = false;
                     toggleText.innerHTML = `Pas encore de compte ? <span id="toggle-link">Créer un profil</span>`;
@@ -294,7 +337,12 @@ function attacherEvenementsModal() {
 
                     if (error) throw error;
 
-                    alert("Compte créé avec succès ! Tu peux maintenant te connecter.");
+                    if (data.user && !data.session) {
+                        alert("📧 Compte créé ! Un e-mail de confirmation vous a été envoyé. Veuillez valider votre adresse avant de vous connecter.");
+                    } else {
+                        alert("Compte créé avec succès ! Tu peux maintenant te connecter.");
+                    }
+
                     const toggleLink = document.getElementById("toggle-link");
                     if (toggleLink) toggleLink.click();
 
